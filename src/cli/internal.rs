@@ -39,14 +39,42 @@ impl<'i> Internal<'i> {
         };
 
         if matches!(self.server_name, "internal" | "local") {
-            let pattern = Regex::new(r"(?m)^[a-zA-Z0-9]+(/[a-zA-Z0-9]+)*(\.js|\.ts)?$").unwrap();
-
-            if pattern.is_match(script) {
-                let script = format!("{} {script}", config.runner.node);
-                self.runner.start(&name, &script, file::cwd(), watch).save();
+            // Check if script is a file path with an extension
+            let script_to_run = if let Some(ext_start) = script.rfind('.') {
+                let ext = &script[ext_start..];
+                let base_pattern = Regex::new(r"^[^\s]+\.(js|ts|py|sh|rb|pl|php)(\s|$)").unwrap();
+                
+                if base_pattern.is_match(script) {
+                    // It's a script file with extension - determine the interpreter
+                    let interpreter = match ext {
+                        ".js" | ".ts" => config.runner.node.clone(),
+                        ".py" => "python3".to_string(),
+                        ".sh" => "bash".to_string(),
+                        ".rb" => "ruby".to_string(),
+                        ".pl" => "perl".to_string(),
+                        ".php" => "php".to_string(),
+                        _ => "".to_string(),
+                    };
+                    
+                    if !interpreter.is_empty() {
+                        format!("{} {}", interpreter, script)
+                    } else {
+                        script.clone()
+                    }
+                } else {
+                    script.clone()
+                }
             } else {
-                self.runner.start(&name, script, file::cwd(), watch).save();
-            }
+                // No extension, check old pattern for js/ts
+                let pattern = Regex::new(r"(?m)^[a-zA-Z0-9]+(/[a-zA-Z0-9]+)*$").unwrap();
+                if pattern.is_match(script) {
+                    format!("{} {}", config.runner.node, script)
+                } else {
+                    script.clone()
+                }
+            };
+
+            self.runner.start(&name, &script_to_run, file::cwd(), watch).save();
         } else {
             let Some(servers) = config::servers().servers else {
                 crashln!("{} Failed to read servers", *helpers::FAIL)
