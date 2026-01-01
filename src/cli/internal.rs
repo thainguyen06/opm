@@ -1,4 +1,5 @@
 use colored::Colorize;
+use lazy_static::lazy_static;
 use macros_rs::{crashln, string, ternary, then};
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 use pmc::process::{MemoryInfo, unix::NativeProcess as Process};
@@ -23,6 +24,11 @@ use tabled::{
     Table, Tabled,
 };
 
+lazy_static! {
+    static ref SCRIPT_EXTENSION_PATTERN: Regex = Regex::new(r"^[^\s]+\.(js|ts|py|sh|rb|pl|php)(\s|$)").unwrap();
+    static ref SIMPLE_PATH_PATTERN: Regex = Regex::new(r"^[a-zA-Z0-9]+(/[a-zA-Z0-9]+)*$").unwrap();
+}
+
 pub struct Internal<'i> {
     pub id: usize,
     pub runner: Runner,
@@ -39,14 +45,40 @@ impl<'i> Internal<'i> {
         };
 
         if matches!(self.server_name, "internal" | "local") {
-            let pattern = Regex::new(r"(?m)^[a-zA-Z0-9]+(/[a-zA-Z0-9]+)*(\.js|\.ts)?$").unwrap();
-
-            if pattern.is_match(script) {
-                let script = format!("{} {script}", config.runner.node);
-                self.runner.start(&name, &script, file::cwd(), watch).save();
+            // Check if script is a file path with an extension
+            let script_to_run = if let Some(ext_start) = script.rfind('.') {
+                let ext = &script[ext_start..];
+                
+                if SCRIPT_EXTENSION_PATTERN.is_match(script) {
+                    // It's a script file with extension - determine the interpreter
+                    let interpreter = match ext {
+                        ".js" | ".ts" => config.runner.node.clone(),
+                        ".py" => "python3".to_string(),
+                        ".sh" => "bash".to_string(),
+                        ".rb" => "ruby".to_string(),
+                        ".pl" => "perl".to_string(),
+                        ".php" => "php".to_string(),
+                        _ => "".to_string(),
+                    };
+                    
+                    if !interpreter.is_empty() {
+                        format!("{} {}", interpreter, script)
+                    } else {
+                        script.clone()
+                    }
+                } else {
+                    script.clone()
+                }
             } else {
-                self.runner.start(&name, script, file::cwd(), watch).save();
-            }
+                // No extension, check old pattern for js/ts
+                if SIMPLE_PATH_PATTERN.is_match(script) {
+                    format!("{} {}", config.runner.node, script)
+                } else {
+                    script.clone()
+                }
+            };
+
+            self.runner.start(&name, &script_to_run, file::cwd(), watch).save();
         } else {
             let Some(servers) = config::servers().servers else {
                 crashln!("{} Failed to read servers", *helpers::FAIL)

@@ -14,7 +14,6 @@ use structs::prelude::*;
 
 use std::{
     fs::write,
-    net::{IpAddr, Ipv4Addr},
     path::Path,
 };
 
@@ -52,14 +51,6 @@ pub fn read() -> Config {
                         restarts: 10,
                         interval: 1000,
                         kind: string!("default"),
-                        web: Web {
-                            ui: false,
-                            api: false,
-                            address: string!("0.0.0.0"),
-                            path: None,
-                            port: 5630,
-                            secure: Some(Secure { enabled: false, token: string!("") }),
-                        },
                     },
                 };
 
@@ -101,18 +92,6 @@ pub fn servers() -> Servers {
 impl Config {
     pub fn check_shell_absolute(&self) -> bool { Path::new(&self.runner.shell).is_absolute() }
 
-    pub fn get_address(&self) -> rocket::figment::Figment {
-        let config_split: Vec<u8> = match self.daemon.web.address.as_str() {
-            "localhost" => vec![127, 0, 0, 1],
-            _ => self.daemon.web.address.split('.').map(|part| part.parse().expect("Failed to parse address part")).collect(),
-        };
-
-        let ipv4_address: Ipv4Addr = Ipv4Addr::from([config_split[0], config_split[1], config_split[2], config_split[3]]);
-        let ip_address: IpAddr = IpAddr::from(ipv4_address);
-
-        rocket::Config::figment().merge(("port", self.daemon.web.port)).merge(("address", ip_address))
-    }
-
     pub fn save(&self) {
         match home::home_dir() {
             Some(path) => {
@@ -136,8 +115,4 @@ impl Config {
         self.default = string!(name);
         self
     }
-
-    pub fn fmt_address(&self) -> String { format!("{}:{}", self.daemon.web.address.clone(), self.daemon.web.port) }
-
-    pub fn get_path(&self) -> String { self.daemon.web.path.clone().unwrap_or(string!("/")) }
 }

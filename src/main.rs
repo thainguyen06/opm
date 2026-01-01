@@ -1,7 +1,6 @@
 mod cli;
 mod daemon;
 mod globals;
-mod webui;
 
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::{LogLevel, Verbosity};
@@ -38,14 +37,7 @@ enum Daemon {
     Stop,
     /// Restart daemon
     #[command(visible_alias = "restart", visible_alias = "start")]
-    Restore {
-        /// Daemon api
-        #[arg(long)]
-        api: bool,
-        /// WebUI using api
-        #[arg(long)]
-        webui: bool,
-    },
+    Restore,
     /// Check daemon health
     #[command(visible_alias = "info", visible_alias = "status")]
     Health {
@@ -244,7 +236,7 @@ fn main() {
             Daemon::Stop => daemon::stop(),
             Daemon::Reset => daemon::reset(),
             Daemon::Health { format } => daemon::health(format),
-            Daemon::Restore { api, webui } => daemon::restart(api, webui, level.as_str() != "OFF"),
+            Daemon::Restore => daemon::restart(level.as_str() != "OFF"),
         },
 
         Commands::Server { command } => match command {
@@ -261,6 +253,6 @@ fn main() {
         && !matches!(&cli.command, Commands::Env { .. })
         && !matches!(&cli.command, Commands::Export { .. })
     {
-        then!(!daemon::pid::exists(), daemon::restart(&false, &false, false));
+        then!(!daemon::pid::exists(), daemon::restart(false));
     }
 }
