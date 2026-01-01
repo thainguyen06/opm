@@ -290,8 +290,8 @@ impl<'i> Internal<'i> {
                     "json" => println!("{json}"),
                     _ => {
                         println!("{}\n{table}\n", format!("Describing {}process with id ({})", self.kind, self.id).on_bright_white().black());
-                        println!(" {}", format!("Use `pmc logs {} [--lines <num>]` to display logs", self.id).white());
-                        println!(" {}", format!("Use `pmc env {}`  to display environment variables", self.id).white());
+                        println!(" {}", format!("Use `opm logs {} [--lines <num>]` to display logs", self.id).white());
+                        println!(" {}", format!("Use `opm env {}`  to display environment variables", self.id).white());
                     }
                 };
             };

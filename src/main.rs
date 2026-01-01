@@ -209,7 +209,7 @@ fn main() {
     let cli = Cli::parse();
     let mut env = env_logger::Builder::new();
     let level = cli.verbose.log_level_filter();
-    let informer = update_informer::new(registry::Crates, "pmc", env!("CARGO_PKG_VERSION"));
+    let informer = update_informer::new(registry::Crates, "opm", env!("CARGO_PKG_VERSION"));
 
     if let Some(version) = informer.check_version().ok().flatten() {
         println!("{} New version is available: {version}", *pmc::helpers::WARN);
