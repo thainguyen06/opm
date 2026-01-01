@@ -175,11 +175,23 @@ enum Commands {
     Logs {
         #[clap(value_parser = cli::validate::<Item>)]
         item: Item,
-        #[arg(long, default_value_t = 15, help = "")]
+        #[arg(long, default_value_t = 15, help = "Number of lines to display")]
         lines: usize,
         /// Server
         #[arg(short, long)]
         server: Option<String>,
+        /// Follow log output (like tail -f)
+        #[arg(short, long)]
+        follow: bool,
+        /// Filter logs by pattern (case-insensitive)
+        #[arg(long)]
+        filter: Option<String>,
+        /// Show only error logs
+        #[arg(long)]
+        errors_only: bool,
+        /// Show log statistics
+        #[arg(long)]
+        stats: bool,
     },
     /// Flush a process log
     #[command(visible_alias = "clean", visible_alias = "log_rotate")]
@@ -229,7 +241,9 @@ fn main() {
         Commands::Env { item, server } => cli::env(item, &defaults(server)),
         Commands::Details { item, format, server } => cli::info(item, format, &defaults(server)),
         Commands::List { format, server } => Internal::list(format, &defaults(server)),
-        Commands::Logs { item, lines, server } => cli::logs(item, lines, &defaults(server)),
+        Commands::Logs { item, lines, server, follow, filter, errors_only, stats } => {
+            cli::logs(item, lines, &defaults(server), *follow, filter.as_deref(), *errors_only, *stats)
+        },
         Commands::Flush { item, server } => cli::flush(item, &defaults(server)),
 
         Commands::Daemon { command } => match command {

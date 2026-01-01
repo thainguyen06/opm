@@ -425,7 +425,7 @@ impl<'i> Internal<'i> {
         }
     }
 
-    pub fn logs(mut self, lines: &usize) {
+    pub fn logs(mut self, lines: &usize, follow: bool, filter: Option<&str>, errors_only: bool, stats: bool) {
         if !matches!(self.server_name, "internal" | "local") {
             let Some(servers) = config::servers().servers else {
                 crashln!("{} Failed to read servers", *helpers::FAIL)
@@ -447,6 +447,10 @@ impl<'i> Internal<'i> {
             );
 
             for kind in vec!["error", "out"] {
+                if errors_only && kind == "out" {
+                    continue;
+                }
+                
                 let logs = http::logs(&self.runner.remote.as_ref().unwrap(), self.id, kind);
 
                 if let Ok(log) = logs {
@@ -455,18 +459,30 @@ impl<'i> Internal<'i> {
                         continue;
                     }
 
-                    file::logs_internal(log.lines, *lines, log.path, self.id, kind, &item.name)
+                    file::logs_internal_with_options(log.lines, *lines, log.path, self.id, kind, &item.name, filter, stats)
                 }
             }
         } else {
             let item = self.runner.info(self.id).unwrap_or_else(|| crashln!("{} Process ({}) not found", *helpers::FAIL, self.id));
-            println!(
-                "{}",
-                format!("Showing last {lines} lines for {}process [{}] (change the value with --lines option)", self.kind, self.id).yellow()
-            );
+            
+            if follow {
+                println!(
+                    "{}",
+                    format!("Following logs for {}process [{}] (press Ctrl+C to exit)", self.kind, self.id).yellow()
+                );
+            } else {
+                println!(
+                    "{}",
+                    format!("Showing last {lines} lines for {}process [{}] (change the value with --lines option)", self.kind, self.id).yellow()
+                );
+            }
 
-            file::logs(item, *lines, "error");
-            file::logs(item, *lines, "out");
+            if errors_only {
+                file::logs_with_options(item, *lines, "error", follow, filter, stats);
+            } else {
+                file::logs_with_options(item, *lines, "error", follow, filter, stats);
+                file::logs_with_options(item, *lines, "out", follow, filter, stats);
+            }
         }
     }
 
