@@ -306,12 +306,15 @@ impl Runner {
 
             // Load environment variables from .env file
             let dotenv_vars = load_dotenv(&path);
-            let mut process_env = unix::env();
             
-            // Merge .env variables into the environment (prepend so they take priority)
-            for (key, value) in dotenv_vars.iter() {
-                process_env.insert(0, format!("{}={}", key, value));
+            // Prepare process environment with dotenv variables having priority
+            let mut process_env = Vec::with_capacity(dotenv_vars.len() + unix::env().len());
+            // Add dotenv variables first (higher priority)
+            for (key, value) in &dotenv_vars {
+                process_env.push(format!("{}={}", key, value));
             }
+            // Then add system environment
+            process_env.extend(unix::env());
 
             let pid = process_run(ProcessMetadata {
                 args: config.args,
@@ -322,8 +325,9 @@ impl Runner {
                 env: process_env,
             }).unwrap_or_else(|err| crashln!("Failed to run process: {err}"));
 
-            // Merge .env variables into the stored environment
+            // Merge .env variables into the stored environment (dotenv takes priority)
             let mut stored_env: Env = env::vars().collect();
+            // Extend with dotenv variables (this overwrites any existing keys)
             stored_env.extend(dotenv_vars);
 
             self.list.insert(
@@ -370,13 +374,17 @@ impl Runner {
                 // Load environment variables from .env file
                 let dotenv_vars = load_dotenv(&path);
                 
-                let mut temp_env = process.env.iter().map(|(key, value)| format!("{}={}", key, value)).collect::<Vec<String>>();
-                temp_env.extend(unix::env());
-                
-                // Merge .env variables into the environment (prepend so they take priority)
-                for (key, value) in dotenv_vars.iter() {
-                    temp_env.insert(0, format!("{}={}", key, value));
+                // Prepare process environment with dotenv variables having priority
+                let stored_env_vec: Vec<String> = process.env.iter().map(|(key, value)| format!("{}={}", key, value)).collect();
+                let mut temp_env = Vec::with_capacity(dotenv_vars.len() + stored_env_vec.len() + unix::env().len());
+                // Add dotenv variables first (highest priority)
+                for (key, value) in &dotenv_vars {
+                    temp_env.push(format!("{}={}", key, value));
                 }
+                // Then add stored environment
+                temp_env.extend(stored_env_vec);
+                // Finally add system environment
+                temp_env.extend(unix::env());
 
                 process.pid = process_run(ProcessMetadata {
                     args: config.args,
@@ -392,7 +400,7 @@ impl Runner {
                 process.started = Utc::now();
                 process.crash.crashed = false;
                 
-                // Merge .env variables into the stored environment
+                // Merge .env variables into the stored environment (dotenv takes priority)
                 let mut updated_env: Env = env::vars().collect();
                 updated_env.extend(dotenv_vars);
                 process.env.extend(updated_env);
