@@ -118,8 +118,11 @@ pub type Env = BTreeMap<String, String>;
 pub struct Process {
     pub id: usize,
     pub pid: i64,
+    /// PID of the parent shell process when running commands through a shell.
+    /// This is set when the command is executed via a shell (e.g., bash -c 'script.sh')
+    /// and shell_pid != actual_pid. Used for accurate CPU monitoring of shell scripts.
     #[serde(default)]
-    pub shell_pid: Option<i64>,  // PID of the shell process (for .sh scripts run through bash/sh)
+    pub shell_pid: Option<i64>,
     pub env: Env,
     pub name: String,
     pub path: PathBuf,
@@ -997,12 +1000,8 @@ pub fn process_run(metadata: ProcessMetadata) -> Result<ProcessRunResult, String
     let shell_pid = child.id() as i64;
     let actual_pid = unix::get_actual_child_pid(shell_pid);
 
-    // If shell and actual PIDs differ, it means we're running through a shell
-    let shell_pid_opt = if shell_pid != actual_pid {
-        Some(shell_pid)
-    } else {
-        None
-    };
+    // If shell and actual PIDs differ, store the shell PID for CPU monitoring
+    let shell_pid_opt = (shell_pid != actual_pid).then_some(shell_pid);
 
     Ok(ProcessRunResult {
         pid: actual_pid,
