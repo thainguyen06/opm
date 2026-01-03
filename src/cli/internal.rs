@@ -68,8 +68,9 @@ impl<'i> Internal<'i> {
     }
 
     /// Display real-time statistics multiple times during process initialization
-    fn show_initialization_stats(runner: &mut Runner, process_id: usize) {
-        let process = runner.process(process_id);
+    fn show_initialization_stats(runner: &Runner, process_id: usize) {
+        // Get process info without requiring mutable access
+        let process = runner.list.get(&process_id).expect("Process should exist");
         let pid = process.pid;
         // Borrow the name instead of cloning
         let process_name = &process.name;
@@ -153,7 +154,7 @@ impl<'i> Internal<'i> {
                 .map(|(id, _)| *id);
             
             if let Some(pid) = process_id {
-                Self::show_initialization_stats(&mut self.runner, pid);
+                Self::show_initialization_stats(&self.runner, pid);
             }
         }
         
@@ -204,7 +205,7 @@ impl<'i> Internal<'i> {
         if !silent {
             // Display real-time statistics during process restart
             if matches!(self.server_name, "internal" | "local") {
-                Self::show_initialization_stats(&mut self.runner, self.id);
+                Self::show_initialization_stats(&self.runner, self.id);
             }
             
             println!("{} Restarted {}({}) ✓", *helpers::SUCCESS, self.kind, self.id);
