@@ -1033,6 +1033,7 @@ mod tests {
         let process = Process {
             id,
             pid: 12345,
+            shell_pid: None,
             env: BTreeMap::new(),
             name: "test_process".to_string(),
             path: PathBuf::from("/tmp"),
@@ -1075,6 +1076,7 @@ mod tests {
         let process = Process {
             id,
             pid: 12345,
+            shell_pid: None,
             env: BTreeMap::new(),
             name: "test_process".to_string(),
             path: PathBuf::from("/tmp"),
