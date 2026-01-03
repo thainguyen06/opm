@@ -35,7 +35,10 @@ struct NamedFile(PathBuf, String);
 
 impl NamedFile {
     async fn send(name: String, contents: Option<&str>) -> io::Result<NamedFile> {
-        Ok(NamedFile(PathBuf::from(name), contents.unwrap().to_string()))
+        match contents {
+            Some(content) => Ok(NamedFile(PathBuf::from(name), content.to_string())),
+            None => Err(io::Error::new(io::ErrorKind::InvalidData, "File contents are not valid UTF-8")),
+        }
     }
 }
 
