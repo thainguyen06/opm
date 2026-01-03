@@ -59,6 +59,85 @@ pub fn get_cpu_percent(pid: u32) -> f64 {
     0.0
 }
 
+/// Get approximate CPU percentage without delay-based sampling
+/// This is much faster but less accurate than get_cpu_percent
+/// Returns average CPU usage since process start
+#[cfg(target_os = "linux")]
+pub fn get_cpu_percent_fast(pid: u32) -> f64 {
+    use std::fs;
+    use std::sync::OnceLock;
+    
+    // Cache the number of CPUs as it doesn't change during execution
+    static NUM_CPUS: OnceLock<usize> = OnceLock::new();
+    let num_cpus = *NUM_CPUS.get_or_init(|| num_cpus::get());
+    
+    // Cache clock ticks per second - retrieve it once from the system
+    static CLOCK_TICKS_PER_SEC: OnceLock<f64> = OnceLock::new();
+    let clock_ticks = *CLOCK_TICKS_PER_SEC.get_or_init(|| {
+        // Try to get actual system value using sysconf
+        unsafe {
+            let ticks = libc::sysconf(libc::_SC_CLK_TCK);
+            if ticks > 0 {
+                ticks as f64
+            } else {
+                // Fallback to standard Linux value if sysconf fails
+                100.0
+            }
+        }
+    });
+    
+    let stat_path = format!("/proc/{}/stat", pid);
+    if let Ok(stat_content) = fs::read_to_string(&stat_path) {
+        let parts: Vec<&str> = stat_content.split_whitespace().collect();
+        // Indices from /proc/[pid]/stat format (see `man 5 proc`):
+        // [13] = utime (CPU time in user mode)
+        // [14] = stime (CPU time in kernel mode)
+        // [21] = starttime (time process started after system boot)
+        const UTIME_INDEX: usize = 13;
+        const STIME_INDEX: usize = 14;
+        const STARTTIME_INDEX: usize = 21;
+        
+        if parts.len() > STARTTIME_INDEX {
+            // Get process CPU time (utime + stime)
+            let utime = parts[UTIME_INDEX].parse::<u64>().unwrap_or(0) as f64;
+            let stime = parts[STIME_INDEX].parse::<u64>().unwrap_or(0) as f64;
+            let starttime = parts[STARTTIME_INDEX].parse::<u64>().unwrap_or(0) as f64;
+            
+            // Get system uptime
+            if let Ok(uptime_content) = fs::read_to_string("/proc/uptime") {
+                if let Some(uptime_str) = uptime_content.split_whitespace().next() {
+                    if let Ok(uptime) = uptime_str.parse::<f64>() {
+                        // Calculate process uptime in seconds
+                        let process_uptime = uptime - (starttime / clock_ticks);
+                        
+                        if process_uptime > 0.0 {
+                            // Total CPU time used by process in seconds
+                            let process_cpu_time = (utime + stime) / clock_ticks;
+                            
+                            // CPU percentage = (CPU time / elapsed time) * 100
+                            let cpu_percent = (process_cpu_time / process_uptime) * 100.0;
+                            
+                            // Clamp to reasonable value
+                            return cpu_percent.min(100.0 * num_cpus as f64);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    0.0
+}
+
+#[cfg(target_os = "macos")]
+pub fn get_cpu_percent_fast(pid: u32) -> f64 {
+    // For macOS, we'll use ps command as a fast approximation
+    if let Some(percent) = get_cpu_percent_ps(pid) {
+        return percent;
+    }
+    0.0
+}
+
 #[cfg(target_os = "macos")]
 pub fn get_cpu_percent(pid: u32) -> f64 {
     // Try mach task info first
