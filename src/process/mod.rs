@@ -574,6 +574,14 @@ impl Runner {
         return self;
     }
 
+    pub fn reset_counters(&mut self, id: usize) -> &mut Self {
+        let process = self.process(id);
+        process.restarts = 0;
+        process.crash.value = 0;
+        process.crash.crashed = false;
+        return self;
+    }
+
     pub fn find(&self, name: &str, server_name: &String) -> Option<usize> {
         let mut runner = self.clone();
 
@@ -706,6 +714,9 @@ impl ProcessWrapper {
 
     /// Clear environment values of the process item
     pub fn clear_env(&mut self) { lock!(self.runner).clear_env(self.id).save(); }
+
+    /// Reset restart and crash counters of the process item
+    pub fn reset_counters(&mut self) { lock!(self.runner).reset_counters(self.id).save(); }
 
     /// Get a json dump of the process item
     pub fn fetch(&self) -> ItemSingle {

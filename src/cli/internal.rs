@@ -577,6 +577,13 @@ impl<'i> Internal<'i> {
                 .restart(&None, &None, false, true);
             }
         });
+        
+        // Reset restart and crash counters after restore for all running processes
+        Runner::new().list().for_each(|(id, p)| {
+            if p.running == true {
+                runner.reset_counters(*id).save();
+            }
+        });
 
         println!("{} Restored process statuses from dumpfile", *helpers::SUCCESS);
         Internal::list(&string!("default"), &list_name);
