@@ -5,17 +5,19 @@ mod globals;
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::{LogLevel, Verbosity};
 use macros_rs::{str, string, then};
-use update_informer::{registry, Check};
+use update_informer::{Check, registry};
 
 use crate::{
-    cli::{internal::Internal, Args, Item, Items},
+    cli::{Args, Item, Items, internal::Internal},
     globals::defaults,
 };
 
 #[derive(Copy, Clone, Debug, Default)]
 struct NoneLevel;
 impl LogLevel for NoneLevel {
-    fn default() -> Option<log::Level> { None }
+    fn default() -> Option<log::Level> {
+        None
+    }
 }
 
 #[derive(Parser)]
@@ -47,8 +49,6 @@ enum Daemon {
     },
 }
 
-
-
 // add opm restore command
 #[derive(Subcommand)]
 enum Commands {
@@ -61,8 +61,8 @@ enum Commands {
     /// Export environment file from process
     #[command(visible_alias = "get")]
     Export {
-        #[clap(value_parser = cli::validate::<Item>)]
-        item: Item,
+        #[clap(value_parser = cli::validate_items)]
+        items: Items,
         /// Path to export file
         path: Option<String>,
     },
@@ -153,7 +153,11 @@ enum Commands {
     Logs {
         #[clap(value_parser = cli::validate::<Item>)]
         item: Item,
-        #[arg(long, default_value_t = 15, help = "Number of lines to display from the end of the log file")]
+        #[arg(
+            long,
+            default_value_t = 15,
+            help = "Number of lines to display from the end of the log file"
+        )]
         lines: usize,
         /// Server
         #[arg(short, long)]
@@ -223,7 +227,10 @@ fn main() {
     let informer = update_informer::new(registry::Crates, "opm", env!("CARGO_PKG_VERSION"));
 
     if let Some(version) = informer.check_version().ok().flatten() {
-        println!("{} New version is available: {version}", *opm::helpers::WARN);
+        println!(
+            "{} New version is available: {version}",
+            *opm::helpers::WARN
+        );
     }
 
     globals::init();
@@ -231,18 +238,43 @@ fn main() {
 
     match &cli.command {
         Commands::Import { path } => cli::import::read_hcl(path),
-        Commands::Export { item, path } => cli::import::export_hcl(item, path),
-        Commands::Start { name, args, watch, max_memory, server, reset_env } => cli::start(name, args, watch, max_memory, reset_env, &defaults(server)),
+        Commands::Export { items, path } => cli::import::export_hcl(items, path),
+        Commands::Start {
+            name,
+            args,
+            watch,
+            max_memory,
+            server,
+            reset_env,
+        } => cli::start(name, args, watch, max_memory, reset_env, &defaults(server)),
         Commands::Stop { items, server } => cli::stop(items, &defaults(server)),
         Commands::Remove { items, server } => cli::remove(items, &defaults(server)),
         Commands::Restore { server } => Internal::restore(&defaults(server)),
         Commands::Save { server } => Internal::save(&defaults(server)),
         Commands::Env { item, server } => cli::env(item, &defaults(server)),
-        Commands::Details { item, format, server } => cli::info(item, format, &defaults(server)),
+        Commands::Details {
+            item,
+            format,
+            server,
+        } => cli::info(item, format, &defaults(server)),
         Commands::List { format, server } => Internal::list(format, &defaults(server)),
-        Commands::Logs { item, lines, server, follow, filter, errors_only, stats } => {
-            cli::logs(item, lines, &defaults(server), *follow, filter.as_deref(), *errors_only, *stats)
-        },
+        Commands::Logs {
+            item,
+            lines,
+            server,
+            follow,
+            filter,
+            errors_only,
+            stats,
+        } => cli::logs(
+            item,
+            lines,
+            &defaults(server),
+            *follow,
+            filter.as_deref(),
+            *errors_only,
+            *stats,
+        ),
         Commands::Flush { item, server } => cli::flush(item, &defaults(server)),
 
         Commands::Daemon { command } => match command {
