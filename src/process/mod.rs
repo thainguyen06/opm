@@ -482,7 +482,9 @@ impl Runner {
                 process.crash.crashed = false;
                 
                 // Merge .env variables into the stored environment (dotenv takes priority)
-                process.env.extend(dotenv_vars);
+                let mut updated_env: Env = env::vars().collect();
+                updated_env.extend(dotenv_vars);
+                process.env.extend(updated_env);
 
                 then!(dead, process.restarts += 1);
                 then!(dead, process.crash.value += 1);
