@@ -1051,7 +1051,7 @@ impl ProcessWrapper {
 pub fn get_process_cpu_usage_percentage(pid: i64) -> f64 {
     match unix::NativeProcess::new(pid as u32) {
         Ok(process) => match process.cpu_percent() {
-            Ok(cpu_percent) => cpu_percent.min(100.0 * num_cpus::get() as f64),
+            Ok(cpu_percent) => cpu_percent.min(100.0 * unix::get_effective_cpu_count()),
             Err(_) => 0.0,
         },
         Err(_) => 0.0,
@@ -1062,7 +1062,7 @@ pub fn get_process_cpu_usage_percentage(pid: i64) -> f64 {
 pub fn get_process_cpu_usage_percentage_fast(pid: i64) -> f64 {
     match unix::NativeProcess::new_fast(pid as u32) {
         Ok(process) => match process.cpu_percent() {
-            Ok(cpu_percent) => cpu_percent.min(100.0 * num_cpus::get() as f64),
+            Ok(cpu_percent) => cpu_percent.min(100.0 * unix::get_effective_cpu_count()),
             Err(_) => 0.0,
         },
         Err(_) => 0.0,
@@ -1078,7 +1078,7 @@ pub fn get_process_cpu_usage_with_children_from_process(
     pid: i64,
 ) -> f64 {
     let parent_cpu = match parent_process.cpu_percent() {
-        Ok(cpu_percent) => cpu_percent.min(100.0 * num_cpus::get() as f64),
+        Ok(cpu_percent) => cpu_percent.min(100.0 * unix::get_effective_cpu_count()),
         Err(_) => 0.0,
     };
 
@@ -1092,7 +1092,7 @@ pub fn get_process_cpu_usage_with_children_from_process(
         .map(|&child_pid| get_process_cpu_usage_percentage_fast(child_pid))
         .sum();
 
-    (parent_cpu + children_cpu).min(100.0 * num_cpus::get() as f64)
+    (parent_cpu + children_cpu).min(100.0 * unix::get_effective_cpu_count())
 }
 
 /// Get the total CPU usage percentage of the process and its children (fast version)
@@ -1105,7 +1105,7 @@ pub fn get_process_cpu_usage_with_children_fast(pid: i64) -> f64 {
         .map(|&child_pid| get_process_cpu_usage_percentage_fast(child_pid))
         .sum();
 
-    (parent_cpu + children_cpu).min(100.0 * num_cpus::get() as f64)
+    (parent_cpu + children_cpu).min(100.0 * unix::get_effective_cpu_count())
 }
 
 /// Get the total CPU usage percentage of the process and its children
@@ -1123,7 +1123,7 @@ pub fn get_process_cpu_usage_with_children(pid: i64) -> f64 {
         .map(|&child_pid| get_process_cpu_usage_percentage_fast(child_pid))
         .sum();
 
-    (parent_cpu + children_cpu).min(100.0 * num_cpus::get() as f64)
+    (parent_cpu + children_cpu).min(100.0 * unix::get_effective_cpu_count())
 }
 
 /// Get the total memory usage of the process and its children
@@ -1410,9 +1410,9 @@ mod tests {
         let current_pid = std::process::id() as i64;
         let cpu_usage = get_process_cpu_usage_percentage(current_pid);
 
-        // CPU usage should be between 0 and 100 * number of cores
+        // CPU usage should be between 0 and 100 * effective number of cores
         assert!(cpu_usage >= 0.0);
-        assert!(cpu_usage <= 100.0 * num_cpus::get() as f64);
+        assert!(cpu_usage <= 100.0 * unix::get_effective_cpu_count());
 
         println!("CPU usage: {}", cpu_usage);
 
@@ -1539,9 +1539,9 @@ mod tests {
         
         // Both should be within valid ranges
         assert!(fast_cpu >= 0.0);
-        assert!(fast_cpu <= 100.0 * num_cpus::get() as f64);
+        assert!(fast_cpu <= 100.0 * unix::get_effective_cpu_count());
         assert!(fast_cpu_with_children >= 0.0);
-        assert!(fast_cpu_with_children <= 100.0 * num_cpus::get() as f64);
+        assert!(fast_cpu_with_children <= 100.0 * unix::get_effective_cpu_count());
         
         // CPU with children should be >= CPU of parent alone (assuming no negative children)
         assert!(fast_cpu_with_children >= fast_cpu - 0.1, 
