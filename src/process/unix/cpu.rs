@@ -1,3 +1,83 @@
+/// Get the effective number of CPUs, taking into account container CPU quotas.
+/// In containerized environments (Docker, Kubernetes, etc.), this returns the CPU quota
+/// instead of the host's CPU count. Falls back to host CPU count if not in a container.
+#[cfg(target_os = "linux")]
+pub fn get_effective_cpu_count() -> f64 {
+    use std::fs;
+    
+    // Helper function to read CPU quota from cgroup v2
+    let read_cgroup_v2_quota = |path: &str| -> Option<f64> {
+        if let Ok(content) = fs::read_to_string(path) {
+            let parts: Vec<&str> = content.trim().split_whitespace().collect();
+            if parts.len() >= 2 && parts[0] != "max" {
+                if let (Ok(quota), Ok(period)) = (parts[0].parse::<f64>(), parts[1].parse::<f64>()) {
+                    if period > 0.0 {
+                        let cpu_count = quota / period;
+                        if cpu_count > 0.0 {
+                            return Some(cpu_count);
+                        }
+                    }
+                }
+            }
+        }
+        None
+    };
+    
+    // Try to read cgroup v2 CPU settings
+    // First check the root cgroup location
+    if let Some(cpu_count) = read_cgroup_v2_quota("/sys/fs/cgroup/cpu.max") {
+        return cpu_count;
+    }
+    
+    // For cgroup v2, also try the process's specific cgroup path
+    if let Ok(cgroup_content) = fs::read_to_string("/proc/self/cgroup") {
+        for line in cgroup_content.lines() {
+            if line.starts_with("0::") {
+                // cgroup v2 format: "0::/path/to/cgroup"
+                if let Some(cgroup_path) = line.strip_prefix("0::") {
+                    // Skip if path is empty or just root
+                    if !cgroup_path.is_empty() && cgroup_path != "/" {
+                        let cpu_max_path = format!("/sys/fs/cgroup{}/cpu.max", cgroup_path);
+                        if let Some(cpu_count) = read_cgroup_v2_quota(&cpu_max_path) {
+                            return cpu_count;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Try cgroup v1 (older systems)
+    // Check /sys/fs/cgroup/cpu/cpu.cfs_quota_us and /sys/fs/cgroup/cpu/cpu.cfs_period_us
+    let quota_result = fs::read_to_string("/sys/fs/cgroup/cpu/cpu.cfs_quota_us")
+        .or_else(|_| fs::read_to_string("/sys/fs/cgroup/cpu,cpuacct/cpu.cfs_quota_us"));
+    
+    let period_result = fs::read_to_string("/sys/fs/cgroup/cpu/cpu.cfs_period_us")
+        .or_else(|_| fs::read_to_string("/sys/fs/cgroup/cpu,cpuacct/cpu.cfs_period_us"));
+    
+    if let (Ok(quota_str), Ok(period_str)) = (quota_result, period_result) {
+        if let (Ok(quota), Ok(period)) = (quota_str.trim().parse::<i64>(), period_str.trim().parse::<i64>()) {
+            // -1 means no limit
+            if quota > 0 && period > 0 {
+                let cpu_count = quota as f64 / period as f64;
+                if cpu_count > 0.0 {
+                    return cpu_count;
+                }
+            }
+        }
+    }
+    
+    // No container limits found, return host CPU count
+    num_cpus::get() as f64
+}
+
+/// Get the effective number of CPUs for macOS.
+/// macOS doesn't support cgroup-based containerization, so this returns the host CPU count.
+#[cfg(target_os = "macos")]
+pub fn get_effective_cpu_count() -> f64 {
+    num_cpus::get() as f64
+}
+
 #[cfg(target_os = "linux")]
 pub fn get_cpu_percent(pid: u32) -> f64 {
     use std::fs;
@@ -50,9 +130,11 @@ pub fn get_cpu_percent(pid: u32) -> f64 {
             let system_diff = end_system - start_system;
 
             if system_diff > 0.0 && elapsed > 0.0 {
-                let cpu_cores = num_cpus::get() as f64;
+                let cpu_cores = get_effective_cpu_count();
                 let available_cpu_time = elapsed * cpu_cores;
                 let cpu_percent = (process_diff / available_cpu_time) * 100.0;
+                // Clamp to 100% - a process can use at most 100% of available CPU
+                // In containers with CPU quota, this means 100% of the quota
                 return cpu_percent.min(100.0);
             }
         }
@@ -69,9 +151,9 @@ pub fn get_cpu_percent_fast(pid: u32) -> f64 {
     use std::fs;
     use std::sync::OnceLock;
 
-    // Cache the number of CPUs as it doesn't change during execution
-    static NUM_CPUS: OnceLock<usize> = OnceLock::new();
-    let num_cpus = *NUM_CPUS.get_or_init(|| num_cpus::get());
+    // Cache the effective number of CPUs (respects container limits)
+    static EFFECTIVE_CPUS: OnceLock<f64> = OnceLock::new();
+    let num_cpus = *EFFECTIVE_CPUS.get_or_init(|| get_effective_cpu_count());
 
     // Cache clock ticks per second - retrieve it once from the system
     static CLOCK_TICKS_PER_SEC: OnceLock<f64> = OnceLock::new();
@@ -117,10 +199,12 @@ pub fn get_cpu_percent_fast(pid: u32) -> f64 {
                             let process_cpu_time = (utime + stime) / clock_ticks;
 
                             // CPU percentage = (CPU time / elapsed time) * 100
-                            let cpu_percent = (process_cpu_time / process_uptime) * 100.0;
+                            // This gives percentage relative to ONE full core
+                            // We then normalize by dividing by available CPUs
+                            let cpu_percent = (process_cpu_time / process_uptime) * 100.0 / num_cpus;
 
-                            // Clamp to reasonable value
-                            return cpu_percent.min(100.0 * num_cpus as f64);
+                            // Clamp to 100% - represents full utilization of available CPU
+                            return cpu_percent.min(100.0);
                         }
                     }
                 }
