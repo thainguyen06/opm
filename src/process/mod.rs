@@ -28,6 +28,22 @@ use macros_rs::{crashln, string, ternary, then};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+// Constants for process termination waiting
+const MAX_TERMINATION_WAIT_ATTEMPTS: u32 = 50;
+const TERMINATION_CHECK_INTERVAL_MS: u64 = 100;
+
+/// Wait for a process to terminate gracefully
+/// Returns true if process terminated, false if timeout reached
+fn wait_for_process_termination(pid: i64) -> bool {
+    for _ in 0..MAX_TERMINATION_WAIT_ATTEMPTS {
+        match unix::NativeProcess::new(pid as u32) {
+            Ok(_) => thread::sleep(Duration::from_millis(TERMINATION_CHECK_INTERVAL_MS)),
+            Err(_) => return true, // Process has terminated
+        }
+    }
+    false // Timeout reached, process may still be running
+}
+
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct ItemSingle {
     pub info: Info,
@@ -422,12 +438,8 @@ impl Runner {
 
             // Wait for the process to actually terminate before starting a new one
             // This prevents conflicts when restarting processes that hold resources (e.g., network connections)
-            let pid_to_check = process.pid;
-            for _ in 0..50 {
-                match unix::NativeProcess::new(pid_to_check as u32) {
-                    Ok(_p) => thread::sleep(Duration::from_millis(100)),
-                    Err(_) => break,
-                }
+            if !wait_for_process_termination(process.pid) {
+                log::warn!("Process {} did not terminate within timeout during restart", process.pid);
             }
 
             if let Err(err) = std::env::set_current_dir(&path) {
@@ -605,11 +617,8 @@ impl Runner {
                 }
 
                 // Wait for old process to fully terminate to release any held resources
-                for _ in 0..50 {
-                    match unix::NativeProcess::new(old_pid as u32) {
-                        Ok(_p) => thread::sleep(Duration::from_millis(100)),
-                        Err(_) => break,
-                    }
+                if !wait_for_process_termination(old_pid) {
+                    log::warn!("Old process {} did not terminate within timeout during reload", old_pid);
                 }
             }
         }
@@ -759,11 +768,8 @@ impl Runner {
             let _ = process_stop(pid_to_check); // Continue even if stopping fails
 
             // waiting until Process is terminated
-            for _ in 0..50 {
-                match unix::NativeProcess::new(pid_to_check as u32) {
-                    Ok(_p) => thread::sleep(Duration::from_millis(100)),
-                    Err(_) => break,
-                }
+            if !wait_for_process_termination(pid_to_check) {
+                log::warn!("Process {} did not terminate within timeout during stop", pid_to_check);
             }
 
             let process = self.process(id);
