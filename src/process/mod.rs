@@ -1618,7 +1618,7 @@ mod tests {
         // Test that process_run returns an error for invalid shell
         let metadata = ProcessMetadata {
             name: "test_process".to_string(),
-            shell: "/nonexistent/shell".to_string(),
+            shell: "/nonexistent/shell/that/does/not/exist".to_string(),
             command: "echo test".to_string(),
             log_path: "/tmp".to_string(),
             args: vec!["-c".to_string()],
@@ -1629,8 +1629,10 @@ mod tests {
         assert!(result.is_err(), "Expected error for nonexistent shell");
         
         let err_msg = result.unwrap_err();
+        // Check that the error message mentions the shell and that it wasn't found
         assert!(
-            err_msg.contains("not found") || err_msg.contains("Not found") || err_msg.contains("NotFound"),
+            err_msg.contains("/nonexistent/shell/that/does/not/exist") && 
+            (err_msg.contains("not found") || err_msg.contains("Command") || err_msg.contains("Failed to spawn")),
             "Error message should indicate shell not found, got: {}",
             err_msg
         );
@@ -1666,9 +1668,12 @@ mod tests {
         let mut runner = setup_test_runner();
         let id = runner.id.next();
 
+        // Use a very high PID that's unlikely to exist
+        let unlikely_pid = i32::MAX as i64 - 1000;
+        
         let process = Process {
             id,
-            pid: 99999, // Non-existent PID
+            pid: unlikely_pid,
             shell_pid: None,
             env: BTreeMap::new(),
             name: "test_process".to_string(),

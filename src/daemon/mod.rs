@@ -113,9 +113,12 @@ fn restart_process() {
             max_restarts
         );
         
+        // This calls restart and saves to disk, consuming runner
         runner.get(item.id).crashed();
         
-        // Verify the restart was successful
+        // Reload runner from disk to get the updated state after restart
+        // This is necessary because we're iterating over a snapshot and the restart
+        // operation updates the saved state on disk
         let restarted_runner = Runner::new();
         if let Some(restarted_process) = restarted_runner.info(*id) {
             if restarted_process.running {
