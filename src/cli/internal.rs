@@ -1013,8 +1013,6 @@ impl<'i> Internal<'i> {
         }
         runner.save();
 
-        println!("\nRestore Summary:\n");
-        println!("Successfully restored:\n");
         println!("{}", restored_ids.len());
         if !failed_ids.is_empty() {
             println!("\nFailed to restore:\n");
