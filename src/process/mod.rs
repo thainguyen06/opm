@@ -28,6 +28,29 @@ use macros_rs::{crashln, string, ternary, then};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+// Constants for process termination waiting
+const MAX_TERMINATION_WAIT_ATTEMPTS: u32 = 50;
+const TERMINATION_CHECK_INTERVAL_MS: u64 = 100;
+
+/// Wait for a process to terminate gracefully
+/// Uses libc::kill(pid, 0) to check if process exists, which is the same approach
+/// as pid::running() but implemented here to avoid circular dependencies.
+/// This is more reliable than trying to create a process handle that could fail
+/// for other reasons (permissions, etc.)
+/// Returns true if process terminated, false if timeout reached
+fn wait_for_process_termination(pid: i64) -> bool {
+    for _ in 0..MAX_TERMINATION_WAIT_ATTEMPTS {
+        // Check if process is still running using libc::kill with signal 0
+        // This returns 0 if the process exists, -1 if it doesn't (or permission denied)
+        let process_exists = unsafe { libc::kill(pid as i32, 0) == 0 };
+        if !process_exists {
+            return true; // Process has terminated (or we don't have permission to check)
+        }
+        thread::sleep(Duration::from_millis(TERMINATION_CHECK_INTERVAL_MS));
+    }
+    false // Timeout reached, process is still running
+}
+
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct ItemSingle {
     pub info: Info,
@@ -420,6 +443,12 @@ impl Runner {
                 // Continue with restart even if stop fails - process may already be dead
             }
 
+            // Wait for the process to actually terminate before starting a new one
+            // This prevents conflicts when restarting processes that hold resources (e.g., network connections)
+            if !wait_for_process_termination(process.pid) {
+                log::warn!("Process {} did not terminate within timeout during restart", process.pid);
+            }
+
             if let Err(err) = std::env::set_current_dir(&path) {
                 process.running = false;
                 process.children = vec![];
@@ -593,6 +622,11 @@ impl Runner {
                 if let Err(err) = process_stop(old_pid) {
                     log::warn!("Failed to stop old process during reload: {err}");
                 }
+
+                // Wait for old process to fully terminate to release any held resources
+                if !wait_for_process_termination(old_pid) {
+                    log::warn!("Old process {} did not terminate within timeout during reload", old_pid);
+                }
             }
         }
 
@@ -741,11 +775,8 @@ impl Runner {
             let _ = process_stop(pid_to_check); // Continue even if stopping fails
 
             // waiting until Process is terminated
-            for _ in 0..50 {
-                match unix::NativeProcess::new(pid_to_check as u32) {
-                    Ok(_p) => thread::sleep(Duration::from_millis(100)),
-                    Err(_) => break,
-                }
+            if !wait_for_process_termination(pid_to_check) {
+                log::warn!("Process {} did not terminate within timeout during stop", pid_to_check);
             }
 
             let process = self.process(id);

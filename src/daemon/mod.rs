@@ -82,8 +82,21 @@ fn restart_process() {
             }
         }
 
-        // Skip if process is not running or is actually still running
-        then!(!item.running || pid::running(item.pid as i32), continue);
+        // Determine if we should attempt to restart this process
+        let process_running = pid::running(item.pid as i32);
+        
+        // We should restart if:
+        // 1. Process is marked as running but the PID is not actually alive (fresh crash)
+        let fresh_crash = item.running && !process_running;
+        // 2. OR process is marked as crashed and not running (failed previous restart attempt that should be retried)
+        let failed_restart = item.crash.crashed && !item.running;
+        
+        let should_restart = fresh_crash || failed_restart;
+        
+        // Skip if process doesn't need restarting
+        if !should_restart {
+            continue;
+        }
 
         // Process crashed - handle restart logic
         let max_restarts = config::read().daemon.restarts;
@@ -103,15 +116,28 @@ fn restart_process() {
         }
 
         // Attempt to restart the crashed process
-        log!("[daemon] attempting restart", "name" => item.name, "id" => id, "crashes" => item.crash.value);
-        println!(
-            "{} Process '{}' (id={}) crashed - attempting restart (attempt {}/{})",
-            *helpers::FAIL,
-            item.name,
-            id,
-            item.crash.value + 1,
-            max_restarts
-        );
+        // Use the already-computed failed_restart variable to determine if this is a retry
+        if failed_restart {
+            log!("[daemon] retrying failed restart", "name" => item.name, "id" => id, "crashes" => item.crash.value);
+            println!(
+                "{} Retrying restart for process '{}' (id={}) (attempt {}/{})",
+                *helpers::FAIL,
+                item.name,
+                id,
+                item.crash.value + 1,
+                max_restarts
+            );
+        } else {
+            log!("[daemon] attempting restart", "name" => item.name, "id" => id, "crashes" => item.crash.value);
+            println!(
+                "{} Process '{}' (id={}) crashed - attempting restart (attempt {}/{})",
+                *helpers::FAIL,
+                item.name,
+                id,
+                item.crash.value + 1,
+                max_restarts
+            );
+        }
         
         // This calls restart and saves to disk, consuming runner
         runner.get(item.id).crashed();
