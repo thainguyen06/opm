@@ -33,16 +33,18 @@ const MAX_TERMINATION_WAIT_ATTEMPTS: u32 = 50;
 const TERMINATION_CHECK_INTERVAL_MS: u64 = 100;
 
 /// Wait for a process to terminate gracefully
-/// Uses libc::kill(pid, 0) to check if process exists, which is more reliable than
-/// trying to create a process handle that could fail for other reasons (permissions, etc.)
+/// Uses libc::kill(pid, 0) to check if process exists, which is the same approach
+/// as pid::running() but implemented here to avoid circular dependencies.
+/// This is more reliable than trying to create a process handle that could fail
+/// for other reasons (permissions, etc.)
 /// Returns true if process terminated, false if timeout reached
 fn wait_for_process_termination(pid: i64) -> bool {
     for _ in 0..MAX_TERMINATION_WAIT_ATTEMPTS {
         // Check if process is still running using libc::kill with signal 0
-        // This is the same method used by pid::running() and is reliable
+        // This returns 0 if the process exists, -1 if it doesn't (or permission denied)
         let process_exists = unsafe { libc::kill(pid as i32, 0) == 0 };
         if !process_exists {
-            return true; // Process has terminated
+            return true; // Process has terminated (or we don't have permission to check)
         }
         thread::sleep(Duration::from_millis(TERMINATION_CHECK_INTERVAL_MS));
     }

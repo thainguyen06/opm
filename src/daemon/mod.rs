@@ -116,8 +116,8 @@ fn restart_process() {
         }
 
         // Attempt to restart the crashed process
-        let is_retry = item.crash.crashed && !item.running;
-        if is_retry {
+        // Use the already-computed failed_restart variable to determine if this is a retry
+        if failed_restart {
             log!("[daemon] retrying failed restart", "name" => item.name, "id" => id, "crashes" => item.crash.value);
             println!(
                 "{} Retrying restart for process '{}' (id={}) (attempt {}/{})",
