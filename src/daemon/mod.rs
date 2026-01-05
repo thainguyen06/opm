@@ -187,14 +187,20 @@ pub fn health(format: &String) {
 
     if pid::exists() {
         if let Ok(process_id) = pid::read() {
-            if let Ok(process) = Process::new(process_id.get::<u32>()) {
-                pid = Some(process.pid() as i32);
-                uptime = Some(pid::uptime().unwrap());
-                memory_usage = process.memory_info().ok().map(MemoryInfo::from);
-                cpu_percent = Some(get_process_cpu_usage_with_children_from_process(
-                    &process,
-                    process_id.get::<i64>(),
-                ));
+            // Check if the process is actually running before trying to get its information
+            if pid::running(process_id.get()) {
+                if let Ok(process) = Process::new(process_id.get::<u32>()) {
+                    pid = Some(process.pid() as i32);
+                    uptime = Some(pid::uptime().unwrap());
+                    memory_usage = process.memory_info().ok().map(MemoryInfo::from);
+                    cpu_percent = Some(get_process_cpu_usage_with_children_from_process(
+                        &process,
+                        process_id.get::<i64>(),
+                    ));
+                }
+            } else {
+                // Process is not running, remove stale PID file
+                pid::remove();
             }
         }
     }
