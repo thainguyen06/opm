@@ -921,7 +921,8 @@ impl Runner {
 
             // Check if process actually exists before reporting as online
             // A process marked as running but with a non-existent PID should be shown as crashed
-            let process_actually_running = item.running && unsafe { libc::kill(item.pid as i32, 0) == 0 };
+            let kill_result = unsafe { libc::kill(item.pid as i32, 0) };
+            let process_actually_running = item.running && kill_result == 0;
             
             let status = if process_actually_running {
                 string!("online")
