@@ -85,9 +85,21 @@ fn restart_process() {
         // Determine if we should attempt to restart this process
         let process_running = pid::running(item.pid as i32);
         
+        // For processes started through a shell, we need to check if the actual child process is still alive
+        // The stored item.pid might be the shell PID, which could still be running even if the child crashed
+        let child_process_alive = if item.shell_pid.is_some() && process_running {
+            // This PID is from a shell spawn - check if it still has children
+            // If the shell has no children, the actual process has crashed
+            let current_children = opm::process::process_find_children(item.pid);
+            !current_children.is_empty()
+        } else {
+            // Either we don't have a shell_pid or the process itself is dead
+            process_running
+        };
+        
         // We should restart if:
-        // 1. Process is marked as running but the PID is not actually alive (fresh crash)
-        let fresh_crash = item.running && !process_running;
+        // 1. Process is marked as running but the actual process is not alive (fresh crash)
+        let fresh_crash = item.running && !child_process_alive;
         // 2. OR process is marked as crashed and not running (failed previous restart attempt that should be retried)
         let failed_restart = item.crash.crashed && !item.running;
         
