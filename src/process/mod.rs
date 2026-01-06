@@ -526,8 +526,9 @@ impl Runner {
             process.env.extend(updated_env);
 
             then!(dead, process.restarts += 1);
-            then!(dead, process.crash.value += 1);
-            then!(!dead, process.crash.value = 0);
+            // Reset crash counter after successful restart to allow continued monitoring
+            // Only increment on failure (lines 463 and 509)
+            process.crash.value = 0;
         }
 
         return self;
@@ -631,8 +632,9 @@ impl Runner {
             process.env.extend(updated_env);
 
             then!(dead, process.restarts += 1);
-            then!(dead, process.crash.value += 1);
-            then!(!dead, process.crash.value = 0);
+            // Reset crash counter after successful reload to allow continued monitoring
+            // Only increment on failure (lines 563 and 609)
+            process.crash.value = 0;
 
             // Now stop the old process after the new one is running
             kill_children(old_children);
