@@ -287,6 +287,12 @@ fn load_dotenv(path: &PathBuf) -> BTreeMap<String, String> {
     env_vars
 }
 
+/// Check if a process with the given PID is alive
+/// Uses libc::kill with signal 0 to check process existence without sending a signal
+pub fn is_pid_alive(pid: i64) -> bool {
+    unsafe { libc::kill(pid as i32, 0) == 0 }
+}
+
 impl Runner {
     pub fn new() -> Self {
         dump::read()
@@ -921,8 +927,7 @@ impl Runner {
 
             // Check if process actually exists before reporting as online
             // A process marked as running but with a non-existent PID should be shown as crashed
-            let kill_result = unsafe { libc::kill(item.pid as i32, 0) };
-            let process_actually_running = item.running && kill_result == 0;
+            let process_actually_running = item.running && is_pid_alive(item.pid);
             
             let status = if process_actually_running {
                 string!("online")
@@ -1077,7 +1082,7 @@ impl ProcessWrapper {
 
         // Check if process actually exists before reporting as online
         // A process marked as running but with a non-existent PID should be shown as crashed
-        let process_actually_running = item.running && unsafe { libc::kill(item.pid as i32, 0) == 0 };
+        let process_actually_running = item.running && is_pid_alive(item.pid);
         
         let status = if process_actually_running {
             string!("online")
