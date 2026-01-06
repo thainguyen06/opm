@@ -42,7 +42,7 @@ fn restart_process() {
 
         if !children.is_empty() && children != item.children {
             log!("[daemon] added", "children" => format!("{children:?}"));
-            runner.set_children(*id, children).save();
+            runner.set_children(*id, children.clone()).save();
         }
 
         // Check memory limit if configured
@@ -90,18 +90,18 @@ fn restart_process() {
         // When a child process crashes immediately, get_actual_child_pid may fall back to returning 
         // the shell PID. The shell remains alive even after its child exits, so we need to 
         // verify that it still has children.
+        // 
+        // We already computed current children at line 41, so reuse that value.
         let child_process_alive = if item.shell_pid.is_some() && process_running {
             // This is a shell-spawned process - check if the shell still has children
             // If the shell has no children, the actual process has crashed
-            let current_children = opm::process::process_find_children(item.pid);
-            !current_children.is_empty()
+            !children.is_empty()
         } else if process_running {
-            // Not a shell-spawned process (or shell_pid wasn't detected) - check if PID has children
+            // Not a shell-spawned process (or shell_pid wasn't detected)
             // If the stored PID is actually a shell that lost its child, it would have no children
             // We need to detect this case to catch immediately-crashing processes where
             // get_actual_child_pid fell back to the shell PID but didn't set shell_pid
-            let current_children = opm::process::process_find_children(item.pid);
-            
+            //
             // If process has no children, it might be:
             // 1. A simple process that doesn't spawn children (normal) - stays alive
             // 2. A shell whose child crashed (problem) - shell stays alive but orphaned
@@ -109,7 +109,7 @@ fn restart_process() {
             // To distinguish: if we've never seen this process with children, it's probably case 1.
             // If item.children was previously populated, it's probably case 2.
             // For now, conservatively assume no children = crashed only if we previously had children
-            if current_children.is_empty() && !item.children.is_empty() {
+            if children.is_empty() && !item.children.is_empty() {
                 // Process previously had children but now doesn't - likely crashed
                 false
             } else {
