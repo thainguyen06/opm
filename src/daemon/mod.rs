@@ -129,19 +129,31 @@ fn restart_process() {
             }
         }
         
+        // Determine if the child process is alive
         // For processes started through a shell (e.g., /bin/sh -c 'command'), we need to check
         // if the actual child process is still alive, not just the shell wrapper.
         // When a child process crashes immediately, get_actual_child_pid may fall back to returning 
         // the shell PID. The shell remains alive even after its child exits, so we need to 
         // verify that it still has children.
         // 
-        // We already computed current children at line 41, so reuse that value.
-        let child_process_alive = if item.shell_pid.is_some() && process_running && process_readable {
+        // We already computed current children at line 46, so reuse that value.
+        let child_process_alive = if !process_running || !process_readable {
+            // Process itself is dead (PID not running or not readable) - definitely crashed
+            false
+        } else if item.shell_pid.is_some() {
             // This is a shell-spawned process - check if the shell still has children
             // If the shell has no children, the actual process has crashed
-            // UNLESS it was just started and needs time to spawn children
-            !children.is_empty() || recently_started
-        } else if process_running && process_readable {
+            // During grace period, be lenient: only crash if PID is actually dead
+            // After grace period, also crash if shell has no children
+            if recently_started {
+                // During grace period: only consider crashed if PID is actually dead
+                // We already know process_running and process_readable are true from above
+                true
+            } else {
+                // After grace period: consider crashed if shell has no children
+                !children.is_empty()
+            }
+        } else {
             // Not a shell-spawned process (or shell_pid wasn't detected)
             // If the stored PID is actually a shell that lost its child, it would have no children
             // We need to detect this case to catch immediately-crashing processes where
@@ -153,7 +165,6 @@ fn restart_process() {
             // 
             // To distinguish: if we've never seen this process with children, it's probably case 1.
             // If item.children was previously populated, it's probably case 2.
-            // For now, conservatively assume no children = crashed only if we previously had children
             // Also apply grace period to avoid false positives immediately after start
             if children.is_empty() && !item.children.is_empty() && !recently_started {
                 // Process previously had children but now doesn't - likely crashed
@@ -162,9 +173,6 @@ fn restart_process() {
                 // Process is running (either with children or never had them)
                 true
             }
-        } else {
-            // Process itself is dead (PID not running or not readable)
-            false
         };
         
         // We should restart if:
@@ -222,7 +230,10 @@ fn restart_process() {
         }
         
         // This calls restart and saves to disk, consuming runner
-        runner.get(item.id).crashed();
+        let mut process_wrapper = runner.get(item.id);
+        process_wrapper.crashed();
+        let final_runner = process_wrapper.get_runner().clone();
+        final_runner.save();
         
         // Reload runner from disk to get the updated state after restart
         // This is necessary because we're iterating over a snapshot and the restart
