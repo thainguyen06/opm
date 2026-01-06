@@ -97,14 +97,9 @@ fn restart_process() {
         // If NativeProcess::new_fast() fails, it means the process is dead/inaccessible
         // even if pid::running() returns true (e.g., zombie, PID reused, permission issue)
         // This catches processes that would show 0% CPU and 0b memory in the list
-        let process_readable = if process_running {
-            // Try to create NativeProcess to verify we can read the process
-            // Use shell_pid if available, otherwise use the actual pid
-            let pid_to_check = item.shell_pid.unwrap_or(item.pid);
-            Process::new_fast(pid_to_check as u32).is_ok()
-        } else {
-            false
-        };
+        // Use the same PID selection logic as memory monitoring (line 58)
+        let pid_for_monitoring = item.shell_pid.unwrap_or(item.pid);
+        let process_readable = process_running && Process::new_fast(pid_for_monitoring as u32).is_ok();
         
         // Check if process was recently started (within grace period)
         // This prevents false crash detection when shell processes haven't spawned children yet
@@ -119,15 +114,12 @@ fn restart_process() {
         // verify that it still has children.
         // 
         // We already computed current children at line 41, so reuse that value.
-        let child_process_alive = if !process_readable {
-            // Process is unreadable - definitely dead
-            false
-        } else if item.shell_pid.is_some() && process_running {
+        let child_process_alive = if item.shell_pid.is_some() && process_running && process_readable {
             // This is a shell-spawned process - check if the shell still has children
             // If the shell has no children, the actual process has crashed
             // UNLESS it was just started and needs time to spawn children
             !children.is_empty() || recently_started
-        } else if process_running {
+        } else if process_running && process_readable {
             // Not a shell-spawned process (or shell_pid wasn't detected)
             // If the stored PID is actually a shell that lost its child, it would have no children
             // We need to detect this case to catch immediately-crashing processes where
@@ -149,7 +141,7 @@ fn restart_process() {
                 true
             }
         } else {
-            // Process itself is dead
+            // Process itself is dead (PID not running or not readable)
             false
         };
         
