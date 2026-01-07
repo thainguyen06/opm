@@ -114,16 +114,13 @@ fn restart_process() {
                 // Process was supposed to be running but is dead - this is a crash
                 log!("[daemon] detected crash", "name" => item.name, "id" => id, "pid" => item.pid);
                 
-                // Increment total restart counter (tracks all restart attempts)
-                process.restarts += 1;
-                
-                // Increment consecutive crash counter
+                // Increment consecutive crash counter immediately
                 process.crash.value += 1;
                 
                 let current_crash_value = process.crash.value;
                 let max_restarts = config::read().daemon.restarts;
                 
-                // Check if we should retry (crash.value < 10) or give up (crash.value >= 10)
+                // Check if we should retry (crash.value < max) or give up (crash.value >= max)
                 if current_crash_value < max_restarts {
                     // RETRY: Attempt restart
                     log!("[daemon] attempting restart", "name" => item.name, "id" => id, 
@@ -137,11 +134,13 @@ fn restart_process() {
                         max_restarts
                     );
                     
-                    // Save state before restart
+                    // Save state with updated crash counter
                     runner.save();
                     
                     // Attempt to restart the crashed process
                     // Wrap in catch_unwind to prevent daemon crashes from panics in restart logic
+                    // Pass dead=true so restart() knows this is a crash restart
+                    // restart() will increment restarts counter and handle the restart logic
                     let restart_result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
                         runner.restart(*id, true);
                         runner.save();
@@ -197,7 +196,7 @@ fn restart_process() {
                     // Set running to false and mark as crashed
                     process.running = false;
                     process.crash.crashed = true;
-                    // Optionally reset crash counter for next manual start
+                    // Reset crash counter for next manual start (as per requirements)
                     process.crash.value = 0;
                     
                     runner.save();
