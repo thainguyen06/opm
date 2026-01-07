@@ -975,12 +975,7 @@ impl<'i> Internal<'i> {
         let processes_to_restore: Vec<(usize, String, bool, bool)> = Runner::new()
             .list()
             .filter_map(|(id, p)| {
-                let should_restore = p.running || p.crash.crashed;
-                log!(
-                    "Process '{}' (id={}) - running={}, crashed={}, should_restore={}",
-                    p.name, id, p.running, p.crash.crashed, should_restore
-                );
-                if should_restore {
+                if p.running || p.crash.crashed {
                     Some((*id, p.name.clone(), p.running, p.crash.crashed))
                 } else {
                     None
@@ -1011,8 +1006,8 @@ impl<'i> Internal<'i> {
             };
             log!("Restoring process '{}' (id={}, status={})", name, id, status_str);
             println!(
-                "{} Attempting to restore process '{}' (id={}, status={})",
-                *helpers::SUCCESS,
+                "{} Attempting to restore process '{}' (id={}, status={})...",
+                *helpers::WARN,
                 name,
                 id,
                 status_str
