@@ -289,7 +289,11 @@ fn load_dotenv(path: &PathBuf) -> BTreeMap<String, String> {
 
 /// Check if a process with the given PID is alive
 /// Uses libc::kill with signal 0 to check process existence without sending a signal
+/// PID 0 is never considered alive as it's used to indicate "no valid PID"
 pub fn is_pid_alive(pid: i64) -> bool {
+    if pid <= 0 {
+        return false;
+    }
     unsafe { libc::kill(pid as i32, 0) == 0 }
 }
 
