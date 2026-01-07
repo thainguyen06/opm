@@ -1853,7 +1853,7 @@ mod tests {
             id,
             pid: unlikely_pid,
             shell_pid: None,
-            env: Env::new(),
+            env: BTreeMap::new(),
             name: string!("test-crashed"),
             path: PathBuf::from("/tmp"),
             script: string!("node test.js"),
