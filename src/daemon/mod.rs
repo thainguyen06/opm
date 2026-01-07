@@ -167,13 +167,14 @@ fn restart_process() {
                 if !item.children.is_empty() {
                     // Process previously had children but now doesn't - definitely crashed
                     false
-                } else if is_initial_start && !very_early_start {
-                    // Never had children, past grace period, and initial start
-                    // Treat as potentially crashed to catch immediately-crashing processes
-                    // If it's legitimate, it will be detected as alive on next cycle
+                } else if !very_early_start {
+                    // Never had children and past grace period
+                    // Treat as crashed to catch immediately-crashing processes
+                    // This applies both to initial starts and restarts
+                    // Legitimate processes that don't spawn children are caught by process_running check
                     false
                 } else {
-                    // Within grace period or not initial start - assume alive
+                    // Within grace period on initial start - give process time to spawn children
                     true
                 }
             } else {
