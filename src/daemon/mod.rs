@@ -11,7 +11,7 @@ use macros_rs::{crashln, str, string, ternary, then};
 use opm::process::{MemoryInfo, unix::NativeProcess as Process};
 use serde::Serialize;
 use serde_json::json;
-use std::{process, thread::sleep, time::Duration};
+use std::{panic, process, thread::sleep, time::Duration};
 
 use opm::{
     config, file,
@@ -243,8 +243,20 @@ fn restart_process() {
         }
         
         // Attempt to restart the crashed process
-        runner.restart(*id, true);
-        runner.save();
+        // Wrap in catch_unwind to prevent daemon crashes from panics in restart logic
+        let restart_result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+            runner.restart(*id, true);
+            runner.save();
+        }));
+        
+        if let Err(panic_info) = restart_result {
+            log!("[daemon] restart panicked", "name" => item.name, "id" => id);
+            eprintln!("{} Restart panicked for process '{}' (id={}): {:?}", *helpers::FAIL, item.name, id, panic_info);
+            // Mark the process as crashed so it can be retried on the next daemon cycle
+            let mut runner = Runner::new();
+            runner.set_crashed(*id).save();
+            continue;
+        }
         
         // Reload runner from disk to get the updated state after restart
         // This is necessary because we're iterating over a snapshot and the restart
