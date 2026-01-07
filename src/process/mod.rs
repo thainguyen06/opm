@@ -532,7 +532,8 @@ impl Runner {
             // Reset crash counter after successful restart
             // For manual restarts (dead=false): reset crash counter to give process a fresh start
             // For crash restarts (dead=true): also reset because the restart succeeded
-            // The crash counter is only incremented in error paths (lines 468, 513) when restart fails
+            // The crash counter is only incremented in error paths (when directory change fails
+            // or when process_run fails) when restart fails
             process.crash.value = 0;
         }
 
@@ -643,7 +644,8 @@ impl Runner {
 
             // Reset crash counter after successful reload
             // A successful reload means the process is running again, so reset the crash counter
-            // The crash counter is only incremented in error paths (lines 575, 620) when reload fails
+            // The crash counter is only incremented in error paths (when directory change fails
+            // or when process_run fails) when reload fails
             process.crash.value = 0;
 
             // Now stop the old process after the new one is running
