@@ -1839,4 +1839,53 @@ mod tests {
         assert_eq!(processes[0].status, "crashed", 
             "Process with dead PID should show as crashed, not online");
     }
+
+    #[test]
+    fn test_uptime_not_counted_for_crashed_process() {
+        // Test that processes marked as running but with dead PIDs show uptime as "0s"
+        let mut runner = setup_test_runner();
+        let id = runner.id.next();
+
+        // Use a very high PID that's unlikely to exist
+        let unlikely_pid = i32::MAX as i64 - 1000;
+
+        let process = Process {
+            id,
+            pid: unlikely_pid,
+            shell_pid: None,
+            env: Env::new(),
+            name: string!("test-crashed"),
+            path: PathBuf::from("/tmp"),
+            script: string!("node test.js"),
+            restarts: 0,
+            running: true, // Marked as running
+            crash: Crash {
+                crashed: false,
+                value: 0,
+            },
+            watch: Watch {
+                enabled: false,
+                path: String::new(),
+                hash: String::new(),
+            },
+            children: vec![],
+            started: Utc::now() - chrono::Duration::seconds(100), // Started 100 seconds ago
+            max_memory: 0,
+        };
+
+        runner.list.insert(id, process);
+
+        // Fetch the process list and check uptime
+        let processes = runner.fetch();
+        assert_eq!(processes.len(), 1, "Should have one process");
+        
+        // The process is marked as running but the PID doesn't exist
+        // So uptime should be "0s", not based on the started time
+        assert_eq!(processes[0].uptime, "0s", 
+            "Process with dead PID should show uptime as 0s, not count from start time");
+        
+        // Also verify status is crashed
+        assert_eq!(processes[0].status, "crashed", 
+            "Process with dead PID should show as crashed");
+    }
 }
