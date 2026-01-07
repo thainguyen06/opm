@@ -101,6 +101,17 @@ fn restart_process() {
             continue;
         }
         
+        // Apply startup grace period to prevent false crash detection
+        // Check how long the process has been running
+        let now = Utc::now();
+        let process_age_secs = (now - item.started).num_seconds();
+        
+        // Skip crash detection for processes within the grace period
+        // This prevents false positives when processes are still starting up
+        if process_age_secs < STARTUP_GRACE_PERIOD_SECS {
+            continue;
+        }
+        
         // Simple check if process is alive using the PID
         let process_alive = opm::process::is_pid_alive(item.pid);
         
