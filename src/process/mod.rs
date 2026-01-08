@@ -455,11 +455,12 @@ impl Runner {
             // and can cause it to crash when trying to access its own files
             let original_dir = std::env::current_dir().ok();
 
-            // Increment restart counter at the beginning of restart attempt
-            // This ensures the counter reflects that a restart was attempted,
-            // even if the restart fails partway through.
-            // This counts both manual restarts and automatic crash restarts.
-            process.restarts += 1;
+            // Increment restart counter only for automatic crash restarts (dead=true)
+            // Manual restarts via 'opm start' (dead=false) should not increment the counter
+            // This ensures the counter only tracks automatic daemon restarts, not user actions
+            if dead {
+                process.restarts += 1;
+            }
 
             kill_children(process.children.clone());
             if let Err(err) = process_stop(process.pid) {
@@ -605,11 +606,12 @@ impl Runner {
             // Save the current working directory so we can restore it after reload
             let original_dir = std::env::current_dir().ok();
 
-            // Increment restart counter at the beginning of reload attempt
-            // This ensures the counter reflects that a reload was attempted,
-            // even if the reload fails partway through.
-            // This counts both manual reloads and automatic crash reloads.
-            process.restarts += 1;
+            // Increment restart counter only for automatic crash reloads (dead=true)
+            // Manual reloads via 'opm reload' (dead=false) should not increment the counter
+            // This ensures the counter only tracks automatic daemon restarts, not user actions
+            if dead {
+                process.restarts += 1;
+            }
 
             if let Err(err) = std::env::set_current_dir(&path) {
                 // Restore working directory before returning
@@ -2115,9 +2117,9 @@ mod tests {
     }
 
     #[test]
-    fn test_restart_counter_increments_on_manual_restart() {
-        // Test that manual restarts (dead=false) now increment the restart counter
-        // This verifies the fix for "restart counter doesn't count manual restarts"
+    fn test_restart_counter_not_incremented_on_manual_restart() {
+        // Test that manual restarts (dead=false) do NOT increment the restart counter
+        // This ensures the counter only tracks automatic daemon restarts, not user actions
         let mut runner = setup_test_runner();
         let id = runner.id.next();
         
@@ -2129,7 +2131,7 @@ mod tests {
             name: "test_process".to_string(),
             path: PathBuf::from("/tmp"),
             script: "echo 'test'".to_string(),
-            restarts: 0, // Start with 0 restarts
+            restarts: 5, // Start with 5 restarts
             running: true,
             crash: Crash {
                 crashed: false,
@@ -2148,31 +2150,19 @@ mod tests {
         runner.list.insert(id, process);
         
         // Verify initial state
-        assert_eq!(runner.info(id).unwrap().restarts, 0, "Should start with 0 restarts");
+        assert_eq!(runner.info(id).unwrap().restarts, 5, "Should start with 5 restarts");
         
-        // The restart function expects a valid working directory, so we won't actually call it
-        // Instead, we'll verify the increment logic directly by checking what the code does
-        // This test validates that the code no longer has `then!(dead, process.restarts += 1)`
-        // and instead has unconditional `process.restarts += 1`
-        
-        // The actual verification is that the code compiles and the logic is correct
-        // We can't easily test restart without a real process, so we verify the increment behavior
-        // by checking that the structure is set up correctly
-        assert_eq!(runner.info(id).unwrap().restarts, 0);
-        
-        // Manually increment as the restart() function would do (simulating the fix)
-        let proc = runner.process(id);
-        proc.restarts += 1; // This is now unconditional in the actual code
-        
-        // Verify the counter incremented
-        assert_eq!(runner.info(id).unwrap().restarts, 1, 
-            "Manual restart should increment counter");
+        // Manual restart (dead=false) should NOT increment the counter
+        // The actual restart() function would not increment when dead=false
+        // So the counter should remain at 5
+        assert_eq!(runner.info(id).unwrap().restarts, 5, 
+            "Manual restart should NOT increment counter");
     }
 
     #[test]
     fn test_restart_counter_increments_on_crash_restart() {
-        // Test that crash restarts (dead=true) also increment the restart counter
-        // This ensures both manual and automatic restarts are counted
+        // Test that crash restarts (dead=true) DO increment the restart counter
+        // This ensures automatic daemon restarts are tracked
         let mut runner = setup_test_runner();
         let id = runner.id.next();
         
@@ -2206,9 +2196,9 @@ mod tests {
         assert_eq!(runner.info(id).unwrap().restarts, 2, "Should start with 2 restarts");
         assert_eq!(runner.info(id).unwrap().crash.value, 1, "Should have 1 crash");
         
-        // Simulate what the daemon does when it detects a crash and restarts
+        // Simulate what the daemon does when it detects a crash and restarts (dead=true)
         let proc = runner.process(id);
-        proc.restarts += 1; // This is now unconditional in the actual code (for both dead=true and dead=false)
+        proc.restarts += 1; // This is conditional on dead=true in the actual code
         
         // Verify the counter incremented
         assert_eq!(runner.info(id).unwrap().restarts, 3, 
@@ -2219,8 +2209,8 @@ mod tests {
     }
 
     #[test]
-    fn test_reload_counter_increments() {
-        // Test that reload operations also increment the restart counter
+    fn test_reload_counter_not_incremented_on_manual_reload() {
+        // Test that manual reload operations (dead=false) do NOT increment the restart counter
         // Reload is similar to restart but with zero-downtime (starts new before stopping old)
         let mut runner = setup_test_runner();
         let id = runner.id.next();
@@ -2254,12 +2244,10 @@ mod tests {
         // Verify initial state
         assert_eq!(runner.info(id).unwrap().restarts, 5, "Should start with 5 restarts");
         
-        // Simulate what reload() does - it also increments restarts
-        let proc = runner.process(id);
-        proc.restarts += 1; // This is now unconditional in reload() too
-        
-        // Verify the counter incremented
-        assert_eq!(runner.info(id).unwrap().restarts, 6, 
-            "Reload should increment counter from 5 to 6");
+        // Manual reload (dead=false) should NOT increment the counter
+        // The actual reload() function would not increment when dead=false
+        // So the counter should remain at 5
+        assert_eq!(runner.info(id).unwrap().restarts, 5, 
+            "Manual reload should NOT increment counter");
     }
 }
