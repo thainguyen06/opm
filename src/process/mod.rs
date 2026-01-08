@@ -2295,4 +2295,56 @@ mod tests {
         assert_eq!(runner.info(id).unwrap().restarts, 6, 
             "Reload command should increment counter from 5 to 6");
     }
+
+    #[test]
+    fn test_restore_failed_process_keeps_running_for_daemon() {
+        // Test that when restore fails, the process is marked as:
+        // - crashed=true (so it shows as crashed)
+        // - running=true (so daemon will attempt to restart it)
+        // This is the key fix for the restore issue
+        let mut runner = setup_test_runner();
+        let id = runner.id.next();
+        
+        let process = Process {
+            id,
+            pid: UNLIKELY_PID, // Invalid PID - restore will fail
+            shell_pid: None,
+            env: BTreeMap::new(),
+            name: "test_restore_process".to_string(),
+            path: PathBuf::from("/tmp"),
+            script: "echo 'test'".to_string(),
+            restarts: 0,
+            running: true, // Was running before restore
+            crash: Crash {
+                crashed: false,
+                value: 0,
+            },
+            watch: Watch {
+                enabled: false,
+                path: String::new(),
+                hash: String::new(),
+            },
+            children: vec![],
+            started: Utc::now(),
+            max_memory: 0,
+        };
+        
+        runner.list.insert(id, process);
+        
+        // Simulate what restore does when it detects a failed process
+        // (just the marking part, not the actual restart attempt or save)
+        runner.set_crashed(id);
+        
+        // Verify the process state after "failed restore"
+        let process = runner.info(id).unwrap();
+        assert_eq!(process.crash.crashed, true, 
+            "Failed restore should mark process as crashed");
+        assert_eq!(process.running, true, 
+            "Failed restore should keep running=true so daemon will attempt restart");
+        
+        // Verify that crash counter is NOT incremented by restore
+        // (the daemon will increment it when it detects the crash)
+        assert_eq!(process.crash.value, 0,
+            "Restore should not increment crash counter - daemon will do it");
+    }
 }
