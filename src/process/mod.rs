@@ -479,8 +479,8 @@ impl Runner {
                     let _ = std::env::set_current_dir(dir);
                 }
                 
-                // For crash restarts (dead=true), don't set running=false so daemon can retry
-                // For manual restarts (dead=false), set running=false since user can manually retry
+                // When dead=true (crash restart), keep running=true so daemon will retry on next cycle
+                // When dead=false (manual restart), set running=false to stop retrying until user manually restarts
                 if !dead {
                     process.running = false;
                 }
@@ -533,8 +533,8 @@ impl Runner {
                         let _ = std::env::set_current_dir(dir);
                     }
                     
-                    // For crash restarts (dead=true), don't set running=false so daemon can retry
-                    // For manual restarts (dead=false), set running=false since user can manually retry
+                    // When dead=true (crash restart), keep running=true so daemon will retry on next cycle
+                    // When dead=false (manual restart), set running=false to stop retrying until user manually restarts
                     if !dead {
                         process.running = false;
                     }
@@ -617,8 +617,8 @@ impl Runner {
                     let _ = std::env::set_current_dir(dir);
                 }
                 
-                // For crash reloads (dead=true), don't set running=false so daemon can retry
-                // For manual reloads (dead=false), set running=false since user can manually retry
+                // When dead=true (crash reload), keep running=true so daemon will retry on next cycle
+                // When dead=false (manual reload), set running=false to stop retrying until user manually reloads
                 if !dead {
                     process.running = false;
                 }
@@ -671,8 +671,8 @@ impl Runner {
                         let _ = std::env::set_current_dir(dir);
                     }
                     
-                    // For crash reloads (dead=true), don't set running=false so daemon can retry
-                    // For manual reloads (dead=false), set running=false since user can manually retry
+                    // When dead=true (crash reload), keep running=true so daemon will retry on next cycle
+                    // When dead=false (manual reload), set running=false to stop retrying until user manually reloads
                     if !dead {
                         process.running = false;
                     }
