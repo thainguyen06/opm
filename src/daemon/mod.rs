@@ -204,11 +204,16 @@ fn restart_process() {
                     log!("[daemon] max restarts reached", "name" => item.name, "id" => id, 
                          "crashes" => current_crash_value);
                     println!(
-                        "{} Process '{}' (id={}) exceeded max crash limit ({}) - stopping",
+                        "{} Process '{}' (id={}) exceeded max crash limit ({}) - stopping auto-restart",
                         *helpers::FAIL,
                         item.name,
                         id,
                         max_restarts
+                    );
+                    println!(
+                        "   Use 'opm start {}' or 'opm restart {}' to manually restart the process",
+                        id,
+                        id
                     );
                     
                     // Set running to false and mark as crashed
@@ -220,7 +225,15 @@ fn restart_process() {
                     runner.save();
                 }
             } else {
-                // Process was already stopped, just update PID
+                // Process was already stopped (running=false), just update PID
+                // This can happen if:
+                // 1. User manually stopped the process
+                // 2. Process previously hit max crash limit and running was set to false
+                if item.crash.crashed {
+                    log!("[daemon] skipping crashed process - running=false", "name" => item.name, "id" => id, 
+                         "crashed" => item.crash.crashed, "crash_value" => item.crash.value);
+                    // Don't print anything to avoid spam - user already knows it's crashed
+                }
                 runner.save();
             }
         }
