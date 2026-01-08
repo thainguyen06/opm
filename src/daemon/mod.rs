@@ -110,10 +110,12 @@ fn restart_process() {
                 // Process has been stable - reset crash counter
                 log!("[daemon] process stable - resetting crash counter", 
                      "name" => item.name, "id" => id, "uptime_secs" => uptime_secs);
-                let process = runner.process(*id);
-                process.crash.value = 0;
-                process.crash.crashed = false;
-                runner.save();
+                if runner.exists(*id) {
+                    let process = runner.process(*id);
+                    process.crash.value = 0;
+                    process.crash.crashed = false;
+                    runner.save();
+                }
             }
         }
         

@@ -469,10 +469,14 @@ impl Runner {
             }
 
             if let Err(err) = std::env::set_current_dir(&path) {
-                process.running = false;
+                // For crash restarts (dead=true), don't set running=false so daemon can retry
+                // For manual restarts (dead=false), set running=false since user can manually retry
+                if !dead {
+                    process.running = false;
+                }
                 process.children = vec![];
                 process.crash.crashed = true;
-                then!(dead, process.crash.value += 1);
+                // Don't increment crash.value here - the daemon already incremented it before calling restart
                 log::error!("Failed to set working directory {:?} for process {} during restart: {}", path, name, err);
                 println!(
                     "{} Failed to set working directory {:?}\nError: {:#?}",
@@ -514,10 +518,14 @@ impl Runner {
             }) {
                 Ok(result) => result,
                 Err(err) => {
-                    process.running = false;
+                    // For crash restarts (dead=true), don't set running=false so daemon can retry
+                    // For manual restarts (dead=false), set running=false since user can manually retry
+                    if !dead {
+                        process.running = false;
+                    }
                     process.children = vec![];
                     process.crash.crashed = true;
-                    then!(dead, process.crash.value += 1);
+                    // Don't increment crash.value here - the daemon already incremented it before calling restart
                     log::error!("Failed to restart process '{}' (id={}): {}", name, id, err);
                     println!("{} Failed to restart process '{}' (id={}): {}", *helpers::FAIL, name, id, err);
                     return self;
@@ -579,10 +587,14 @@ impl Runner {
             process.restarts += 1;
 
             if let Err(err) = std::env::set_current_dir(&path) {
-                process.running = false;
+                // For crash reloads (dead=true), don't set running=false so daemon can retry
+                // For manual reloads (dead=false), set running=false since user can manually retry
+                if !dead {
+                    process.running = false;
+                }
                 process.children = vec![];
                 process.crash.crashed = true;
-                then!(dead, process.crash.value += 1);
+                // Don't increment crash.value here - the daemon already incremented it before calling reload
                 log::error!("Failed to set working directory {:?} for process {} during reload: {}", path, name, err);
                 println!(
                     "{} Failed to set working directory {:?}\nError: {:#?}",
@@ -624,10 +636,14 @@ impl Runner {
             }) {
                 Ok(result) => result,
                 Err(err) => {
-                    process.running = false;
+                    // For crash reloads (dead=true), don't set running=false so daemon can retry
+                    // For manual reloads (dead=false), set running=false since user can manually retry
+                    if !dead {
+                        process.running = false;
+                    }
                     process.children = vec![];
                     process.crash.crashed = true;
-                    then!(dead, process.crash.value += 1);
+                    // Don't increment crash.value here - the daemon already incremented it before calling reload
                     log::error!("Failed to reload process '{}' (id={}): {}", name, id, err);
                     println!("{} Failed to reload process '{}' (id={}): {}", *helpers::FAIL, name, id, err);
                     return self;
