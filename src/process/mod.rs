@@ -497,7 +497,20 @@ impl Runner {
                 }
                 process.children = vec![];
                 process.crash.crashed = true;
-                // Don't increment crash.value here - the daemon already incremented it before calling restart
+                
+                // Increment crash counter for restart failures to count against restart limit
+                // This prevents infinite retry loops when restart repeatedly fails
+                if dead {
+                    process.crash.value += 1;
+                    
+                    // Check if we've exceeded max restart limit
+                    let daemon_config = config::read().daemon;
+                    if process.crash.value > daemon_config.restarts {
+                        process.running = false;
+                        log::error!("Process {} exceeded max restart attempts due to repeated failures", name);
+                    }
+                }
+                
                 log::error!("Failed to set working directory {:?} for process {} during restart: {}", path, name, err);
                 println!(
                     "{} Failed to set working directory {:?}\nError: {:#?}",
@@ -551,7 +564,20 @@ impl Runner {
                     }
                     process.children = vec![];
                     process.crash.crashed = true;
-                    // Don't increment crash.value here - the daemon already incremented it before calling restart
+                    
+                    // Increment crash counter for restart failures to count against restart limit
+                    // This prevents infinite retry loops when restart repeatedly fails
+                    if dead {
+                        process.crash.value += 1;
+                        
+                        // Check if we've exceeded max restart limit
+                        let daemon_config = config::read().daemon;
+                        if process.crash.value > daemon_config.restarts {
+                            process.running = false;
+                            log::error!("Process {} exceeded max restart attempts due to repeated failures", name);
+                        }
+                    }
+                    
                     log::error!("Failed to restart process '{}' (id={}): {}", name, id, err);
                     println!("{} Failed to restart process '{}' (id={}): {}", *helpers::FAIL, name, id, err);
                     return self;
@@ -632,7 +658,20 @@ impl Runner {
                 }
                 process.children = vec![];
                 process.crash.crashed = true;
-                // Don't increment crash.value here - the daemon already incremented it before calling reload
+                
+                // Increment crash counter for reload failures to count against restart limit
+                // This prevents infinite retry loops when reload repeatedly fails
+                if dead {
+                    process.crash.value += 1;
+                    
+                    // Check if we've exceeded max restart limit
+                    let daemon_config = config::read().daemon;
+                    if process.crash.value > daemon_config.restarts {
+                        process.running = false;
+                        log::error!("Process {} exceeded max restart attempts due to repeated failures", name);
+                    }
+                }
+                
                 log::error!("Failed to set working directory {:?} for process {} during reload: {}", path, name, err);
                 println!(
                     "{} Failed to set working directory {:?}\nError: {:#?}",
@@ -686,7 +725,20 @@ impl Runner {
                     }
                     process.children = vec![];
                     process.crash.crashed = true;
-                    // Don't increment crash.value here - the daemon already incremented it before calling reload
+                    
+                    // Increment crash counter for reload failures to count against restart limit
+                    // This prevents infinite retry loops when reload repeatedly fails
+                    if dead {
+                        process.crash.value += 1;
+                        
+                        // Check if we've exceeded max restart limit
+                        let daemon_config = config::read().daemon;
+                        if process.crash.value > daemon_config.restarts {
+                            process.running = false;
+                            log::error!("Process {} exceeded max restart attempts due to repeated failures", name);
+                        }
+                    }
+                    
                     log::error!("Failed to reload process '{}' (id={}): {}", name, id, err);
                     println!("{} Failed to reload process '{}' (id={}): {}", *helpers::FAIL, name, id, err);
                     return self;
