@@ -55,10 +55,15 @@ fn restart_process() {
     let process_ids: Vec<usize> = runner.items().keys().copied().collect();
     
     for id in process_ids {
-        // Reload runner to get fresh state for this process
-        // This ensures we see any changes made by previous iterations
+        // Note: We reload runner at the start of each iteration to ensure we see
+        // changes made by previous iterations (e.g., when a previous process was
+        // restarted and the state was saved to disk). This is necessary because
+        // operations like restart() modify the state and save it, and we need
+        // the latest state for accurate crash detection and restart logic.
+        // This is a trade-off between correctness and performance.
         runner = Runner::new();
         
+        // Clone item to avoid borrowing issues when we mutate runner later
         let item = match runner.info(id) {
             Some(item) => item.clone(),
             None => continue, // Process was removed, skip it
