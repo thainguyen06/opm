@@ -501,14 +501,7 @@ impl Runner {
                 // Increment crash counter for restart failures to count against restart limit
                 // This prevents infinite retry loops when restart repeatedly fails
                 if dead {
-                    process.crash.value += 1;
-                    
-                    // Check if we've exceeded max restart limit
-                    let daemon_config = config::read().daemon;
-                    if process.crash.value > daemon_config.restarts {
-                        process.running = false;
-                        log::error!("Process {} exceeded max restart attempts due to repeated failures", name);
-                    }
+                    self.handle_restart_failure(id, &name);
                 }
                 
                 log::error!("Failed to set working directory {:?} for process {} during restart: {}", path, name, err);
@@ -568,14 +561,7 @@ impl Runner {
                     // Increment crash counter for restart failures to count against restart limit
                     // This prevents infinite retry loops when restart repeatedly fails
                     if dead {
-                        process.crash.value += 1;
-                        
-                        // Check if we've exceeded max restart limit
-                        let daemon_config = config::read().daemon;
-                        if process.crash.value > daemon_config.restarts {
-                            process.running = false;
-                            log::error!("Process {} exceeded max restart attempts due to repeated failures", name);
-                        }
+                        self.handle_restart_failure(id, &name);
                     }
                     
                     log::error!("Failed to restart process '{}' (id={}): {}", name, id, err);
@@ -662,14 +648,7 @@ impl Runner {
                 // Increment crash counter for reload failures to count against restart limit
                 // This prevents infinite retry loops when reload repeatedly fails
                 if dead {
-                    process.crash.value += 1;
-                    
-                    // Check if we've exceeded max restart limit
-                    let daemon_config = config::read().daemon;
-                    if process.crash.value > daemon_config.restarts {
-                        process.running = false;
-                        log::error!("Process {} exceeded max restart attempts due to repeated failures", name);
-                    }
+                    self.handle_restart_failure(id, &name);
                 }
                 
                 log::error!("Failed to set working directory {:?} for process {} during reload: {}", path, name, err);
@@ -729,14 +708,7 @@ impl Runner {
                     // Increment crash counter for reload failures to count against restart limit
                     // This prevents infinite retry loops when reload repeatedly fails
                     if dead {
-                        process.crash.value += 1;
-                        
-                        // Check if we've exceeded max restart limit
-                        let daemon_config = config::read().daemon;
-                        if process.crash.value > daemon_config.restarts {
-                            process.running = false;
-                            log::error!("Process {} exceeded max restart attempts due to repeated failures", name);
-                        }
+                        self.handle_restart_failure(id, &name);
                     }
                     
                     log::error!("Failed to reload process '{}' (id={}): {}", name, id, err);
@@ -914,6 +886,23 @@ impl Runner {
     pub fn new_crash(&mut self, id: usize) -> &mut Self {
         self.process(id).crash.value += 1;
         return self;
+    }
+
+    /// Handle restart/reload failure by incrementing crash counter and checking limit
+    /// Returns true if the process should continue running (within limit), false if limit exceeded
+    fn handle_restart_failure(&mut self, id: usize, process_name: &str) -> bool {
+        let process = self.process(id);
+        process.crash.value += 1;
+        
+        // Check if we've exceeded max restart limit
+        let daemon_config = config::read().daemon;
+        if process.crash.value > daemon_config.restarts {
+            process.running = false;
+            log::error!("Process {} exceeded max restart attempts due to repeated failures", process_name);
+            false
+        } else {
+            true
+        }
     }
 
     pub fn stop(&mut self, id: usize) -> &mut Self {
