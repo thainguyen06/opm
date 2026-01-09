@@ -130,21 +130,45 @@ fn restart_process() {
             
             // Only handle crash/restart logic if process was supposed to be running
             if item.running {
-                // Get crash count before modifying
-                let crash_count = {
-                    let process = runner.process(*id);
-                    // Increment consecutive crash counter
-                    process.crash.value += 1;
-                    process.crash.crashed = true;
-                    process.running = false;
-                    process.crash.value
-                };
+                let config = config::read().daemon;
                 
-                // Log the crash - don't use println! to avoid potential SIGPIPE issues
-                log!("[daemon] process crashed, continuing to monitor other processes", "name" => item.name, "id" => id, "crash_count" => crash_count);
-                
-                // Save state with updated crash information
-                runner.save();
+                // Check if this is a newly detected crash (not already marked as crashed)
+                // If already crashed, we've already incremented the counter and are waiting for restart
+                if !item.crash.crashed {
+                    // Get crash count before modifying
+                    let crash_count = {
+                        let process = runner.process(*id);
+                        // Increment consecutive crash counter
+                        process.crash.value += 1;
+                        process.crash.crashed = true;
+                        // Keep running=true so daemon continues restart attempts
+                        // Only set running=false if we've exceeded max crash limit
+                        process.crash.value
+                    };
+                    
+                    // Check if we've exceeded the maximum crash limit
+                    if crash_count > config.restarts {
+                        // Exceeded max restarts - give up and set running=false
+                        let process = runner.process(*id);
+                        process.running = false;
+                        log!("[daemon] process exceeded max crash limit, giving up", 
+                             "name" => item.name, "id" => id, "crash_count" => crash_count, "max_restarts" => config.restarts);
+                        runner.save();
+                    } else {
+                        // Still within crash limit - mark as crashed and save
+                        // Next daemon cycle will restart it
+                        log!("[daemon] process crashed, will restart next cycle", 
+                             "name" => item.name, "id" => id, "crash_count" => crash_count, "max_restarts" => config.restarts);
+                        runner.save();
+                    }
+                } else {
+                    // Process is already marked as crashed - attempt restart now
+                    let crash_count = item.crash.value;
+                    log!("[daemon] attempting restart for crashed process", 
+                         "name" => item.name, "id" => id, "crash_count" => crash_count);
+                    runner.restart(*id, true, true);
+                    runner.save();
+                }
             } else {
                 // Process was already stopped (running=false), just update PID
                 // This can happen if:
