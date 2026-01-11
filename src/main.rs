@@ -90,7 +90,7 @@ enum Commands {
         /// Maximum memory limit (e.g., 100M, 1G)
         #[arg(long)]
         max_memory: Option<String>,
-        /// Server
+        /// Agent connection (use with agent-enabled server)
         #[arg(short, long)]
         server: Option<String>,
         /// Reset environment values
@@ -108,7 +108,7 @@ enum Commands {
     Stop {
         #[clap(value_parser = cli::validate_items)]
         items: Items,
-        /// Server
+        /// Agent connection (use with agent-enabled server)
         #[arg(short, long)]
         server: Option<String>,
     },
@@ -117,7 +117,7 @@ enum Commands {
     Remove {
         #[clap(value_parser = cli::validate_items)]
         items: Items,
-        /// Server
+        /// Agent connection (use with agent-enabled server)
         #[arg(short, long)]
         server: Option<String>,
     },
@@ -126,7 +126,7 @@ enum Commands {
     Env {
         #[clap(value_parser = cli::validate::<Item>)]
         item: Item,
-        /// Server
+        /// Agent connection (use with agent-enabled server)
         #[arg(short, long)]
         server: Option<String>,
     },
@@ -138,7 +138,7 @@ enum Commands {
         /// Format output
         #[arg(long, default_value_t = string!("default"))]
         format: String,
-        /// Server
+        /// Agent connection (use with agent-enabled server)
         #[arg(short, long)]
         server: Option<String>,
     },
@@ -148,21 +148,21 @@ enum Commands {
         /// Format output
         #[arg(long, default_value_t = string!("default"))]
         format: String,
-        /// Server
+        /// Agent connection (use with agent-enabled server)
         #[arg(short, long)]
         server: Option<String>,
     },
     /// Restore all processes
     #[command(visible_alias = "resurrect")]
     Restore {
-        /// Server
+        /// Agent connection (use with agent-enabled server)
         #[arg(short, long)]
         server: Option<String>,
     },
     /// Save all processes to dumpfile
     #[command(visible_alias = "store")]
     Save {
-        /// Server
+        /// Agent connection (use with agent-enabled server)
         #[arg(short, long)]
         server: Option<String>,
     },
@@ -176,7 +176,7 @@ enum Commands {
             help = "Number of lines to display from the end of the log file"
         )]
         lines: usize,
-        /// Server
+        /// Agent connection (use with agent-enabled server)
         #[arg(short, long)]
         server: Option<String>,
         /// Follow log output (like tail -f)
@@ -197,7 +197,7 @@ enum Commands {
     Flush {
         #[clap(value_parser = cli::validate::<Item>)]
         item: Item,
-        /// Server
+        /// Agent connection (use with agent-enabled server)
         #[arg(short, long)]
         server: Option<String>,
     },
@@ -212,7 +212,7 @@ enum Commands {
     Restart {
         #[clap(value_parser = cli::validate_items)]
         items: Items,
-        /// Server
+        /// Agent connection (use with agent-enabled server)
         #[arg(short, long)]
         server: Option<String>,
     },
@@ -221,7 +221,7 @@ enum Commands {
     Reload {
         #[clap(value_parser = cli::validate_items)]
         items: Items,
-        /// Server
+        /// Agent connection (use with agent-enabled server)
         #[arg(short, long)]
         server: Option<String>,
     },
@@ -231,7 +231,7 @@ enum Commands {
     GetCommand {
         #[clap(value_parser = cli::validate::<Item>)]
         item: Item,
-        /// Server
+        /// Agent connection (use with agent-enabled server)
         #[arg(short, long)]
         server: Option<String>,
     },
@@ -247,7 +247,7 @@ enum Commands {
         /// New process name
         #[arg(long)]
         name: Option<String>,
-        /// Server
+        /// Agent connection (use with agent-enabled server)
         #[arg(short, long)]
         server: Option<String>,
     },
