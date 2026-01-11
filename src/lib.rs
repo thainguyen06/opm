@@ -3,6 +3,7 @@ pub mod file;
 pub mod helpers;
 pub mod log;
 pub mod process;
+pub mod agent;
 
 // Deprecated
 // #[cxx::bridge]
