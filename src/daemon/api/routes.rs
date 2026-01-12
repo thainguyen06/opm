@@ -626,8 +626,17 @@ pub async fn restore_handler(_t: Token) -> Json<ActionResponse> {
     
     // Restore those processes (without incrementing counters)
     let mut runner = Runner::new();
-    for id in running_ids {
-        runner.restart(id, false, false);
+    let total_processes = running_ids.len();
+    for (index, id) in running_ids.iter().enumerate() {
+        runner.restart(*id, false, false);
+        runner.save();
+        
+        // Only add delay between processes when restoring multiple processes
+        // This prevents resource conflicts and false crash detection
+        // Skip delay after the last process
+        if total_processes > 1 && index < total_processes - 1 {
+            tokio::time::sleep(tokio::time::Duration::from_millis(150)).await;
+        }
     }
     
     // Reset restart and crash counters after restore for ALL processes
