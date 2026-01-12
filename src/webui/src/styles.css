@@ -37,10 +37,23 @@ html {
 }
 
 /* Ensure mobile-friendly touch targets */
+/* Exclude checkbox and radio inputs which have their own sizing */
 @media (max-width: 768px) {
-	button, a, input, select {
+	button:not(.toggle-switch), a, input[type="text"], input[type="email"], input[type="password"], input[type="search"], input[type="url"], select {
 		min-height: 44px;
 		min-width: 44px;
+	}
+	
+	/* Checkboxes should maintain their specified size but have larger tap area */
+	input[type="checkbox"] {
+		/* Add padding around checkbox for easier tapping without distorting the checkbox itself */
+		padding: 8px;
+	}
+	
+	/* Toggle switches should maintain their designed size and not be affected by min-width/min-height */
+	.toggle-switch {
+		min-width: auto !important;
+		min-height: auto !important;
 	}
 }
 
