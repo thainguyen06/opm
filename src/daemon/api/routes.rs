@@ -233,13 +233,13 @@ pub async fn prometheus_handler(_t: Token) -> String {
 pub async fn servers_handler(_t: Token) -> Result<Json<Vec<String>>, GenericError> {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["servers"]).start_timer();
 
-    if let Some(servers) = config::servers().servers {
-        HTTP_COUNTER.inc();
-        timer.observe_duration();
+    HTTP_COUNTER.inc();
+    timer.observe_duration();
 
+    if let Some(servers) = config::servers().servers {
         Ok(Json(servers.into_keys().collect()))
     } else {
-        Err(generic_error(Status::BadRequest, string!("No servers have been added")))
+        Ok(Json(vec![]))
     }
 }
 
