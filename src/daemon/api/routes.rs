@@ -232,15 +232,17 @@ pub async fn prometheus_handler(_t: Token) -> String {
 )]
 pub async fn servers_handler(_t: Token) -> Result<Json<Vec<String>>, GenericError> {
     let timer = HTTP_REQ_HISTOGRAM.with_label_values(&["servers"]).start_timer();
-
+    
+    let result = if let Some(servers) = config::servers().servers {
+        servers.into_keys().collect()
+    } else {
+        vec![]
+    };
+    
     HTTP_COUNTER.inc();
     timer.observe_duration();
-
-    if let Some(servers) = config::servers().servers {
-        Ok(Json(servers.into_keys().collect()))
-    } else {
-        Ok(Json(vec![]))
-    }
+    
+    Ok(Json(result))
 }
 
 #[derive(Deserialize, ToSchema)]
