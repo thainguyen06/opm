@@ -196,12 +196,15 @@ fn redirect_stderr_to_log() {
             unsafe {
                 let result = libc::dup2(log_fd, libc::STDERR_FILENO);
                 if result == -1 {
-                    log::error!("Failed to dup2 stderr to log file: errno {}", *libc::__errno_location());
+                    let error = std::io::Error::last_os_error();
+                    log::error!("Failed to dup2 stderr to log file: {}", error);
                     return;
                 }
             }
             log::info!("Redirected stderr to daemon log file");
             // Note: log_file will be dropped here, but the duplicated file descriptor remains open
+            // and is owned by the process. The dup2 call creates a new file descriptor that persists
+            // independently of the original log_file.
         }
         Err(err) => {
             log::error!("Failed to open log file for stderr redirection: {}", err);
