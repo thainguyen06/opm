@@ -513,7 +513,9 @@ pub fn start(verbose: bool) {
             global!("opm.daemon.kind")
         );
     }
-    match daemon(false, false) {
+    // Keep stderr open so we can see Rocket and other errors
+    // This allows error messages to be written to the daemon log or terminal
+    match daemon(false, true) {
         Ok(Fork::Parent(_)) => {
             // Wait for the daemon child to write its PID file and start running
             // This prevents race conditions where health checks immediately after start show "stopped"

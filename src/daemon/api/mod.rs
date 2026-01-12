@@ -238,8 +238,8 @@ pub async fn start(webui: bool) {
     log::info!("API start: Configuring Rocket server at {}", config::read().fmt_address());
     
     let rocket = rocket::custom(config::read().get_address())
-        .attach(Logger)
-        .attach(AddCORS)
+        // .attach(Logger)  // Temporarily disabled - causing sentinel abort
+        // .attach(AddCORS)  // Temporarily disabled to test
         .manage(TeraState { path: tera.1, tera: tera.0 })
         .manage(agent_registry)
         .mount(format!("{s_path}/"), routes)
