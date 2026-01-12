@@ -43,10 +43,25 @@ const { title, description } = Astro.props;
 				constructor() {
 					super();
 					const base = this.dataset.base;
-					fetch(base + '/daemon/metrics', {
-						headers: { token: $settings.get().token || '' }
-					}).then((response) => {
-						if (window.location.pathname.includes('login')) {
+					
+					// Check if we're on login page or protected page
+					const isLoginPage = window.location.pathname.includes('login');
+					
+					// Use a lightweight health check instead of metrics
+					const checkEndpoint = base + '/health';
+					
+					// Add timeout and cache check to improve performance
+					const controller = new AbortController();
+					const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+					
+					fetch(checkEndpoint, {
+						headers: { token: $settings.get().token || '' },
+						signal: controller.signal,
+						cache: 'no-cache'
+					})
+					.then((response) => {
+						clearTimeout(timeoutId);
+						if (isLoginPage) {
 							if (response.status === 200) {
 								window.location.href = base + '/';
 							}
@@ -54,6 +69,13 @@ const { title, description } = Astro.props;
 							if (response.status !== 200) {
 								window.location.href = base + '/login';
 							}
+						}
+					})
+					.catch((error) => {
+						clearTimeout(timeoutId);
+						// If request fails or times out, redirect to login (except if already on login)
+						if (!isLoginPage && error.name !== 'AbortError') {
+							window.location.href = base + '/login';
 						}
 					});
 				}
