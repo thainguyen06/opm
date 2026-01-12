@@ -1119,7 +1119,7 @@ impl<'i> Internal<'i> {
                     // Keep running=true (set_crashed doesn't change it) so daemon will attempt restart
                     // Don't increment crash counter here - let the daemon do it when it detects the crash
                     runner.set_crashed(*id);
-                    runner.save();
+                    // Don't auto-save here - save will happen at the end of restore
                 }
             } else {
                 failed_ids.push((*id, name.clone()));
@@ -1133,7 +1133,7 @@ impl<'i> Internal<'i> {
                 // Keep running=true (set_crashed doesn't change it) so daemon will attempt restart
                 // Don't increment crash counter here - let the daemon do it when it detects the crash
                 runner.set_crashed(*id);
-                runner.save();
+                // Don't auto-save here - save will happen at the end of restore
             }
         }
 

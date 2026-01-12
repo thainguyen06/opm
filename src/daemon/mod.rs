@@ -449,11 +449,38 @@ pub fn start(verbose: bool) {
 
         if api_enabled {
             log!(
-                "[daemon] API server started",
+                "[daemon] Starting API server",
                 "address" => config::read().fmt_address(),
                 "webui" => ui_enabled
             );
-            tokio::spawn(async move { api::start(ui_enabled).await });
+            
+            // Spawn API server in a separate task
+            let api_handle = tokio::spawn(async move { api::start(ui_enabled).await });
+            
+            // Give the API server time to start and bind to the port
+            tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+            
+            // Check if the API server is actually listening
+            let addr = config::read().fmt_address();
+            let is_listening = tokio::net::TcpStream::connect(&addr).await.is_ok();
+            
+            if is_listening {
+                log!(
+                    "[daemon] API server successfully started",
+                    "address" => addr,
+                    "webui" => ui_enabled
+                );
+            } else {
+                log!(
+                    "[daemon] API server may have failed to start",
+                    "address" => addr,
+                    "status" => "check logs and port availability"
+                );
+                // Check if the task has already failed
+                if api_handle.is_finished() {
+                    log!("[daemon] API server task has terminated", "status" => "unexpected");
+                }
+            }
         }
 
         loop {
@@ -486,7 +513,9 @@ pub fn start(verbose: bool) {
             global!("opm.daemon.kind")
         );
     }
-    match daemon(false, false) {
+    // Keep stderr open so we can see Rocket and other errors
+    // This allows error messages to be written to the daemon log or terminal
+    match daemon(false, true) {
         Ok(Fork::Parent(_)) => {
             // Wait for the daemon child to write its PID file and start running
             // This prevents race conditions where health checks immediately after start show "stopped"
