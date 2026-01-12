@@ -19,6 +19,7 @@ use std::os::unix::io::AsRawFd;
 use structs::ErrorMessage;
 use tera::Context;
 use global_placeholders::global;
+use libc;
 
 use utoipa::{
     openapi::security::{ApiKey, ApiKeyValue, SecurityScheme},
@@ -193,12 +194,17 @@ fn redirect_stderr_to_log() {
             let log_fd = log_file.as_raw_fd();
             // Redirect stderr to the log file
             unsafe {
-                libc::dup2(log_fd, libc::STDERR_FILENO);
+                let result = libc::dup2(log_fd, libc::STDERR_FILENO);
+                if result == -1 {
+                    log::error!("Failed to dup2 stderr to log file: errno {}", *libc::__errno_location());
+                    return;
+                }
             }
             log::info!("Redirected stderr to daemon log file");
+            // Note: log_file will be dropped here, but the duplicated file descriptor remains open
         }
         Err(err) => {
-            log::error!("Failed to redirect stderr to log file: {}", err);
+            log::error!("Failed to open log file for stderr redirection: {}", err);
         }
     }
 }
