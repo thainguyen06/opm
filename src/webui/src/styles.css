@@ -213,6 +213,8 @@ button, a, input, select {
 	}
 }
 
+/* Center element by translating it to viewport center minus its own center */
+/* calc(50vw - 50%) centers the element: 50vw is half viewport, minus 50% of element width */
 @keyframes navBrandSlideIn {
 	0% {
 		opacity: 0;
