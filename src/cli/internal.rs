@@ -29,7 +29,7 @@ use tabled::{
     Table, Tabled,
     settings::{
         Color, Modify, Rotate, Width,
-        object::{Columns, Rows},
+        object::{Columns, Rows, Segment},
         style::{BorderColor, Style},
         themes::Colorization,
     },
@@ -485,7 +485,7 @@ impl<'i> Internal<'i> {
                 .with(Rotate::Left)
                 .with(Style::rounded().remove_horizontals())
                 .with(Colorization::exact([Color::FG_CYAN], Columns::first()))
-                .with(BorderColor::filled(Color::FG_BLACK))
+                .with(Modify::new(Segment::all()).with(BorderColor::filled(Color::FG_BLACK)))
                 .to_string();
 
             if let Ok(json) = serde_json::to_string(&data[0]) {
@@ -1274,7 +1274,7 @@ impl<'i> Internal<'i> {
 
                 let table = Table::new(&processes)
                     .with(Style::rounded().remove_verticals())
-                    .with(BorderColor::filled(Color::FG_BLACK))
+                    .with(Modify::new(Segment::all()).with(BorderColor::filled(Color::FG_BLACK)))
                     .with(Colorization::exact([Color::FG_BRIGHT_CYAN], Rows::first()))
                     .with(Modify::new(Columns::single(1)).with(Width::truncate(40).suffix("... ")))
                     .to_string();
