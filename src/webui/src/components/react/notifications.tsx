@@ -107,7 +107,7 @@ const NotificationSettings = (props: { base: string }) => {
 							}`}>
 							<span
 								className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition ${
-									settings.enabled ? 'translate-x-4.5' : 'translate-x-0.5'
+									settings.enabled ? 'translate-x-4' : 'translate-x-0.5'
 								}`}
 							/>
 						</button>
@@ -142,7 +142,7 @@ const NotificationSettings = (props: { base: string }) => {
 									} disabled:opacity-50 disabled:cursor-not-allowed`}>
 									<span
 										className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition ${
-											value ? 'translate-x-4.5' : 'translate-x-0.5'
+											value ? 'translate-x-4' : 'translate-x-0.5'
 										}`}
 									/>
 								</button>
