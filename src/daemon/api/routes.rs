@@ -40,7 +40,7 @@ use crate::daemon::{
 };
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashMap},
     env,
     fs::{self, File},
     io::{self, BufRead, BufReader},
@@ -839,15 +839,58 @@ pub async fn test_notification_handler(body: Json<TestNotificationBody>, _t: Tok
             return Err(generic_error(Status::BadRequest, "Notifications are not enabled".to_string()));
         }
         
-        // Send desktop notification
+        let mut desktop_sent = false;
+        let mut channels_sent = false;
+        let mut errors = Vec::new();
+        
+        // Try to send desktop notification (may fail in headless environments)
         if let Err(e) = send_test_desktop_notification(&body.title, &body.message).await {
-            log::warn!("Failed to send test notification: {}", e);
-            timer.observe_duration();
-            return Err(generic_error(Status::InternalServerError, format!("Failed to send notification: {}", e)));
+            log::debug!("Desktop notification not available: {}", e);
+            errors.push(format!("Desktop: {}", e));
+        } else {
+            desktop_sent = true;
         }
         
-        timer.observe_duration();
-        Ok(Json(json!({"success": true, "message": "Test notification sent"})))
+        // Send to external channels if configured
+        if let Some(channels) = &cfg.channels {
+            if !channels.is_empty() {
+                match send_test_channel_notifications(&body.title, &body.message, channels).await {
+                    Ok(_) => {
+                        channels_sent = true;
+                    }
+                    Err(e) => {
+                        log::warn!("Failed to send channel notifications: {}", e);
+                        errors.push(format!("Channels: {}", e));
+                    }
+                }
+            }
+        }
+        
+        // Return success if at least one notification method succeeded
+        if desktop_sent || channels_sent {
+            let mut message = "Test notification sent via".to_string();
+            if desktop_sent {
+                message.push_str(" desktop");
+            }
+            if channels_sent {
+                if desktop_sent {
+                    message.push_str(" and");
+                }
+                message.push_str(" external channels");
+            }
+            
+            timer.observe_duration();
+            Ok(Json(json!({"success": true, "message": message})))
+        } else {
+            // Both methods failed
+            timer.observe_duration();
+            let error_msg = if errors.is_empty() {
+                "No notification channels available".to_string()
+            } else {
+                format!("Failed to send notifications: {}", errors.join("; "))
+            };
+            Err(generic_error(Status::InternalServerError, error_msg))
+        }
     } else {
         timer.observe_duration();
         Err(generic_error(Status::BadRequest, "Notifications are not configured".to_string()))
@@ -867,6 +910,156 @@ async fn send_test_desktop_notification(
         .appname("OPM")
         .timeout(5000)
         .show()?;
+    
+    Ok(())
+}
+
+async fn send_test_channel_notifications(
+    title: &str,
+    message: &str,
+    channels: &[String],
+) -> Result<(), Box<dyn std::error::Error>> {
+    use reqwest::Client;
+    
+    let client = Client::new();
+    let mut errors = Vec::new();
+    let mut success_count = 0;
+    
+    for channel_url in channels {
+        // Parse the shoutrrr URL to determine the service type
+        if let Some((service, rest)) = channel_url.split_once("://") {
+            let result = match service {
+                "discord" => send_discord_webhook(&client, rest, title, message).await,
+                "slack" => send_slack_webhook(&client, rest, title, message).await,
+                "telegram" => send_telegram_message(&client, rest, title, message).await,
+                _ => {
+                    log::warn!("Unsupported notification service: {}", service);
+                    errors.push(format!("Unsupported service: {}", service));
+                    continue;
+                }
+            };
+            
+            match result {
+                Ok(_) => success_count += 1,
+                Err(e) => {
+                    log::warn!("Failed to send to {}: {}", service, e);
+                    errors.push(format!("{}: {}", service, e));
+                }
+            }
+        } else {
+            log::warn!("Invalid channel URL format: {}", channel_url);
+            errors.push(format!("Invalid URL format: {}", channel_url));
+        }
+    }
+    
+    if success_count > 0 {
+        Ok(())
+    } else if !errors.is_empty() {
+        Err(errors.join("; ").into())
+    } else {
+        Err("No valid notification channels configured".into())
+    }
+}
+
+async fn send_discord_webhook(
+    client: &reqwest::Client,
+    webhook_data: &str,
+    title: &str,
+    message: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // Discord webhook URL format: token@id or full webhook URL
+    let webhook_url = if webhook_data.starts_with("http") {
+        webhook_data.to_string()
+    } else {
+        // Parse token@id format (shoutrrr: discord://token@id)
+        // Discord API expects: https://discord.com/api/webhooks/{id}/{token}
+        if let Some((token, id)) = webhook_data.split_once('@') {
+            format!("https://discord.com/api/webhooks/{}/{}", id, token)
+        } else {
+            return Err("Invalid Discord webhook format: expected 'token@id' or full webhook URL".into());
+        }
+    };
+    
+    let mut payload = HashMap::new();
+    payload.insert("content", format!("**{}**\n{}", title, message));
+    
+    let response = client
+        .post(&webhook_url)
+        .json(&payload)
+        .send()
+        .await?;
+    
+    if !response.status().is_success() {
+        return Err(format!("Discord webhook failed with status: {}", response.status()).into());
+    }
+    
+    Ok(())
+}
+
+async fn send_slack_webhook(
+    client: &reqwest::Client,
+    webhook_data: &str,
+    title: &str,
+    message: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // Slack webhook URL format: full webhook URL is required
+    let webhook_url = if webhook_data.starts_with("http") {
+        webhook_data.to_string()
+    } else {
+        return Err("Slack webhooks require full URL format (e.g., https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXX)".into());
+    };
+    
+    let mut payload = HashMap::new();
+    payload.insert("text", format!("*{}*\n{}", title, message));
+    
+    let response = client
+        .post(&webhook_url)
+        .json(&payload)
+        .send()
+        .await?;
+    
+    if !response.status().is_success() {
+        return Err(format!("Slack webhook failed with status: {}", response.status()).into());
+    }
+    
+    Ok(())
+}
+
+async fn send_telegram_message(
+    client: &reqwest::Client,
+    webhook_data: &str,
+    title: &str,
+    message: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // Telegram format: token@telegram?chats=@chat_id
+    // Extract token and chat ID
+    let (token, rest) = webhook_data
+        .split_once('@')
+        .ok_or("Invalid Telegram format: expected 'token@telegram?chats=@chat_id'")?;
+    
+    let chat_id = if let Some(query) = rest.strip_prefix("telegram?chats=") {
+        query
+    } else {
+        return Err("Invalid Telegram format: expected 'token@telegram?chats=@chat_id'".into());
+    };
+    
+    let api_url = format!("https://api.telegram.org/bot{}/sendMessage", token);
+    let text = format!("<b>{}</b>\n{}", title, message);
+    
+    let mut payload = HashMap::new();
+    payload.insert("chat_id", chat_id);
+    payload.insert("text", &text);
+    payload.insert("parse_mode", "HTML");
+    
+    let response = client
+        .post(&api_url)
+        .json(&payload)
+        .send()
+        .await?;
+    
+    if !response.status().is_success() {
+        return Err(format!("Telegram API failed with status: {}", response.status()).into());
+    }
     
     Ok(())
 }
