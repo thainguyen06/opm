@@ -38,7 +38,12 @@ const Index = (props: { base: string }) => {
 
 	const isRemote = (item: any): bool => (item.server == 'local' ? false : true);
 	const isRunning = (status: string): bool => (status == 'stopped' ? false : status == 'crashed' ? false : true);
-	const action = (id: number, name: string) => api.post(`${props.base}/process/${id}/action`, { json: { method: name } }).then(() => fetch());
+	const action = (item: any, name: string) => {
+		const endpoint = item.server === 'local' 
+			? `${props.base}/process/${item.id}/action`
+			: `${props.base}/remote/${item.server}/action/${item.id}`;
+		return api.post(endpoint, { json: { method: name } }).then(() => fetch());
+	};
 	
 	// Toggle selection
 	const toggleSelect = (id: number) => {
@@ -70,12 +75,37 @@ const Index = (props: { base: string }) => {
 		if (selectedIds.size === 0) return;
 		
 		try {
-			await api.post(`${props.base}/process/bulk-action`, {
-				json: {
-					ids: Array.from(selectedIds),
-					method: method
+			// Group selected items by server
+			const selectedItems = items.value.filter((item) => selectedIds.has(item.id));
+			const groupedByServer = selectedItems.reduce((acc, item) => {
+				const server = item.server || 'local';
+				if (!acc[server]) {
+					acc[server] = [];
+				}
+				acc[server].push(item.id);
+				return acc;
+			}, {} as Record<string, number[]>);
+
+			// Execute actions for each server group
+			const promises = Object.entries(groupedByServer).map(([server, ids]) => {
+				if (server === 'local') {
+					return api.post(`${props.base}/process/bulk-action`, {
+						json: { ids, method }
+					});
+				} else {
+					// For remote servers, we need to call actions individually
+					// since there's no bulk-action endpoint for remote servers
+					return Promise.all(
+						ids.map(id => 
+							api.post(`${props.base}/remote/${server}/action/${id}`, {
+								json: { method }
+							})
+						)
+					);
 				}
 			});
+
+			await Promise.all(promises);
 			await fetch();
 			alert(`${method} action completed on ${selectedIds.size} processes`);
 		} catch (error) {
@@ -257,7 +287,7 @@ const Index = (props: { base: string }) => {
 												<MenuItem>
 													{({ focus }) => (
 														<a
-															onClick={() => action(item.id, 'restart')}
+															onClick={() => action(item, 'restart')}
 															className={classNames(
 																focus ? 'bg-green-700/10 text-green-500' : 'text-zinc-200',
 																'rounded-md block px-2 py-2 w-full text-left cursor-pointer'
@@ -269,7 +299,7 @@ const Index = (props: { base: string }) => {
 												<MenuItem>
 													{({ focus }) => (
 														<a
-															onClick={() => action(item.id, 'reload')}
+															onClick={() => action(item, 'reload')}
 															className={classNames(
 																focus ? 'bg-blue-700/10 text-blue-500' : 'text-zinc-200',
 																'rounded-md block px-2 py-2 w-full text-left cursor-pointer'
@@ -281,7 +311,7 @@ const Index = (props: { base: string }) => {
 												<MenuItem>
 													{({ focus }) => (
 														<a
-															onClick={() => action(item.id, 'stop')}
+															onClick={() => action(item, 'stop')}
 															className={classNames(
 																focus ? 'bg-yellow-400/10 text-amber-500' : 'text-zinc-200',
 																'rounded-md block p-2 w-full text-left cursor-pointer'
@@ -298,7 +328,7 @@ const Index = (props: { base: string }) => {
 												<MenuItem>
 													{({ _ }) => (
 														<a
-															onClick={() => action(item.id, 'flush')}
+															onClick={() => action(item, 'flush')}
 															className="text-zinc-200 rounded-md block p-2 w-full text-left cursor-pointer hover:bg-zinc-800/80 hover:text-zinc-50">
 															Clean Logs
 														</a>
@@ -309,7 +339,7 @@ const Index = (props: { base: string }) => {
 												<MenuItem>
 													{({ focus }) => (
 														<a
-															onClick={() => action(item.id, 'delete')}
+															onClick={() => action(item, 'delete')}
 															className={classNames(
 																focus ? 'bg-red-700/10 text-red-500' : 'text-red-400',
 																'rounded-md block p-2 w-full text-left cursor-pointer'
