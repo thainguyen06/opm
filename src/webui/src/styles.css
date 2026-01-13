@@ -195,3 +195,24 @@ button, a, input, select {
 	outline-offset: 2px;
 }
 
+/* Simple fade-in animation for navbar */
+@keyframes navFadeIn {
+	0% {
+		opacity: 0;
+	}
+	100% {
+		opacity: 1;
+	}
+}
+
+.nav-container {
+	animation: navFadeIn 0.3s ease-out forwards;
+}
+
+/* Respect reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+	.nav-container {
+		animation: none;
+	}
+}
+
