@@ -1227,33 +1227,37 @@ impl ProcessWrapper {
         let item = runner.process(self.id);
         let config = config::read().runner;
 
-        let mut memory_usage: Option<MemoryInfo> = None;
-        let mut cpu_percent: Option<f64> = None;
-
-        // For shell scripts, try shell_pid first to capture the entire process tree
-        // If shell_pid process has exited, fall back to the actual script pid
-        let mut pid_for_monitoring = item.shell_pid.unwrap_or(item.pid);
-        let mut process_result = unix::NativeProcess::new(pid_for_monitoring as u32);
-
-        // If shell_pid fails (process exited), try the actual script pid
-        if process_result.is_err() && item.shell_pid.is_some() {
-            pid_for_monitoring = item.pid;
-            process_result = unix::NativeProcess::new(pid_for_monitoring as u32);
-        }
-
-        if let Ok(process) = process_result
-            && let Ok(_mem_info_native) = process.memory_info()
-        {
-            cpu_percent = Some(get_process_cpu_usage_with_children_from_process(
-                &process,
-                pid_for_monitoring,
-            ));
-            memory_usage = get_process_memory_with_children(pid_for_monitoring);
-        }
-
         // Check if process actually exists before reporting as online
         // A process marked as running but with a non-existent PID should be shown as crashed
         let process_actually_running = item.running && is_pid_alive(item.pid);
+        
+        let mut memory_usage: Option<MemoryInfo> = None;
+        let mut cpu_percent: Option<f64> = None;
+
+        // Only fetch CPU and memory stats if process is actually running
+        // Stopped or crashed processes should always show None (which displays as 0)
+        if process_actually_running {
+            // For shell scripts, try shell_pid first to capture the entire process tree
+            // If shell_pid process has exited, fall back to the actual script pid
+            let mut pid_for_monitoring = item.shell_pid.unwrap_or(item.pid);
+            let mut process_result = unix::NativeProcess::new(pid_for_monitoring as u32);
+
+            // If shell_pid fails (process exited), try the actual script pid
+            if process_result.is_err() && item.shell_pid.is_some() {
+                pid_for_monitoring = item.pid;
+                process_result = unix::NativeProcess::new(pid_for_monitoring as u32);
+            }
+
+            if let Ok(process) = process_result
+                && let Ok(_mem_info_native) = process.memory_info()
+            {
+                cpu_percent = Some(get_process_cpu_usage_with_children_from_process(
+                    &process,
+                    pid_for_monitoring,
+                ));
+                memory_usage = get_process_memory_with_children(pid_for_monitoring);
+            }
+        }
         
         let status = if process_actually_running {
             string!("online")

@@ -523,6 +523,10 @@ impl<'i> Internal<'i> {
                 let mut runner = Runner::new();
                 let item = runner.process(self.id);
 
+                // Check if process actually exists before reporting as online
+                // A process marked as running but with a non-existent PID should be shown as crashed
+                let process_actually_running = item.running && is_pid_alive(item.pid);
+                
                 let mut memory_usage: Option<MemoryInfo> = None;
                 let mut cpu_percent: Option<f64> = None;
 
@@ -535,15 +539,19 @@ impl<'i> Internal<'i> {
                     format!("{:?}", item.children)
                 };
 
-                // For shell scripts, use shell_pid to capture the entire process tree
-                let pid_for_monitoring = item.shell_pid.unwrap_or(item.pid);
+                // Only fetch CPU and memory stats if process is actually running
+                // Stopped or crashed processes should always show 0% CPU and 0b memory
+                if process_actually_running {
+                    // For shell scripts, use shell_pid to capture the entire process tree
+                    let pid_for_monitoring = item.shell_pid.unwrap_or(item.pid);
 
-                if let Ok(process) = Process::new(pid_for_monitoring as u32) {
-                    memory_usage = get_process_memory_with_children(pid_for_monitoring);
-                    cpu_percent = Some(get_process_cpu_usage_with_children_from_process(
-                        &process,
-                        pid_for_monitoring,
-                    ));
+                    if let Ok(process) = Process::new(pid_for_monitoring as u32) {
+                        memory_usage = get_process_memory_with_children(pid_for_monitoring);
+                        cpu_percent = Some(get_process_cpu_usage_with_children_from_process(
+                            &process,
+                            pid_for_monitoring,
+                        ));
+                    }
                 }
 
                 let cpu_percent = match cpu_percent {
@@ -555,10 +563,6 @@ impl<'i> Internal<'i> {
                     Some(usage) => helpers::format_memory(usage.rss),
                     None => string!("0b"),
                 };
-
-                // Check if process actually exists before reporting as online
-                // A process marked as running but with a non-existent PID should be shown as crashed
-                let process_actually_running = item.running && is_pid_alive(item.pid);
 
                 let status = if process_actually_running {
                     "online   ".green().bold()
@@ -1183,55 +1187,59 @@ impl<'i> Internal<'i> {
                 println!("{} Process table empty", *helpers::SUCCESS);
             } else {
                 for (id, item) in runner.items() {
-                    let mut cpu_percent: String = string!("0%");
+                    // Check if process actually exists before reporting as online
+                    // A process marked as running but with a non-existent PID should be shown as crashed
+                    let process_actually_running = item.running && is_pid_alive(item.pid);
+                    
+                    let mut cpu_percent: String = string!("0.00%");
                     let mut memory_usage: String = string!("0b");
 
-                    if internal {
-                        let mut usage_internals: (Option<f64>, Option<MemoryInfo>) = (None, None);
+                    // Only fetch CPU and memory stats if process is actually running
+                    // Stopped or crashed processes should always show 0% CPU and 0b memory
+                    if process_actually_running {
+                        if internal {
+                            let mut usage_internals: (Option<f64>, Option<MemoryInfo>) = (None, None);
 
-                        // For shell scripts, use shell_pid to capture the entire process tree
-                        let pid_for_monitoring = item.shell_pid.unwrap_or(item.pid);
+                            // For shell scripts, use shell_pid to capture the entire process tree
+                            let pid_for_monitoring = item.shell_pid.unwrap_or(item.pid);
 
-                        if let Ok(process) = Process::new(pid_for_monitoring as u32) {
-                            usage_internals = (
-                                Some(get_process_cpu_usage_with_children_from_process(
-                                    &process,
-                                    pid_for_monitoring,
-                                )),
-                                get_process_memory_with_children(pid_for_monitoring),
-                            );
-                        }
+                            if let Ok(process) = Process::new(pid_for_monitoring as u32) {
+                                usage_internals = (
+                                    Some(get_process_cpu_usage_with_children_from_process(
+                                        &process,
+                                        pid_for_monitoring,
+                                    )),
+                                    get_process_memory_with_children(pid_for_monitoring),
+                                );
+                            }
 
-                        cpu_percent = match usage_internals.0 {
-                            Some(percent) => format!("{:.2}%", percent),
-                            None => string!("0.00%"),
-                        };
-
-                        memory_usage = match usage_internals.1 {
-                            Some(usage) => helpers::format_memory(usage.rss),
-                            None => string!("0b"),
-                        };
-                    } else {
-                        let info = http::info(&runner.remote.as_ref().unwrap(), id);
-
-                        if let Ok(info) = info {
-                            let stats = info.json::<ItemSingle>().unwrap().stats;
-
-                            cpu_percent = match stats.cpu_percent {
+                            cpu_percent = match usage_internals.0 {
                                 Some(percent) => format!("{:.2}%", percent),
                                 None => string!("0.00%"),
                             };
 
-                            memory_usage = match stats.memory_usage {
+                            memory_usage = match usage_internals.1 {
                                 Some(usage) => helpers::format_memory(usage.rss),
                                 None => string!("0b"),
                             };
+                        } else {
+                            let info = http::info(&runner.remote.as_ref().unwrap(), id);
+
+                            if let Ok(info) = info {
+                                let stats = info.json::<ItemSingle>().unwrap().stats;
+
+                                cpu_percent = match stats.cpu_percent {
+                                    Some(percent) => format!("{:.2}%", percent),
+                                    None => string!("0.00%"),
+                                };
+
+                                memory_usage = match stats.memory_usage {
+                                    Some(usage) => helpers::format_memory(usage.rss),
+                                    None => string!("0b"),
+                                };
+                            }
                         }
                     }
-
-                    // Check if process actually exists before reporting as online
-                    // A process marked as running but with a non-existent PID should be shown as crashed
-                    let process_actually_running = item.running && is_pid_alive(item.pid);
 
                     let status = if process_actually_running {
                         "online   ".green().bold()
