@@ -2,6 +2,14 @@
 const { active } = Astro.props;
 ---
 
+<!-- Critical CSS for FOUC prevention - must load immediately -->
+<style is:global>
+	/* Force navigation left alignment from first render */
+	nav > div {
+		justify-content: flex-start !important;
+	}
+</style>
+
 <!-- Horizontal Top Navigation -->
 <nav class="fixed top-0 left-0 right-0 backdrop-blur-md bg-zinc-900/95 border-b border-zinc-800 z-[100] shadow-lg">
   <div class="flex items-center px-3 sm:px-6 py-2 sm:py-3" style="justify-content: flex-start !important;">

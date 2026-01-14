@@ -13,6 +13,26 @@ html {
 	touch-action: manipulation;
 }
 
+/* CRITICAL: Prevent FOUC - must be early in cascade */
+/* Force navigation left alignment from first render */
+nav > div {
+	justify-content: flex-start !important;
+}
+
+/* Toggle switch precision alignment - prevent misalignment */
+.toggle-switch {
+	display: inline-flex !important;
+	align-items: center !important;
+	justify-content: flex-start !important;
+}
+
+/* Ensure toggle pin is perfectly centered within track */
+.toggle-switch span {
+	margin-top: 0 !important;
+	margin-bottom: 0 !important;
+	display: inline-block !important;
+}
+
 /* Mobile-first responsive adjustments */
 @media (max-width: 768px) {
 	body {
@@ -214,22 +234,5 @@ button, a, input, select {
 	.nav-container {
 		animation: none;
 	}
-}
-
-/* Prevent FOUC for navigation - force left alignment from first frame */
-nav > div {
-	justify-content: flex-start !important;
-}
-
-/* Toggle switch precision alignment */
-.toggle-switch {
-	display: flex !important;
-	align-items: center !important;
-}
-
-/* Ensure toggle pin is perfectly centered within track */
-.toggle-switch span {
-	margin-top: 0 !important;
-	margin-bottom: 0 !important;
 }
 

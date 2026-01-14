@@ -23,6 +23,23 @@ const { title, description } = Astro.props;
 		<meta http-equiv="Pragma" content="no-cache" />
 		<meta http-equiv="Expires" content="0" />
 	
+		<!-- Critical CSS for immediate rendering -->
+		<style is:global>
+			/* Toggle switch precision alignment - prevent misalignment */
+			.toggle-switch {
+				display: inline-flex !important;
+				align-items: center !important;
+				justify-content: flex-start !important;
+			}
+			
+			/* Ensure toggle pin is perfectly centered within track */
+			.toggle-switch span {
+				margin-top: 0 !important;
+				margin-bottom: 0 !important;
+				display: inline-block !important;
+			}
+		</style>
+	
 		<title>{title}</title>
 		<link rel="icon" type="image/svg+xml" href="{{base_path | safe}}/assets/favicon.svg" />
 		<link rel="stylesheet" href="https://rsms.me/inter/inter.css">
