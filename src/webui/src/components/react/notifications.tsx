@@ -125,7 +125,7 @@ const NotificationSettings = (props: { base: string }) => {
 								Master switch for all notifications
 							</p>
 						</div>
-						<div className="flex-shrink-0">
+						<div className="flex-shrink-0 flex items-center">
 							<button
 								type="button"
 								onClick={() => setSettings({ ...settings, enabled: !settings.enabled })}
@@ -136,7 +136,7 @@ const NotificationSettings = (props: { base: string }) => {
 								aria-checked={settings.enabled}>
 								<span
 									className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${
-										settings.enabled ? 'translate-x-[1.125rem]' : 'translate-x-0.5'
+										settings.enabled ? 'translate-x-[1.063rem]' : 'translate-x-0.5'
 									}`}
 								/>
 							</button>
@@ -158,7 +158,7 @@ const NotificationSettings = (props: { base: string }) => {
 										Notify when {key.replace('_', ' ')} occurs
 									</div>
 								</div>
-								<div className="flex-shrink-0">
+								<div className="flex-shrink-0 flex items-center">
 									<button
 										type="button"
 										onClick={() => setSettings({
@@ -176,7 +176,7 @@ const NotificationSettings = (props: { base: string }) => {
 										aria-checked={value}>
 										<span
 											className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${
-												value ? 'translate-x-[1.125rem]' : 'translate-x-0.5'
+												value ? 'translate-x-[1.063rem]' : 'translate-x-0.5'
 											}`}
 										/>
 									</button>

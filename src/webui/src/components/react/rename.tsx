@@ -34,10 +34,16 @@ const Rename = (props: { base: string; server: string; process_id: number; callb
 				Rename
 			</a>
 			<Modal show={open} title="Rename this process" callback={(close: boolean) => setOpen(close)}>
-				<form onSubmit={handleSubmit} onClick={(e) => e.stopPropagation()}>
+				<form 
+					onSubmit={handleSubmit} 
+					onClick={(e) => e.stopPropagation()}
+					onTouchStart={(e) => e.stopPropagation()}
+					onTouchEnd={(e) => e.stopPropagation()}>
 					<div 
 						className="relative border border-zinc-700 rounded-lg px-3 py-3 focus-within:ring-1 focus-within:ring-zinc-300 focus-within:border-zinc-300 sm:w-[29rem] focus-within:shadow-sm transition bg-zinc-900"
-						onClick={(e) => e.stopPropagation()}>
+						onClick={(e) => e.stopPropagation()}
+						onTouchStart={(e) => e.stopPropagation()}
+						onTouchEnd={(e) => e.stopPropagation()}>
 						<input
 							type="text"
 							name="name"
@@ -48,6 +54,7 @@ const Rename = (props: { base: string; server: string; process_id: number; callb
 							onFocus={(e) => e.stopPropagation()}
 							onMouseDown={(e) => e.stopPropagation()}
 							onTouchStart={(e) => e.stopPropagation()}
+							onTouchEnd={(e) => e.stopPropagation()}
 							className="bg-zinc-900 block w-full border-0 p-0 text-zinc-100 placeholder-zinc-500 focus:ring-0 sm:text-sm transition"
 							placeholder={props.old}
 							autoFocus
