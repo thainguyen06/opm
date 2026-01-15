@@ -11,7 +11,7 @@ const Rename = (props: { base: string; server: string; process_id: number; callb
 
 	const handleSave = async () => {
 		const url =
-			props.server != 'local'
+			props.server !== 'local'
 				? `${props.base}/remote/${props.server}/rename/${props.process_id}`
 				: `${props.base}/process/${props.process_id}/rename`;
 
