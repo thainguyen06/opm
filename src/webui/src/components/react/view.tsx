@@ -9,6 +9,7 @@ import { EllipsisVerticalIcon, CheckIcon, ChevronUpDownIcon } from '@heroicons/r
 import { Menu, MenuItem, MenuItems, MenuButton, Transition, Listbox, ListboxButton, ListboxOption, ListboxOptions } from '@headlessui/react';
 import ToastContainer from '@/components/react/toast';
 import { useToast } from '@/components/react/useToast';
+import { ACTION_MESSAGES } from '@/constants';
 
 const LogRow = ({ match, children }: any) => {
 	const _match = match.toLowerCase();
@@ -299,14 +300,7 @@ const View = (props: { id: string; base: string }) => {
 				await api.post(`${props.base}/process/${id}/action`, { json: { method: name } });
 			}
 			openConnection();
-			const actionMessages: Record<string, string> = {
-				'start': 'Process started successfully',
-				'restart': 'Process restarted successfully',
-				'stop': 'Process stopped successfully',
-				'delete': 'Process deleted successfully',
-				'flush': 'Logs cleaned successfully'
-			};
-			success(actionMessages[name] || `${name} action completed successfully`);
+			success(ACTION_MESSAGES[name] || `${name} action completed successfully`);
 		} catch (err) {
 			error(`Failed to ${name} process: ${(err as Error).message}`);
 		}

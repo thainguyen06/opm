@@ -8,6 +8,7 @@ import { EllipsisVerticalIcon } from '@heroicons/react/20/solid';
 import { Menu, MenuItem, MenuItems, MenuButton, Transition } from '@headlessui/react';
 import ToastContainer from '@/components/react/toast';
 import { useToast } from '@/components/react/useToast';
+import { ACTION_MESSAGES } from '@/constants';
 
 type ProcessItem = {
 	id: number;
@@ -61,15 +62,7 @@ const Index = (props: { base: string }) => {
 		try {
 			await api.post(endpoint, { json: { method: name } });
 			await fetch();
-			const actionMessages: Record<string, string> = {
-				'start': 'Process started successfully',
-				'restart': 'Process restarted successfully',
-				'reload': 'Process reloaded successfully',
-				'stop': 'Process stopped successfully',
-				'delete': 'Process deleted successfully',
-				'flush': 'Logs cleaned successfully'
-			};
-			success(actionMessages[name] || `${name} action completed successfully`);
+			success(ACTION_MESSAGES[name] || `${name} action completed successfully`);
 		} catch (err) {
 			error(`Failed to ${name} process: ${(err as Error).message}`);
 		}
