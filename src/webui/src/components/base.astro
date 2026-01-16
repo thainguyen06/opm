@@ -50,7 +50,6 @@ const { title, description } = Astro.props;
 		<title>{title}</title>
 		<link rel="icon" type="image/svg+xml" href="{{base_path | safe}}/assets/favicon.svg" />
 		<link rel="stylesheet" href="https://rsms.me/inter/inter.css">
-		<app-redirect data-base="{{base_path | safe}}" />
 	
 		<meta name="title" content={title} />
 		<meta name="description" content={description} />
@@ -62,9 +61,7 @@ const { title, description } = Astro.props;
 		<meta property="twitter:title" content={title} />
 		<meta property="twitter:description" content={description} />
 		<meta property="twitter:image" content="{{base_path | safe}}/assets/banner.png"  />
-		
-		<ViewTransitions />
-	
+
 		<script>
 			import { $settings } from '@/store';
 			
@@ -115,9 +112,12 @@ const { title, description } = Astro.props;
 			
 			customElements.define('app-redirect', AppRedirect);
 		</script>
+		
+		<ViewTransitions />
 	</head>
 	
 	<body>
+		<app-redirect data-base="{{base_path | safe}}" />
 		<slot />
 	</body>
 </html>
