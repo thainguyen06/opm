@@ -2,12 +2,12 @@ import { api } from '@/api';
 import { useEffect, useState, useRef } from 'react';
 import { CheckIcon, XMarkIcon, PencilIcon } from '@heroicons/react/20/solid';
 
-const InlineRename = (props: { base: string; server: string; process_id: number; callback: any; old: string; onSuccess?: (msg: string) => void; onError?: (msg: string) => void }) => {
+const InlineRename = (props: { base: string; server: string; process_id: number; callback: () => void; old: string; onSuccess?: (msg: string) => void; onError?: (msg: string) => void }) => {
 	const [isEditing, setIsEditing] = useState(false);
 	const [formData, setFormData] = useState('');
 	const inputRef = useRef<HTMLInputElement>(null);
 
-	const handleChange = (event: any) => setFormData(event.target.value);
+	const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => setFormData(event.target.value);
 
 	const handleSave = async () => {
 		const url =
