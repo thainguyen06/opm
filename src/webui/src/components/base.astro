@@ -27,7 +27,7 @@ const { title, description } = Astro.props;
 		<link rel="icon" type="image/svg+xml" href="{{base_path | safe}}/assets/favicon.svg" />
 		
 		<!-- Critical CSS inlined to prevent FOUC -->
-		<style>
+		<style is:inline>
 			/* Prevent navbar centering on initial load */
 			nav {
 				display: flex !important;
