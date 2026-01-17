@@ -47,7 +47,7 @@ const { title, description } = Astro.props;
 			}
 			
 			/* Prevent toggle switch shape issues on initial load */
-			/* Note: Pill-shaped toggle with 1.71:1 width-to-height ratio - larger size with proper pill appearance */
+			/* Note: iOS-style pill toggle with 1.625:1 width-to-height ratio for authentic appearance */
 			/* Duplicated from styles.css as critical CSS for immediate rendering */
 			button[role="switch"],
 			.toggle-switch {
@@ -55,8 +55,8 @@ const { title, description } = Astro.props;
 				align-items: center !important;
 				justify-content: flex-start !important;
 				position: relative !important;
-				height: 1.75rem !important; /* 28px - larger height */
-				width: 3rem !important; /* 48px - wider for better visibility */
+				height: 2rem !important; /* 32px - iOS-style height */
+				width: 3.25rem !important; /* 52px - iOS-style width */
 				flex-shrink: 0 !important;
 				border-radius: 9999px !important;
 			}
@@ -67,15 +67,15 @@ const { title, description } = Astro.props;
 				left: 0.125rem !important;
 				transform: translateY(-50%) !important;
 				display: inline-block !important;
-				height: 1.5rem !important; /* 24px - larger pin */
-				width: 1.5rem !important; /* 24px */
+				height: 1.75rem !important; /* 28px - proportional pin */
+				width: 1.75rem !important; /* 28px */
 				border-radius: 9999px !important;
 				background-color: white !important;
 				transition: transform 200ms ease-in-out !important;
 			}
 			button[role="switch"][aria-checked="true"] > span,
 			.toggle-switch[aria-checked="true"] > span {
-				transform: translateY(-50%) translateX(1.25rem) !important; /* Adjusted for wider track */
+				transform: translateY(-50%) translateX(1.25rem) !important; /* Adjusted for iOS-style track */
 			}
 		</style>
 		
