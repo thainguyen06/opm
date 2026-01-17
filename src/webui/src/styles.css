@@ -67,7 +67,7 @@ button[role="switch"] > span,
 /* Pin translation when checked */
 button[role="switch"][aria-checked="true"] > span,
 .toggle-switch[aria-checked="true"] > span {
-	transform: translateY(-50%) translateX(1rem) !important;
+	transform: translateY(-50%) translateX(1.125rem) !important;
 }
 
 /* Mobile-first responsive adjustments */
