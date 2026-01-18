@@ -2243,59 +2243,56 @@ pub async fn agent_processes_handler(
         }
     };
 
-    // Get API endpoint from agent
-    let api_endpoint = match &agent.api_endpoint {
-        Some(endpoint) => endpoint,
-        None => {
-            timer.observe_duration();
-            return Err(generic_error(
-                Status::InternalServerError,
-                string!("Agent API endpoint not configured"),
-            ));
-        }
-    };
-
-    // Fetch processes from agent's API
-    let (client, headers) = client(&None).await;
-    match client
-        .get(fmtstr!("{api_endpoint}/list"))
-        .headers(headers)
-        .send()
-        .await
-    {
-        Ok(response) => {
-            if response.status() != 200 {
-                let err_text = response
-                    .text()
-                    .await
-                    .unwrap_or_else(|_| "Unknown error".to_string());
-                timer.observe_duration();
-                Err(generic_error(
-                    Status::InternalServerError,
-                    format!("Failed to fetch processes from agent: {}", err_text),
-                ))
-            } else {
-                match response.json::<Vec<ProcessItem>>().await {
-                    Ok(processes) => {
-                        timer.observe_duration();
-                        Ok(Json(processes))
-                    }
-                    Err(e) => {
-                        timer.observe_duration();
-                        Err(generic_error(
-                            Status::InternalServerError,
-                            format!("Failed to parse agent response: {}", e),
-                        ))
+    // Check if agent has an API endpoint configured
+    if let Some(api_endpoint) = &agent.api_endpoint {
+        // Fetch processes from agent's API
+        let (client, headers) = client(&None).await;
+        match client
+            .get(fmtstr!("{api_endpoint}/list"))
+            .headers(headers)
+            .send()
+            .await
+        {
+            Ok(response) => {
+                if response.status() != 200 {
+                    let err_text = response
+                        .text()
+                        .await
+                        .unwrap_or_else(|_| "Unknown error".to_string());
+                    timer.observe_duration();
+                    Err(generic_error(
+                        Status::InternalServerError,
+                        format!("Failed to fetch processes from agent: {}", err_text),
+                    ))
+                } else {
+                    match response.json::<Vec<ProcessItem>>().await {
+                        Ok(processes) => {
+                            timer.observe_duration();
+                            Ok(Json(processes))
+                        }
+                        Err(e) => {
+                            timer.observe_duration();
+                            Err(generic_error(
+                                Status::InternalServerError,
+                                format!("Failed to parse agent response: {}", e),
+                            ))
+                        }
                     }
                 }
             }
+            Err(err) => {
+                timer.observe_duration();
+                Err(generic_error(
+                    Status::InternalServerError,
+                    format!("Failed to connect to agent API: {}", err),
+                ))
+            }
         }
-        Err(err) => {
-            timer.observe_duration();
-            Err(generic_error(
-                Status::InternalServerError,
-                format!("Failed to connect to agent API: {}", err),
-            ))
-        }
+    } else {
+        // No API endpoint - fetch processes from local Runner by agent_id
+        let runner = Runner::new();
+        let processes = runner.fetch_by_agent(&id);
+        timer.observe_duration();
+        Ok(Json(processes))
     }
 }
