@@ -113,15 +113,21 @@ const Index = (props: { base: string }) => {
 	const getActionEndpoint = (item: ProcessItem): string => {
 		// If process has an agent_api_endpoint, use it (agent-managed process)
 		if (item.agent_api_endpoint) {
-			console.log(`Using agent endpoint for process ${item.name}:`, item.agent_api_endpoint);
+			if (import.meta.env.DEV) {
+				console.log(`Using agent endpoint for process ${item.name}:`, item.agent_api_endpoint);
+			}
 			return `${item.agent_api_endpoint}/process/${item.id}/action`;
 		}
 		// Otherwise, use server-based routing (local or remote server)
 		if (item.server === 'local') {
-			console.log(`Using local endpoint for process ${item.name}`);
+			if (import.meta.env.DEV) {
+				console.log(`Using local endpoint for process ${item.name}`);
+			}
 			return `${props.base}/process/${item.id}/action`;
 		}
-		console.log(`Using remote server endpoint for process ${item.name}:`, item.server);
+		if (import.meta.env.DEV) {
+			console.log(`Using remote server endpoint for process ${item.name}:`, item.server);
+		}
 		return `${props.base}/remote/${item.server}/action/${item.id}`;
 	};
 

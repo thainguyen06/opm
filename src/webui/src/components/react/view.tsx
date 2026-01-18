@@ -331,7 +331,9 @@ const View = (props: { id: string; base: string }) => {
 							? 'bg-blue-500/10 text-blue-400 ring-blue-500/20' 
 							: 'bg-green-500/10 text-green-400 ring-green-500/20'
 					}`}>
-						<svg viewBox="0 0 6 6" aria-hidden="true" className="h-1.5 w-1.5 fill-current">
+						<svg viewBox="0 0 6 6" aria-hidden="true" className={`h-1.5 w-1.5 ${
+							server === 'local' ? 'fill-blue-400' : 'fill-green-400'
+						}`}>
 							<circle r={3} cx={3} cy={3} />
 						</svg>
 						{server}

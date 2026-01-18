@@ -9,14 +9,18 @@ const AgentDetailPage = (props: { base: string }) => {
 	useEffect(() => {
 		// Get agent ID from URL hash
 		const hash = window.location.hash.substring(1);
-		console.log('Agent detail page - hash:', hash); // Debug log
+		if (import.meta.env.DEV) {
+			console.log('Agent detail page - hash:', hash);
+		}
 		setAgentId(hash || '');
 		setIsInitialized(true);
 
 		// Listen for hash changes
 		const handleHashChange = () => {
 			const newHash = window.location.hash.substring(1);
-			console.log('Agent detail page - hash change:', newHash); // Debug log
+			if (import.meta.env.DEV) {
+				console.log('Agent detail page - hash change:', newHash);
+			}
 			setAgentId(newHash || '');
 		};
 
