@@ -23,6 +23,7 @@ type ProcessItem = {
 	watch: string;
 	agent_id?: string;
 	agent_name?: string;
+	agent_api_endpoint?: string;
 };
 
 const Index = (props: { base: string }) => {
@@ -73,9 +74,19 @@ const Index = (props: { base: string }) => {
 	const isRemote = (item: ProcessItem): boolean => item.server !== 'local';
 	const isRunning = (status: string): boolean => !['stopped', 'crashed'].includes(status);
 	const action = async (item: ProcessItem, name: string) => {
-		const endpoint = item.server === 'local' 
-			? `${props.base}/process/${item.id}/action`
-			: `${props.base}/remote/${item.server}/action/${item.id}`;
+		let endpoint: string;
+		
+		// If process has an agent_api_endpoint, use it (agent-managed process)
+		if (item.agent_api_endpoint) {
+			endpoint = `${item.agent_api_endpoint}/process/${item.id}/action`;
+		}
+		// Otherwise, use server-based routing (local or remote server)
+		else if (item.server === 'local') {
+			endpoint = `${props.base}/process/${item.id}/action`;
+		} else {
+			endpoint = `${props.base}/remote/${item.server}/action/${item.id}`;
+		}
+		
 		try {
 			await api.post(endpoint, { json: { method: name } });
 			await fetch();
@@ -511,30 +522,60 @@ const Index = (props: { base: string }) => {
 									</Transition>
 								</Menu>
 							</div>
-							<a href={isRemote(item) ? `./view/${item.id}?server=${item.server}` : `./view/${item.id}`} className="block transition-colors duration-200 hover:bg-zinc-900/20">
-								<dl className="-my-3 divide-y divide-zinc-800/30 px-6 py-4 text-sm leading-6">
-									<div className="flex justify-between gap-x-2 py-2 transition-colors hover:text-zinc-300">
-										<dt className="text-zinc-600 font-medium">cpu usage</dt>
-										<dd className="text-zinc-400 font-mono">{isRunning(item.status) ? item.cpu : 'offline'}</dd>
+							{item.agent_api_endpoint ? (
+								<div className="block transition-colors duration-200 bg-zinc-900/10 cursor-not-allowed opacity-50">
+									<dl className="-my-3 divide-y divide-zinc-800/30 px-6 py-4 text-sm leading-6">
+										<div className="flex justify-between gap-x-2 py-2">
+											<dt className="text-zinc-600 font-medium">cpu usage</dt>
+											<dd className="text-zinc-400 font-mono">{isRunning(item.status) ? item.cpu : 'offline'}</dd>
+										</div>
+										<div className="flex justify-between gap-x-2 py-2">
+											<dt className="text-zinc-600 font-medium">memory</dt>
+											<dd className="text-zinc-400 font-mono">{isRunning(item.status) ? item.mem : 'offline'}</dd>
+										</div>
+										<div className="flex justify-between gap-x-2 py-2">
+											<dt className="text-zinc-600 font-medium">pid</dt>
+											<dd className="text-zinc-400 font-mono">{isRunning(item.status) ? item.pid : 'none'}</dd>
+										</div>
+										<div className="flex justify-between gap-x-2 py-2">
+											<dt className="text-zinc-600 font-medium">uptime</dt>
+											<dd className="text-zinc-400 font-mono">{isRunning(item.status) ? item.uptime : 'none'}</dd>
+										</div>
+										<div className="flex justify-between gap-x-2 py-2">
+											<dt className="text-zinc-600 font-medium">restarts</dt>
+											<dd className="text-zinc-400 font-mono">{item.restarts == 0 ? 'none' : item.restarts}</dd>
+										</div>
+									</dl>
+									<div className="text-center text-xs text-zinc-500 pb-2">
+										Agent-managed process (view not available)
 									</div>
-									<div className="flex justify-between gap-x-2 py-2 transition-colors hover:text-zinc-300">
-										<dt className="text-zinc-600 font-medium">memory</dt>
-										<dd className="text-zinc-400 font-mono">{isRunning(item.status) ? item.mem : 'offline'}</dd>
-									</div>
-									<div className="flex justify-between gap-x-2 py-2 transition-colors hover:text-zinc-300">
-										<dt className="text-zinc-600 font-medium">pid</dt>
-										<dd className="text-zinc-400 font-mono">{isRunning(item.status) ? item.pid : 'none'}</dd>
-									</div>
-									<div className="flex justify-between gap-x-2 py-2 transition-colors hover:text-zinc-300">
-										<dt className="text-zinc-600 font-medium">uptime</dt>
-										<dd className="text-zinc-400 font-mono">{isRunning(item.status) ? item.uptime : 'none'}</dd>
-									</div>
-									<div className="flex justify-between gap-x-2 py-2 transition-colors hover:text-zinc-300">
-										<dt className="text-zinc-600 font-medium">restarts</dt>
-										<dd className="text-zinc-400 font-mono">{item.restarts == 0 ? 'none' : item.restarts}</dd>
-									</div>
-								</dl>
-							</a>
+								</div>
+							) : (
+								<a href={isRemote(item) ? `./view/${item.id}?server=${item.server}` : `./view/${item.id}`} className="block transition-colors duration-200 hover:bg-zinc-900/20">
+									<dl className="-my-3 divide-y divide-zinc-800/30 px-6 py-4 text-sm leading-6">
+										<div className="flex justify-between gap-x-2 py-2 transition-colors hover:text-zinc-300">
+											<dt className="text-zinc-600 font-medium">cpu usage</dt>
+											<dd className="text-zinc-400 font-mono">{isRunning(item.status) ? item.cpu : 'offline'}</dd>
+										</div>
+										<div className="flex justify-between gap-x-2 py-2 transition-colors hover:text-zinc-300">
+											<dt className="text-zinc-600 font-medium">memory</dt>
+											<dd className="text-zinc-400 font-mono">{isRunning(item.status) ? item.mem : 'offline'}</dd>
+										</div>
+										<div className="flex justify-between gap-x-2 py-2 transition-colors hover:text-zinc-300">
+											<dt className="text-zinc-600 font-medium">pid</dt>
+											<dd className="text-zinc-400 font-mono">{isRunning(item.status) ? item.pid : 'none'}</dd>
+										</div>
+										<div className="flex justify-between gap-x-2 py-2 transition-colors hover:text-zinc-300">
+											<dt className="text-zinc-600 font-medium">uptime</dt>
+											<dd className="text-zinc-400 font-mono">{isRunning(item.status) ? item.uptime : 'none'}</dd>
+										</div>
+										<div className="flex justify-between gap-x-2 py-2 transition-colors hover:text-zinc-300">
+											<dt className="text-zinc-600 font-medium">restarts</dt>
+											<dd className="text-zinc-400 font-mono">{item.restarts == 0 ? 'none' : item.restarts}</dd>
+										</div>
+									</dl>
+								</a>
+							)}
 						</li>
 					))}
 				</ul>
