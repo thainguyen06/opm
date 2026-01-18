@@ -136,11 +136,12 @@ This will:
 ┌─────────────────┐
 │     Server      │
 │  (role=server)  │
-│   Port 9876     │
+│   Port 9876     │ ← HTTP API
+│   Port 9877     │ ← WebSocket (agents)
 └────────┬────────┘
          │
-         │ Agent Registration
-         │ & Heartbeats
+         │ WebSocket Connections
+         │ (Registration & Heartbeats)
          │
     ┌────┴────┬────────────┬──────────┐
     │         │            │          │
@@ -152,10 +153,17 @@ This will:
 ```
 
 Each agent:
-1. Connects to the server via HTTP
+1. Connects to the server via WebSocket (port+1, e.g., 9877)
 2. Registers with agent ID, name, hostname, and API endpoint
-3. Sends periodic heartbeats to maintain connection
-4. Exposes API for server to control processes
+3. Sends periodic heartbeats through the WebSocket connection
+4. Maintains persistent bidirectional connection
+5. Exposes API for server to control processes (on its own port)
+
+**Key Benefits of WebSocket:**
+- Agents don't need to open ports for server connections
+- Real-time bidirectional communication
+- More efficient than HTTP polling
+- Automatic reconnection on connection loss
 
 ## Use Cases
 
@@ -199,6 +207,8 @@ Each agent:
 1. Check network connectivity: `curl http://server:9876/health`
 2. Verify server API is enabled: `opm daemon health` on server
 3. Check agent logs: `tail -f ~/.opm/agent.log`
+4. Verify WebSocket port (9877) is accessible: `telnet server 9877` or `nc -zv server 9877`
+5. Check firewall settings allow WebSocket connections
 
 ### Permission Denied Errors
 - Ensure you're not trying to use `--server` parameter on an agent
