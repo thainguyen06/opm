@@ -231,6 +231,17 @@ pub async fn notifications(
     ))
 }
 
+#[get("/agent-detail")]
+pub async fn agent_detail(
+    state: &State<TeraState>,
+    _webui: EnableWebUI,
+) -> Result<(ContentType, String), NotFound> {
+    Ok((
+        ContentType::HTML,
+        render("agent-detail", &state, &mut Context::new()).await?,
+    ))
+}
+
 #[get("/daemon/prometheus")]
 #[utoipa::path(get, tag = "Daemon", path = "/daemon/prometheus", security((), ("api_key" = [])),
     responses(
