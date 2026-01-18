@@ -136,11 +136,11 @@ This will:
 ┌─────────────────┐
 │     Server      │
 │  (role=server)  │
-│   Port 9876     │
+│   Port 9876     │ ← HTTP API + WebSocket
 └────────┬────────┘
          │
-         │ Agent Registration
-         │ & Heartbeats
+         │ WebSocket Connections
+         │ (Registration & Heartbeats)
          │
     ┌────┴────┬────────────┬──────────┐
     │         │            │          │
@@ -152,10 +152,18 @@ This will:
 ```
 
 Each agent:
-1. Connects to the server via HTTP
+1. Connects to the server via WebSocket at `/ws/agent` endpoint on the same port
 2. Registers with agent ID, name, hostname, and API endpoint
-3. Sends periodic heartbeats to maintain connection
-4. Exposes API for server to control processes
+3. Sends periodic heartbeats through the WebSocket connection
+4. Maintains persistent bidirectional connection
+5. Exposes API for server to control processes (on its own port)
+
+**Key Benefits of WebSocket:**
+- Agents don't need to open ports for server connections
+- Real-time bidirectional communication
+- More efficient than HTTP polling
+- Automatic reconnection on connection loss
+- Single port for both HTTP API and WebSocket (simplified deployment)
 
 ## Use Cases
 
@@ -199,6 +207,8 @@ Each agent:
 1. Check network connectivity: `curl http://server:9876/health`
 2. Verify server API is enabled: `opm daemon health` on server
 3. Check agent logs: `tail -f ~/.opm/agent.log`
+4. Verify WebSocket endpoint is accessible: `curl -i -N -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Sec-WebSocket-Key: test" -H "Sec-WebSocket-Version: 13" http://server:9876/ws/agent`
+5. Check firewall settings allow both HTTP and WebSocket connections on the same port
 
 ### Permission Denied Errors
 - Ensure you're not trying to use `--server` parameter on an agent

@@ -3,6 +3,7 @@ mod fairing;
 mod helpers;
 mod routes;
 mod structs;
+mod websocket;
 
 use crate::webui::{self, assets::NamedFile};
 use helpers::{create_status, NotFound};
@@ -242,8 +243,6 @@ pub async fn start(webui: bool) {
     log::info!("API start: Initializing agent registry");
     // Initialize agent registry
     let agent_registry = opm::agent::registry::AgentRegistry::new();
-    // Note: Don't wrap in Arc here - Rocket's state management handles sharing
-    // let agent_registry = Arc::new(agent_registry);
 
     log::info!("API start: Building routes");
     let routes = rocket::routes![
@@ -293,6 +292,7 @@ pub async fn start(webui: bool) {
         routes::agent_unregister_handler,
         routes::agent_get_handler,
         routes::agent_processes_handler,
+        websocket::websocket_handler,
     ];
 
     log::info!("API start: Configuring Rocket server at {}", config::read().fmt_address());
