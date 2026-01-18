@@ -11,9 +11,12 @@ use std::env;
 use std::thread;
 use std::time::Duration;
 
+// Local server identifiers
+const LOCAL_SERVER_NAMES: [&str; 2] = ["internal", "local"];
+
 pub(crate) fn format(server_name: &String) -> (String, String) {
     let kind = ternary!(
-        matches!(&**server_name, "internal" | "local"),
+        LOCAL_SERVER_NAMES.contains(&server_name.as_str()),
         "",
         "remote "
     )
@@ -26,7 +29,7 @@ pub(crate) fn check_remote_permission(server_name: &String) {
     let config = config::read();
     
     // If trying to access a remote server and role is agent, deny
-    if config.is_agent() && !matches!(&**server_name, "internal" | "local") {
+    if config.is_agent() && !LOCAL_SERVER_NAMES.contains(&server_name.as_str()) {
         crashln!(
             "{} Agent role cannot perform remote operations. Only local process management is allowed.",
             *helpers::FAIL

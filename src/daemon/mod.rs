@@ -265,7 +265,7 @@ pub fn health(format: &String) {
              "cpu": &self.cpu_percent.trim(),
              "mem": &self.memory_usage.trim(),
              "process_count": &self.process_count.to_string(),
-             "role": &self.role.trim(),
+             "role": &self.role,
              "uptime": &self.uptime.trim(),
              "pid": &self.pid.trim(),
              "status": &self.status.0.trim(),

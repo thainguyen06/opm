@@ -3,6 +3,9 @@ use std::time::SystemTime;
 use uuid::Uuid;
 use utoipa::ToSchema;
 
+// Default API port for agents (different from server default 9876)
+pub const AGENT_DEFAULT_API_PORT: u16 = 9877;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentConfig {
     pub id: String,
@@ -33,7 +36,7 @@ impl AgentConfig {
             reconnect_interval: 5,  // 5 seconds default
             heartbeat_interval: 30, // 30 seconds default
             api_address: "0.0.0.0".to_string(),
-            api_port: 9877, // Different from server default port
+            api_port: AGENT_DEFAULT_API_PORT,
         }
     }
 }

@@ -421,6 +421,9 @@ fn remove_agent_config() -> Result<(), std::io::Error> {
     Ok(())
 }
 
+// Time to wait for daemon to initialize after starting (in seconds)
+const DAEMON_INIT_WAIT_SECS: u64 = 2;
+
 fn start_agent_daemon() {
     use opm::helpers;
     use opm::agent::connection::AgentConnection;
@@ -434,7 +437,7 @@ fn start_agent_daemon() {
         daemon::restart(&true, &false, false);
         
         // Wait a bit for daemon to initialize
-        std::thread::sleep(std::time::Duration::from_secs(2));
+        std::thread::sleep(std::time::Duration::from_secs(DAEMON_INIT_WAIT_SECS));
     }
     
     // Fork a background process that will run the agent connection
