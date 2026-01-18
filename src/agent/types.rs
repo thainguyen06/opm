@@ -11,6 +11,8 @@ pub struct AgentConfig {
     pub token: Option<String>,
     pub reconnect_interval: u64, // seconds
     pub heartbeat_interval: u64, // seconds
+    pub api_address: String, // Address where agent API is listening
+    pub api_port: u16,
 }
 
 impl AgentConfig {
@@ -30,6 +32,8 @@ impl AgentConfig {
             token,
             reconnect_interval: 5,  // 5 seconds default
             heartbeat_interval: 30, // 30 seconds default
+            api_address: "0.0.0.0".to_string(),
+            api_port: 9877, // Different from server default port
         }
     }
 }
@@ -59,6 +63,8 @@ pub struct AgentInfo {
     pub last_seen: SystemTime,
     #[serde(with = "time_serializer")]
     pub connected_at: SystemTime,
+    /// API endpoint where agent can be reached (e.g., "http://192.168.1.100:9877")
+    pub api_endpoint: Option<String>,
 }
 
 // Custom serializer for SystemTime to make it compatible with JSON
@@ -93,6 +99,7 @@ impl AgentInfo {
             connection_type,
             last_seen: SystemTime::now(),
             connected_at: SystemTime::now(),
+            api_endpoint: None,
         }
     }
 }
