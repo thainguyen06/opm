@@ -333,12 +333,6 @@ fn agent_connect(server_url: String, name: Option<String>, token: Option<String>
     println!("{} Agent ID: {}", *helpers::SUCCESS, config.id);
     println!("{} Agent Name: {}", *helpers::SUCCESS, config.name);
     println!("{} Server URL: {}", *helpers::SUCCESS, config.server_url);
-    println!(
-        "{} Agent API: http://{}:{}",
-        *helpers::SUCCESS,
-        config.api_address,
-        config.api_port
-    );
 
     // Start agent in background
     start_agent_daemon();
@@ -459,15 +453,7 @@ fn start_agent_daemon() {
     match unsafe { fork() } {
         Ok(ForkResult::Parent { child: _ }) => {
             // Parent process
-            println!("{} Agent daemon started successfully", *helpers::SUCCESS);
-            println!(
-                "{} Agent is now connecting to server and will manage local processes",
-                *helpers::SUCCESS
-            );
-            println!();
-            println!("  View agent logs: tail -f ~/.opm/agent.log");
-            println!("  Check agent status: opm agent status");
-            println!("  Disconnect agent: opm agent disconnect");
+            println!("{} Agent connected to server", *helpers::SUCCESS);
         }
         Ok(ForkResult::Child) => {
             // Child process - run the agent
