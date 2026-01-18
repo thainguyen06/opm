@@ -2243,7 +2243,13 @@ pub async fn agent_processes_handler(
         }
     };
 
-    // Check if agent has an API endpoint configured
+    // Try to get processes from registry first (pushed via WebSocket)
+    if let Some(processes) = registry.get_processes(&id) {
+        timer.observe_duration();
+        return Ok(Json(processes));
+    }
+
+    // Fallback: Check if agent has an API endpoint configured (legacy support)
     if let Some(api_endpoint) = &agent.api_endpoint {
         // Fetch processes from agent's API
         let (client, headers) = client(&None).await;
@@ -2289,7 +2295,7 @@ pub async fn agent_processes_handler(
             }
         }
     } else {
-        // No API endpoint - fetch processes from local Runner by agent_id
+        // No API endpoint and no process data - try local Runner by agent_id
         // Note: Creating a new Runner instance is the standard pattern in this codebase
         // to ensure fresh data is loaded from disk on each request
         let runner = Runner::new();
