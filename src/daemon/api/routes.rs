@@ -2290,6 +2290,8 @@ pub async fn agent_processes_handler(
         }
     } else {
         // No API endpoint - fetch processes from local Runner by agent_id
+        // Note: Creating a new Runner instance is the standard pattern in this codebase
+        // to ensure fresh data is loaded from disk on each request
         let runner = Runner::new();
         let processes = runner.fetch_by_agent(&id);
         timer.observe_duration();
