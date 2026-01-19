@@ -79,6 +79,31 @@ pub struct SystemInfo {
     pub arch: String,
     pub cpu_count: Option<usize>,
     pub total_memory: Option<u64>,
+    pub resource_usage: Option<ResourceUsage>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ResourceUsage {
+    /// CPU usage as percentage (0-100 per core, can exceed 100 for multi-core)
+    pub cpu_usage: Option<f64>,
+    /// Memory usage in KB
+    pub memory_used: Option<u64>,
+    /// Memory available in KB
+    pub memory_available: Option<u64>,
+    /// Memory usage as percentage (0-100)
+    pub memory_percent: Option<f64>,
+    /// Total disk space in KB
+    pub disk_total: Option<u64>,
+    /// Free disk space in KB
+    pub disk_free: Option<u64>,
+    /// Disk usage as percentage (0-100)
+    pub disk_percent: Option<f64>,
+    /// Load average (1 minute)
+    pub load_avg_1: Option<f64>,
+    /// Load average (5 minutes)
+    pub load_avg_5: Option<f64>,
+    /// Load average (15 minutes)
+    pub load_avg_15: Option<f64>,
 }
 
 // Custom serializer for SystemTime to make it compatible with JSON

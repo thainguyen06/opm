@@ -236,14 +236,59 @@ impl AgentConnection {
             self.config.api_address, self.config.api_port
         );
         
-        // Get system information
+        // Get system information with resource usage
         let os_info = os_info::get();
+        let mem_info = sys_info::mem_info().ok();
+        let disk_info = sys_info::disk_info().ok();
+        let loadavg = sys_info::loadavg().ok();
+        
+        let resource_usage = if let Some(mem) = mem_info.as_ref() {
+            let memory_used = mem.total.saturating_sub(mem.avail);
+            let memory_percent = if mem.total > 0 {
+                (memory_used as f64 / mem.total as f64) * 100.0
+            } else {
+                0.0
+            };
+            
+            let (disk_total, disk_free, disk_percent) = if let Some(disk) = disk_info {
+                let total = disk.total;
+                let free = disk.free;
+                let percent = if total > 0 {
+                    ((total - free) as f64 / total as f64) * 100.0
+                } else {
+                    0.0
+                };
+                (Some(total), Some(free), Some(percent))
+            } else {
+                (None, None, None)
+            };
+            
+            let cpu_count = num_cpus::get() as f64;
+            let cpu_usage = loadavg.as_ref().map(|la| (la.one / cpu_count) * 100.0);
+            
+            Some(super::types::ResourceUsage {
+                cpu_usage,
+                memory_used: Some(memory_used),
+                memory_available: Some(mem.avail),
+                memory_percent: Some(memory_percent),
+                disk_total,
+                disk_free,
+                disk_percent,
+                load_avg_1: loadavg.as_ref().map(|la| la.one),
+                load_avg_5: loadavg.as_ref().map(|la| la.five),
+                load_avg_15: loadavg.as_ref().map(|la| la.fifteen),
+            })
+        } else {
+            None
+        };
+        
         let system_info = Some(super::types::SystemInfo {
             os_name: format!("{:?}", os_info.os_type()),
             os_version: os_info.version().to_string(),
             arch: os_info.architecture().unwrap_or("unknown").to_string(),
             cpu_count: Some(num_cpus::get()),
-            total_memory: sys_info::mem_info().ok().map(|m| m.total),
+            total_memory: mem_info.map(|m| m.total),
+            resource_usage,
         });
         
         AgentInfo {

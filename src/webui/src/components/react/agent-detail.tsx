@@ -192,6 +192,116 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 				</div>
 			)}
 
+			{/* Resource Usage Card */}
+			{agent.system_info?.resource_usage && (
+				<div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 mb-6">
+					<h2 className="text-lg font-semibold text-zinc-200 mb-4">Resource Usage</h2>
+					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+						{/* CPU Usage */}
+						{agent.system_info.resource_usage.cpu_usage !== null && agent.system_info.resource_usage.cpu_usage !== undefined && (
+							<div>
+								<div className="text-sm text-zinc-400 mb-1">CPU Usage</div>
+								<div className="flex items-center gap-2">
+									<div className="text-zinc-200 font-semibold">
+										{agent.system_info.resource_usage.cpu_usage.toFixed(1)}%
+									</div>
+									<div className="flex-1 bg-zinc-800 rounded-full h-2">
+										<div 
+											className={classNames(
+												"h-2 rounded-full transition-all",
+												agent.system_info.resource_usage.cpu_usage > 80 
+													? "bg-red-500" 
+													: agent.system_info.resource_usage.cpu_usage > 50 
+													? "bg-yellow-500" 
+													: "bg-green-500"
+											)}
+											style={{ width: `${Math.min(agent.system_info.resource_usage.cpu_usage, 100)}%` }}
+										/>
+									</div>
+								</div>
+							</div>
+						)}
+
+						{/* Memory Usage */}
+						{agent.system_info.resource_usage.memory_percent !== null && agent.system_info.resource_usage.memory_percent !== undefined && (
+							<div>
+								<div className="text-sm text-zinc-400 mb-1">Memory Usage</div>
+								<div className="flex items-center gap-2">
+									<div className="text-zinc-200 font-semibold">
+										{agent.system_info.resource_usage.memory_percent.toFixed(1)}%
+									</div>
+									<div className="flex-1 bg-zinc-800 rounded-full h-2">
+										<div 
+											className={classNames(
+												"h-2 rounded-full transition-all",
+												agent.system_info.resource_usage.memory_percent > 80 
+													? "bg-red-500" 
+													: agent.system_info.resource_usage.memory_percent > 50 
+													? "bg-yellow-500" 
+													: "bg-green-500"
+											)}
+											style={{ width: `${Math.min(agent.system_info.resource_usage.memory_percent, 100)}%` }}
+										/>
+									</div>
+								</div>
+								{agent.system_info.resource_usage.memory_used && (
+									<div className="text-xs text-zinc-500 mt-1">
+										{formatMemory(agent.system_info.resource_usage.memory_used * 1024)} used
+									</div>
+								)}
+							</div>
+						)}
+
+						{/* Disk Usage */}
+						{agent.system_info.resource_usage.disk_percent !== null && agent.system_info.resource_usage.disk_percent !== undefined && (
+							<div>
+								<div className="text-sm text-zinc-400 mb-1">Disk Usage</div>
+								<div className="flex items-center gap-2">
+									<div className="text-zinc-200 font-semibold">
+										{agent.system_info.resource_usage.disk_percent.toFixed(1)}%
+									</div>
+									<div className="flex-1 bg-zinc-800 rounded-full h-2">
+										<div 
+											className={classNames(
+												"h-2 rounded-full transition-all",
+												agent.system_info.resource_usage.disk_percent > 90 
+													? "bg-red-500" 
+													: agent.system_info.resource_usage.disk_percent > 70 
+													? "bg-yellow-500" 
+													: "bg-green-500"
+											)}
+											style={{ width: `${Math.min(agent.system_info.resource_usage.disk_percent, 100)}%` }}
+										/>
+									</div>
+								</div>
+								{agent.system_info.resource_usage.disk_free && agent.system_info.resource_usage.disk_total && (
+									<div className="text-xs text-zinc-500 mt-1">
+										{formatMemory(agent.system_info.resource_usage.disk_free * 1024)} free of {formatMemory(agent.system_info.resource_usage.disk_total * 1024)}
+									</div>
+								)}
+							</div>
+						)}
+
+						{/* Load Average */}
+						{(agent.system_info.resource_usage.load_avg_1 !== null || 
+						  agent.system_info.resource_usage.load_avg_5 !== null || 
+						  agent.system_info.resource_usage.load_avg_15 !== null) && (
+							<div>
+								<div className="text-sm text-zinc-400 mb-1">Load Average</div>
+								<div className="text-zinc-200">
+									<span className="font-semibold">{agent.system_info.resource_usage.load_avg_1?.toFixed(2) || '?'}</span>
+									{' / '}
+									<span>{agent.system_info.resource_usage.load_avg_5?.toFixed(2) || '?'}</span>
+									{' / '}
+									<span>{agent.system_info.resource_usage.load_avg_15?.toFixed(2) || '?'}</span>
+								</div>
+								<div className="text-xs text-zinc-500 mt-1">1 / 5 / 15 min</div>
+							</div>
+						)}
+					</div>
+				</div>
+			)}
+
 			{/* Processes Section */}
 			<div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6">
 				<h2 className="text-lg font-semibold text-zinc-200 mb-4">
