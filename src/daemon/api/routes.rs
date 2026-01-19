@@ -2038,6 +2038,68 @@ pub async fn stream_info(server: String, id: usize, _t: Token) -> EventStream![]
     }
 }
 
+/// Stream agent list in real-time using Server-Sent Events
+#[get("/live/agents")]
+pub async fn stream_agents(
+    registry: &State<opm::agent::registry::AgentRegistry>,
+    _t: Token,
+) -> EventStream![] {
+    let registry = registry.inner().clone();
+    
+    EventStream! {
+        loop {
+            let mut agents = registry.list();
+            // Insert local agent at the beginning
+            agents.insert(0, create_local_agent_info());
+            
+            yield Event::data(serde_json::to_string(&agents).unwrap());
+            sleep(Duration::from_millis(1000));
+        }
+    }
+}
+
+/// Stream agent details in real-time using Server-Sent Events
+#[get("/live/agent/<id>")]
+pub async fn stream_agent_detail(
+    id: String,
+    registry: &State<opm::agent::registry::AgentRegistry>,
+    _t: Token,
+) -> EventStream![] {
+    let registry = registry.inner().clone();
+    
+    EventStream! {
+        loop {
+            // Get agent info
+            let agent_info = if id == "local" {
+                Some(create_local_agent_info())
+            } else {
+                registry.get(&id)
+            };
+            
+            if let Some(agent) = agent_info {
+                // Get processes for this agent
+                let processes = if id == "local" {
+                    Runner::new().fetch()
+                } else {
+                    registry.get_processes(&id).unwrap_or_default()
+                };
+                
+                let response = json!({
+                    "agent": agent,
+                    "processes": processes
+                });
+                
+                yield Event::data(serde_json::to_string(&response).unwrap());
+            } else {
+                yield Event::data(json!({"error": "Agent not found"}).to_string());
+                break;
+            }
+            
+            sleep(Duration::from_millis(1000));
+        }
+    }
+}
+
 // Agent Management Endpoints
 // Note: Agent registration and heartbeat are now handled via WebSocket (/ws/agent)
 // Legacy HTTP endpoints have been removed as they are no longer used

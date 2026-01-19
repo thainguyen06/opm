@@ -313,6 +313,8 @@ pub async fn start(webui: bool) {
         routes::remote_metrics,
         routes::stream_info,
         routes::stream_metrics,
+        routes::stream_agents,
+        routes::stream_agent_detail,
         routes::prometheus_handler,
         routes::create_handler,
         routes::rename_handler,
