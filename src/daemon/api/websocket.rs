@@ -31,6 +31,7 @@ pub fn websocket_handler(ws: WebSocket, registry: &State<AgentRegistry>) -> Stre
                                         last_seen: std::time::SystemTime::now(),
                                         connected_at: std::time::SystemTime::now(),
                                         api_endpoint,
+                                        system_info: None, // System info can be updated via separate message
                                     };
 
                                     registry.register(agent_info);

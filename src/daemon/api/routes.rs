@@ -2047,6 +2047,7 @@ pub struct AgentRegisterBody {
     pub name: String,
     pub hostname: Option<String>,
     pub api_endpoint: Option<String>,
+    pub system_info: Option<opm::agent::types::SystemInfo>,
 }
 
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -2086,6 +2087,7 @@ pub async fn agent_register_handler(
         last_seen: std::time::SystemTime::now(),
         connected_at: std::time::SystemTime::now(),
         api_endpoint: body.api_endpoint.clone(),
+        system_info: body.system_info.clone(),
     };
 
     registry.register(agent_info);
@@ -2133,6 +2135,32 @@ pub async fn agent_heartbeat_handler(
     })))
 }
 
+/// Helper function to create local agent info
+fn create_local_agent_info() -> opm::agent::types::AgentInfo {
+    let os_info = crate::globals::get_os_info();
+    
+    opm::agent::types::AgentInfo {
+        id: "local".to_string(),
+        name: "Local Server".to_string(),
+        hostname: hostname::get()
+            .ok()
+            .and_then(|h| h.into_string().ok()),
+        status: opm::agent::types::AgentStatus::Online,
+        connection_type: opm::agent::types::ConnectionType::In,
+        last_seen: std::time::SystemTime::now(),
+        connected_at: std::time::SystemTime::now(),
+        api_endpoint: None, // Local agent doesn't need an API endpoint
+        system_info: Some(opm::agent::types::SystemInfo {
+            os_name: format!("{:?}", os_info.name),
+            os_version: os_info.version.clone(),
+            arch: os_info.arch.clone(),
+            cpu_count: Some(num_cpus::get()),
+            total_memory: sys_info::mem_info().ok().map(|m| m.total),
+            resource_usage: opm::agent::resource_usage::gather_resource_usage(),
+        }),
+    }
+}
+
 /// List all connected agents
 #[utoipa::path(
     get,
@@ -2152,7 +2180,11 @@ pub async fn agent_list_handler(
         .start_timer();
     HTTP_COUNTER.inc();
 
-    let agents = registry.list();
+    let mut agents = registry.list();
+    
+    // Insert local agent at the beginning
+    agents.insert(0, create_local_agent_info());
+    
     timer.observe_duration();
 
     Ok(Json(agents))
@@ -2215,6 +2247,12 @@ pub async fn agent_get_handler(
         .start_timer();
     HTTP_COUNTER.inc();
 
+    // Handle local agent specially
+    if id == "local" {
+        timer.observe_duration();
+        return Ok(Json(create_local_agent_info()));
+    }
+
     match registry.get(&id) {
         Some(agent) => {
             timer.observe_duration();
@@ -2250,6 +2288,14 @@ pub async fn agent_processes_handler(
         .with_label_values(&["agent_processes"])
         .start_timer();
     HTTP_COUNTER.inc();
+
+    // Handle local agent specially - return all local processes
+    if id == "local" {
+        let runner = Runner::new();
+        let processes = runner.fetch();
+        timer.observe_duration();
+        return Ok(Json(processes));
+    }
 
     // Get agent info
     let agent = match registry.get(&id) {
@@ -2351,61 +2397,130 @@ pub async fn agent_action_handler(
         .start_timer();
     HTTP_COUNTER.inc();
 
-    // Get agent info
-    let agent = match registry.get(&agent_id) {
-        Some(agent) => agent,
-        None => {
-            timer.observe_duration();
-            return Err(generic_error(Status::NotFound, string!("Agent not found")));
-        }
-    };
+    // Handle local agent specially - execute action directly
+    if agent_id == "local" {
+        let mut runner = Runner::new();
+        let method = body.method.as_str();
 
-    // If agent has an API endpoint, proxy the action there
-    if let Some(api_endpoint) = &agent.api_endpoint {
-        let (client, headers) = client(&None).await;
-        
-        match client
-            .post(fmtstr!("{api_endpoint}/process/{process_id}/action"))
-            .json(&body.0)
-            .headers(headers)
-            .send()
-            .await
-        {
-            Ok(response) => {
-                timer.observe_duration();
-                if response.status() != 200 {
-                    let err_text = response
-                        .text()
-                        .await
-                        .unwrap_or_else(|_| "Unknown error".to_string());
+        if runner.exists(process_id) {
+            match method {
+                "start" => {
+                    let mut item = runner.get(process_id);
+                    item.restart(false);
+                    item.get_runner().save();
+                    timer.observe_duration();
+                    Ok(Json(attempt(true, method)))
+                }
+                "restart" => {
+                    let mut item = runner.get(process_id);
+                    item.restart(true);
+                    item.get_runner().save();
+                    timer.observe_duration();
+                    Ok(Json(attempt(true, method)))
+                }
+                "reload" => {
+                    let mut item = runner.get(process_id);
+                    item.reload(true);
+                    item.get_runner().save();
+                    timer.observe_duration();
+                    Ok(Json(attempt(true, method)))
+                }
+                "stop" | "kill" => {
+                    let mut item = runner.get(process_id);
+                    item.stop();
+                    item.get_runner().save();
+                    timer.observe_duration();
+                    Ok(Json(attempt(true, method)))
+                }
+                "reset_env" | "clear_env" => {
+                    let mut item = runner.get(process_id);
+                    item.clear_env();
+                    item.get_runner().save();
+                    timer.observe_duration();
+                    Ok(Json(attempt(true, method)))
+                }
+                "remove" | "delete" => {
+                    runner.remove(process_id);
+                    timer.observe_duration();
+                    Ok(Json(attempt(true, method)))
+                }
+                "flush" | "clean" => {
+                    runner.flush(process_id);
+                    timer.observe_duration();
+                    Ok(Json(attempt(true, method)))
+                }
+                _ => {
+                    timer.observe_duration();
                     Err(generic_error(
-                        Status::InternalServerError,
-                        format!("Failed to execute action on agent: {}", err_text),
+                        Status::BadRequest,
+                        format!("Invalid action: {}", method),
                     ))
-                } else {
-                    match response.json::<ActionResponse>().await {
-                        Ok(action_response) => Ok(Json(action_response)),
-                        Err(e) => Err(generic_error(
-                            Status::InternalServerError,
-                            format!("Failed to parse agent response: {}", e),
-                        )),
-                    }
                 }
             }
-            Err(err) => {
-                timer.observe_duration();
-                Err(generic_error(
-                    Status::InternalServerError,
-                    format!("Failed to connect to agent API: {}", err),
-                ))
-            }
+        } else {
+            timer.observe_duration();
+            Err(generic_error(
+                Status::NotFound,
+                string!("Process not found"),
+            ))
         }
     } else {
-        // Agent doesn't have an API endpoint - actions not supported
-        timer.observe_duration();
-        Err(generic_error(
-            Status::BadRequest,
-            string!("Agent does not support actions (no API endpoint configured)"),
-        ))
+        // Get agent info for remote agents
+        let agent = match registry.get(&agent_id) {
+            Some(agent) => agent,
+            None => {
+                timer.observe_duration();
+                return Err(generic_error(Status::NotFound, string!("Agent not found")));
+            }
+        };
+
+        // If agent has an API endpoint, proxy the action there
+        if let Some(api_endpoint) = &agent.api_endpoint {
+            let (client, headers) = client(&None).await;
+            
+            match client
+                .post(fmtstr!("{api_endpoint}/process/{process_id}/action"))
+                .json(&body.0)
+                .headers(headers)
+                .send()
+                .await
+            {
+                Ok(response) => {
+                    timer.observe_duration();
+                    if response.status() != 200 {
+                        let err_text = response
+                            .text()
+                            .await
+                            .unwrap_or_else(|_| "Unknown error".to_string());
+                        Err(generic_error(
+                            Status::InternalServerError,
+                            format!("Failed to execute action on agent: {}", err_text),
+                        ))
+                    } else {
+                        match response.json::<ActionResponse>().await {
+                            Ok(action_response) => Ok(Json(action_response)),
+                            Err(e) => Err(generic_error(
+                                Status::InternalServerError,
+                                format!("Failed to parse agent response: {}", e),
+                            )),
+                        }
+                    }
+                }
+                Err(err) => {
+                    timer.observe_duration();
+                    Err(generic_error(
+                        Status::InternalServerError,
+                        format!("Failed to connect to agent API: {}", err),
+                    ))
+                }
+            }
+        } else {
+            // Agent doesn't have an API endpoint - actions not supported
+            timer.observe_duration();
+            Err(generic_error(
+                Status::BadRequest,
+                string!("Agent does not support actions (no API endpoint configured)"),
+            ))
+        }
     }
 }

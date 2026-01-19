@@ -235,6 +235,20 @@ impl AgentConnection {
             "http://{}:{}",
             self.config.api_address, self.config.api_port
         );
+        
+        // Get system information with resource usage
+        let os_info = os_info::get();
+        let mem_info = sys_info::mem_info().ok();
+        
+        let system_info = Some(super::types::SystemInfo {
+            os_name: format!("{:?}", os_info.os_type()),
+            os_version: os_info.version().to_string(),
+            arch: os_info.architecture().unwrap_or("unknown").to_string(),
+            cpu_count: Some(num_cpus::get()),
+            total_memory: mem_info.map(|m| m.total),
+            resource_usage: super::resource_usage::gather_resource_usage(),
+        });
+        
         AgentInfo {
             id: self.config.id.clone(),
             name: self.config.name.clone(),
@@ -244,6 +258,7 @@ impl AgentConnection {
             last_seen: std::time::SystemTime::now(),
             connected_at: std::time::SystemTime::now(),
             api_endpoint: Some(api_endpoint),
+            system_info,
         }
     }
 }
