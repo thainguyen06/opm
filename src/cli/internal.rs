@@ -1049,7 +1049,9 @@ impl<'i> Internal<'i> {
                                 let path = entry.path();
                                 if let Some(ext) = path.extension() {
                                     if ext == "log" {
-                                        let _ = fs::remove_file(path);
+                                        if let Err(e) = fs::remove_file(&path) {
+                                            ::log::warn!("Failed to delete process log {:?}: {}", path, e);
+                                        }
                                     }
                                 }
                             }
@@ -1068,7 +1070,9 @@ impl<'i> Internal<'i> {
             if let Some(path) = home::home_dir() {
                 let daemon_log_path = path.join(".opm").join("daemon.log");
                 if daemon_log_path.exists() {
-                    let _ = fs::remove_file(daemon_log_path);
+                    if let Err(e) = fs::remove_file(&daemon_log_path) {
+                        ::log::warn!("Failed to delete daemon.log: {}", e);
+                    }
                 }
             }
         }
@@ -1082,7 +1086,9 @@ impl<'i> Internal<'i> {
             if let Some(path) = home::home_dir() {
                 let agent_log_path = path.join(".opm").join("agent.log");
                 if agent_log_path.exists() {
-                    let _ = fs::remove_file(agent_log_path);
+                    if let Err(e) = fs::remove_file(&agent_log_path) {
+                        ::log::warn!("Failed to delete agent.log: {}", e);
+                    }
                 }
             }
         }

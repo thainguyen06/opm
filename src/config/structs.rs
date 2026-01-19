@@ -51,7 +51,7 @@ pub struct Daemon {
     pub restore_cleanup: Option<RestoreCleanup>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct RestoreCleanup {
     #[serde(default = "default_true")]
     pub process_logs: bool,
