@@ -312,7 +312,7 @@ impl AgentConnection {
                                         
                                         if let Ok(response_json) = serde_json::to_string(&response_msg) {
                                             if let Err(e) = ws_sender.send(Message::Text(response_json)).await {
-                                                eprintln!("[Agent] Failed to send action response: {}", e);
+                                                log::error!("[Agent] Failed to send action response: {}", e);
                                             }
                                         }
                                     }

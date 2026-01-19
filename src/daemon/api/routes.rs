@@ -2394,8 +2394,9 @@ pub async fn agent_action_handler(
                 log::info!("[WebSocket] Action request sent to agent {}: {} on process {}", 
                     agent_id, body.method, process_id);
                 
-                // For now, return success immediately
-                // A full implementation would wait for ActionResponse via a pending requests map
+                // TODO: Wait for ActionResponse instead of returning immediately
+                // Current implementation returns success once message is sent
+                // A full implementation would use a pending requests map with timeouts
                 timer.observe_duration();
                 return Ok(Json(attempt(true, &body.method)));
             } else {
