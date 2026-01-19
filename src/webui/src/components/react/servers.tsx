@@ -182,11 +182,13 @@ const Index = (props: { base: string }) => {
 										</div>
 									</td>
 									<td className="py-4 pl-0 pr-4 text-right sm:pr-6 lg:pr-8" onClick={(e) => e.stopPropagation()}>
-										<button
-											onClick={() => removeAgent(agent.id, agent.name)}
-											className="text-red-400 hover:text-red-300 text-sm font-medium transition">
-											Remove
-										</button>
+										{agent.id !== 'local' && (
+											<button
+												onClick={() => removeAgent(agent.id, agent.name)}
+												className="text-red-400 hover:text-red-300 text-sm font-medium transition">
+												Remove
+											</button>
+										)}
 									</td>
 								</tr>
 							);

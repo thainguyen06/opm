@@ -39,11 +39,12 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 			console.error('Failed to fetch agent details:', error);
 			
 			// Provide more specific error messages
-			if (err.response) {
+			// ky HTTPError has response property, but we need to handle it properly
+			if (err.name === 'HTTPError' && err.response) {
 				const status = err.response.status;
 				if (status === 404) {
 					setError('Agent not found. The agent may have disconnected or never connected to this server.');
-				} else if (status === 401) {
+				} else if (status === 401 || status === 403) {
 					setError('Unauthorized. Please check your API token configuration.');
 				} else {
 					setError(`Server error (${status}): ${err.message || 'Failed to load agent details'}`);
