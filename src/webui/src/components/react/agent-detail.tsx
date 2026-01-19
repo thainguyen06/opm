@@ -15,7 +15,7 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 		<>
 			<strong>To fix:</strong> Restart the agent with:{' '}
 			<code className="bg-zinc-800 px-1 py-0.5 rounded">
-				opm agent connect &lt;server-url&gt; --api-address &lt;agent-ip-or-hostname&gt;
+				opm agent connect {'<'}server-url{'>'} --api-address {'<'}agent-ip-or-hostname{'>'}
 			</code>
 		</>
 	);

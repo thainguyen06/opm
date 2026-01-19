@@ -98,9 +98,11 @@ impl AgentConnection {
                 // Try to get the hostname for better network accessibility
                 // In containerized or complex network environments, the hostname
                 // might need to be configured explicitly via the agent config
-                match hostname::get()
+                let detected_hostname = hostname::get()
                     .ok()
-                    .and_then(|h| h.into_string().ok()) {
+                    .and_then(|h| h.into_string().ok());
+                
+                match detected_hostname {
                     Some(hostname) if hostname != "localhost" && !hostname.is_empty() => {
                         Some(format!("http://{}:{}", hostname, self.config.api_port))
                     }
