@@ -198,7 +198,7 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 					<h2 className="text-lg font-semibold text-zinc-200 mb-4">Resource Usage</h2>
 					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 						{/* CPU Usage */}
-						{agent.system_info.resource_usage.cpu_usage !== null && agent.system_info.resource_usage.cpu_usage !== undefined && (
+						{agent.system_info.resource_usage.cpu_usage != null && (
 							<div>
 								<div className="text-sm text-zinc-400 mb-1">CPU Usage</div>
 								<div className="flex items-center gap-2">
@@ -223,7 +223,7 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 						)}
 
 						{/* Memory Usage */}
-						{agent.system_info.resource_usage.memory_percent !== null && agent.system_info.resource_usage.memory_percent !== undefined && (
+						{agent.system_info.resource_usage.memory_percent != null && (
 							<div>
 								<div className="text-sm text-zinc-400 mb-1">Memory Usage</div>
 								<div className="flex items-center gap-2">
@@ -253,7 +253,7 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 						)}
 
 						{/* Disk Usage */}
-						{agent.system_info.resource_usage.disk_percent !== null && agent.system_info.resource_usage.disk_percent !== undefined && (
+						{agent.system_info.resource_usage.disk_percent != null && (
 							<div>
 								<div className="text-sm text-zinc-400 mb-1">Disk Usage</div>
 								<div className="flex items-center gap-2">
@@ -283,17 +283,17 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 						)}
 
 						{/* Load Average */}
-						{(agent.system_info.resource_usage.load_avg_1 !== null || 
-						  agent.system_info.resource_usage.load_avg_5 !== null || 
-						  agent.system_info.resource_usage.load_avg_15 !== null) && (
+						{(agent.system_info.resource_usage.load_avg_1 != null || 
+						  agent.system_info.resource_usage.load_avg_5 != null || 
+						  agent.system_info.resource_usage.load_avg_15 != null) && (
 							<div>
 								<div className="text-sm text-zinc-400 mb-1">Load Average</div>
 								<div className="text-zinc-200">
-									<span className="font-semibold">{agent.system_info.resource_usage.load_avg_1?.toFixed(2) || '?'}</span>
+									<span className="font-semibold">{agent.system_info.resource_usage.load_avg_1?.toFixed(2) ?? '?'}</span>
 									{' / '}
-									<span>{agent.system_info.resource_usage.load_avg_5?.toFixed(2) || '?'}</span>
+									<span>{agent.system_info.resource_usage.load_avg_5?.toFixed(2) ?? '?'}</span>
 									{' / '}
-									<span>{agent.system_info.resource_usage.load_avg_15?.toFixed(2) || '?'}</span>
+									<span>{agent.system_info.resource_usage.load_avg_15?.toFixed(2) ?? '?'}</span>
 								</div>
 								<div className="text-xs text-zinc-500 mt-1">1 / 5 / 15 min</div>
 							</div>
