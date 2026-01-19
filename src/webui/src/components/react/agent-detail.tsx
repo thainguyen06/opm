@@ -18,8 +18,9 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 	};
 
 	async function fetchAgentDetails() {
+		setLoading(true);
+		setError(null);
 		try {
-			setError(null);
 			// Fetch agent info
 			const agentResponse = await api.get(`${props.base}/daemon/agents/${props.agentId}`).json();
 			setAgent(agentResponse);
