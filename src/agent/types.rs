@@ -68,6 +68,17 @@ pub struct AgentInfo {
     pub connected_at: SystemTime,
     /// API endpoint where agent can be reached (e.g., "http://192.168.1.100:9877")
     pub api_endpoint: Option<String>,
+    /// System information for this agent
+    pub system_info: Option<SystemInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct SystemInfo {
+    pub os_name: String,
+    pub os_version: String,
+    pub arch: String,
+    pub cpu_count: Option<usize>,
+    pub total_memory: Option<u64>,
 }
 
 // Custom serializer for SystemTime to make it compatible with JSON
@@ -103,6 +114,7 @@ impl AgentInfo {
             last_seen: SystemTime::now(),
             connected_at: SystemTime::now(),
             api_endpoint: None,
+            system_info: None,
         }
     }
 }

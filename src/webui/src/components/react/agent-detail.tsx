@@ -158,6 +158,39 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 				</div>
 			</div>
 
+			{/* System Information Card */}
+			{agent.system_info && (
+				<div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 mb-6">
+					<h2 className="text-lg font-semibold text-zinc-200 mb-4">System Information</h2>
+					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+						<div>
+							<div className="text-sm text-zinc-400 mb-1">Operating System</div>
+							<div className="text-zinc-200">{agent.system_info.os_name || 'N/A'}</div>
+						</div>
+						<div>
+							<div className="text-sm text-zinc-400 mb-1">OS Version</div>
+							<div className="text-zinc-200">{agent.system_info.os_version || 'N/A'}</div>
+						</div>
+						<div>
+							<div className="text-sm text-zinc-400 mb-1">Architecture</div>
+							<div className="text-zinc-200">{agent.system_info.arch || 'N/A'}</div>
+						</div>
+						<div>
+							<div className="text-sm text-zinc-400 mb-1">CPU Cores</div>
+							<div className="text-zinc-200">{agent.system_info.cpu_count || 'N/A'}</div>
+						</div>
+						{agent.system_info.total_memory && (
+							<div>
+								<div className="text-sm text-zinc-400 mb-1">Total Memory</div>
+								<div className="text-zinc-200">
+									{formatMemory(agent.system_info.total_memory * 1024)}
+								</div>
+							</div>
+						)}
+					</div>
+				</div>
+			)}
+
 			{/* Processes Section */}
 			<div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6">
 				<h2 className="text-lg font-semibold text-zinc-200 mb-4">
