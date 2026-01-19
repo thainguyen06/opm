@@ -171,7 +171,11 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 				)}
 
 				{/* Warning if agent has localhost API endpoint (unreachable) */}
-				{agent.api_endpoint && agent.api_endpoint.includes('localhost') && !isLocalAgent(agent) && (
+				{agent.api_endpoint && (
+					agent.api_endpoint.includes('://localhost:') || 
+					agent.api_endpoint.includes('://localhost/') ||
+					agent.api_endpoint.endsWith('://localhost')
+				) && !isLocalAgent(agent) && (
 					<div className="mb-4 p-3 bg-red-900/20 border border-red-700/50 rounded-lg">
 						<div className="flex items-start gap-3">
 							<svg className="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">

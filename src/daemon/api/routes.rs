@@ -2518,15 +2518,15 @@ pub async fn agent_action_handler(
             // Agent doesn't have an API endpoint - actions not supported
             // This can happen when the agent can't determine its network-accessible address
             timer.observe_duration();
-            Err(generic_error(
-                Status::BadRequest,
-                format!(
-                    "Agent does not have an accessible API endpoint configured. \
-                     Process management actions are not available. \
-                     The agent may be using localhost binding and unable to determine its network address. \
-                     To fix this, restart the agent with: opm agent connect <server-url> --api-address <accessible-ip-or-hostname>"
-                ),
-            ))
+            
+            let error_msg = format!(
+                "Agent does not have an accessible API endpoint configured.\n\n\
+                 CAUSE: The agent may be using localhost binding and cannot determine its network address.\n\n\
+                 SOLUTION: Restart the agent with an accessible address:\n  \
+                 opm agent connect <server-url> --api-address <accessible-ip-or-hostname>"
+            );
+            
+            Err(generic_error(Status::BadRequest, error_msg))
         }
     }
 }
