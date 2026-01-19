@@ -6,6 +6,16 @@ use rocket::{State, get};
 use rocket_ws::{Message, Stream, WebSocket};
 
 /// WebSocket route handler for agent connections
+/// 
+/// This is the primary communication channel between agents and the server.
+/// Agents connect to this endpoint and send/receive messages for:
+/// - Registration (AgentMessage::Register)
+/// - Heartbeat (AgentMessage::Heartbeat)
+/// - Process updates (AgentMessage::ProcessUpdate)
+/// - Ping/Pong for connection health checks
+/// 
+/// Legacy HTTP endpoints (/daemon/agents/register, /daemon/agents/heartbeat)
+/// have been removed as all communication is now handled via WebSocket.
 #[get("/ws/agent")]
 pub fn websocket_handler(ws: WebSocket, registry: &State<AgentRegistry>) -> Stream!['static] {
     let registry = registry.inner().clone();
