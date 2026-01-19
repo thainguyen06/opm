@@ -39,8 +39,8 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 			console.error('Failed to fetch agent details:', error);
 			
 			// Provide more specific error messages
-			// ky HTTPError has response property, but we need to handle it properly
-			if (err.name === 'HTTPError' && err.response) {
+			// ky HTTPError has response property with status code
+			if (err.response?.status) {
 				const status = err.response.status;
 				if (status === 404) {
 					setError('Agent not found. The agent may have disconnected or never connected to this server.');
