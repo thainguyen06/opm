@@ -41,7 +41,7 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 		
 		const source = new SSE(`${props.base}/live/agent/${props.agentId}`, { headers });
 		
-		source.addEventListener('message', (event: MessageEvent) => {
+		source.onmessage = (event) => {
 			try {
 				const data = JSON.parse(event.data);
 				
@@ -59,14 +59,14 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 				setError('Failed to parse server data');
 				setLoading(false);
 			}
-		});
+		};
 		
-		source.addEventListener('error', (err: Event) => {
+		source.onerror = (err) => {
 			console.error('SSE connection error:', err);
 			setError('Lost connection to server. Retrying...');
 			setLoading(false);
 			// SSE will automatically reconnect
-		});
+		};
 		
 		source.stream();
 		

@@ -47,7 +47,7 @@ const Index = (props: { base: string }) => {
 		
 		const source = new SSE(`${props.base}/live/agents`, { headers });
 		
-		source.addEventListener('message', (event: MessageEvent) => {
+		source.onmessage = (event) => {
 			try {
 				const data = JSON.parse(event.data);
 				agents.clear();
@@ -59,13 +59,13 @@ const Index = (props: { base: string }) => {
 				console.error('Failed to parse SSE data:', err);
 				setLoading(false);
 			}
-		});
+		};
 		
-		source.addEventListener('error', (err: Event) => {
+		source.onerror = (err) => {
 			console.error('SSE connection error:', err);
 			setLoading(false);
 			// SSE will automatically reconnect
-		});
+		};
 		
 		source.stream();
 		
