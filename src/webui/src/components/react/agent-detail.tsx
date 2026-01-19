@@ -139,6 +139,25 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 			{/* Agent Information Card */}
 			<div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 mb-6">
 				<h2 className="text-lg font-semibold text-zinc-200 mb-4">Agent Information</h2>
+				
+				{/* Warning if agent doesn't have API endpoint */}
+				{!agent.api_endpoint && agent.id !== 'local' && (
+					<div className="mb-4 p-3 bg-amber-900/20 border border-amber-700/50 rounded-lg">
+						<div className="flex items-start gap-3">
+							<svg className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+							</svg>
+							<div>
+								<div className="text-amber-400 font-medium text-sm">Limited Functionality</div>
+								<div className="text-zinc-300 text-sm mt-1">
+									This agent doesn't have an API endpoint configured. Process management actions (start, stop, restart) will not be available. 
+									Ensure the agent is running with the API server enabled on port 9877 or configure a custom API port.
+								</div>
+							</div>
+						</div>
+					</div>
+				)}
+
 				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 					<div>
 						<div className="text-sm text-zinc-400 mb-1">Status</div>
@@ -182,6 +201,12 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 								: 'N/A'}
 						</div>
 					</div>
+					{agent.api_endpoint && (
+						<div>
+							<div className="text-sm text-zinc-400 mb-1">API Endpoint</div>
+							<div className="text-zinc-200 font-mono text-xs break-all">{agent.api_endpoint}</div>
+						</div>
+					)}
 				</div>
 			</div>
 
