@@ -336,6 +336,30 @@ impl AgentConnection {
                                                 log::error!("[Agent] Failed to send action response: {}", e);
                                             }
                                         }
+                                        
+                                        // Immediately send process update after action to ensure UI reflects changes quickly
+                                        if success {
+                                            let runner = Runner::new();
+                                            let processes = runner.fetch();
+                                            
+                                            let process_values: Vec<serde_json::Value> = processes
+                                                .into_iter()
+                                                .map(|p| serde_json::to_value(p).unwrap_or(serde_json::Value::Null))
+                                                .collect();
+
+                                            let process_update_msg = AgentMessage::ProcessUpdate {
+                                                id: self.config.id.clone(),
+                                                processes: process_values,
+                                            };
+
+                                            if let Ok(update_json) = serde_json::to_string(&process_update_msg) {
+                                                if let Err(e) = ws_sender.send(Message::Text(update_json)).await {
+                                                    log::error!("[Agent] Failed to send immediate process update: {}", e);
+                                                } else {
+                                                    log::debug!("[Agent] Immediate process update sent after action");
+                                                }
+                                            }
+                                        }
                                     }
                                     _ => {}
                                 }
