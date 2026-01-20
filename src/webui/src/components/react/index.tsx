@@ -371,6 +371,7 @@ const Index = (props: { base: string }) => {
 				<div className="px-4 sm:px-6 lg:px-8 pb-4 flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-center" role="search" aria-label="Search and filter processes">
 					<div className="flex-1">
 						<input
+							id="search-processes"
 							type="text"
 							placeholder="Search by name, server, or agent..."
 							value={searchTerm}
@@ -381,6 +382,7 @@ const Index = (props: { base: string }) => {
 					</div>
 					<div className="sm:w-auto w-full">
 						<select
+							id="status-filter"
 							value={statusFilter}
 							onChange={(e) => setStatusFilter(e.target.value)}
 							aria-label="Filter processes by status"
@@ -393,6 +395,7 @@ const Index = (props: { base: string }) => {
 					</div>
 					<div className="sm:w-auto w-full">
 						<select
+							id="agent-filter"
 							value={agentFilter}
 							onChange={(e) => setAgentFilter(e.target.value)}
 							aria-label="Filter processes by agent"
@@ -414,6 +417,7 @@ const Index = (props: { base: string }) => {
 							{/* Selection checkbox */}
 							<div className="absolute top-3 left-3 z-10">
 								<input
+									id={`select-process-${item.id}`}
 									type="checkbox"
 									checked={selectedIds.has(item.id)}
 									onChange={(e) => {
