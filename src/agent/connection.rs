@@ -204,12 +204,17 @@ impl AgentConnection {
                         system_info,
                     };
                     
-                    if let Ok(system_info_json) = serde_json::to_string(&system_info_msg) {
-                        if let Err(e) = ws_sender.send(Message::Text(system_info_json)).await {
-                            eprintln!("[Agent] Failed to send system info: {}", e);
-                            // Don't return error here, just log it
-                        } else {
-                            log::debug!("[Agent] System info update sent");
+                    match serde_json::to_string(&system_info_msg) {
+                        Ok(system_info_json) => {
+                            if let Err(e) = ws_sender.send(Message::Text(system_info_json)).await {
+                                eprintln!("[Agent] Failed to send system info: {}", e);
+                                // Don't return error here, just log it
+                            } else {
+                                log::debug!("[Agent] System info update sent");
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("[Agent] Failed to serialize system info: {}", e);
                         }
                     }
                 }
