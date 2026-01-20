@@ -78,6 +78,7 @@ const InlineRename = forwardRef((props: InlineRenameProps, ref) => {
 	return (
 		<div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
 			<input
+				id="inline-rename-input"
 				ref={inputRef}
 				type="text"
 				value={formData}

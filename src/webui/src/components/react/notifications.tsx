@@ -196,6 +196,7 @@ const NotificationSettings = (props: { base: string }) => {
 					{/* Input field for adding new notification channels */}
 					<div className="flex gap-2 mb-4">
 						<input
+							id="notification-channel-input"
 							type="text"
 							value={newChannel}
 							onChange={(e) => setNewChannel(e.target.value)}

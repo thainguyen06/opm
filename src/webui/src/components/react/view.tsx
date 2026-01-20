@@ -139,6 +139,7 @@ const LogViewer = (props: { liveReload; setLiveReload; server: string | null; ba
 				{searchOpen && (
 					<div className="z-50 fixed top-[16.5rem] right-5 w-96 flex bg-zinc-800/50 backdrop-blur-md px-3 py-1 rounded-lg border border-zinc-700 shadow">
 						<input
+							id="log-filter-input"
 							className="grow bg-transparent p-2 border-0 text-white focus:ring-0 sm:text-sm placeholder-zinc-accent-fuchsia-500"
 							autoFocus
 							placeholder="Filter logs..."

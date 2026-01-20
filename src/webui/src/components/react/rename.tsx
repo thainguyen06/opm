@@ -67,6 +67,7 @@ const Rename = (props: { base: string; server: string; process_id: number; callb
 	return (
 		<div className="p-2 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
 			<input
+				id="rename-input"
 				ref={inputRef}
 				type="text"
 				value={formData}
