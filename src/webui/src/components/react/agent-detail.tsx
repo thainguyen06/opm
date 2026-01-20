@@ -513,15 +513,12 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 									</td>
 									<td className="hidden py-3 pl-0 pr-8 md:table-cell">
 										<div className="text-sm text-zinc-400">
-											{process.cpu ? `${process.cpu.toFixed(1)}%` : 'N/A'}
+											{process.cpu || 'N/A'}
 										</div>
 									</td>
 									<td className="hidden py-3 pl-0 pr-8 md:table-cell">
 										<div className="text-sm text-zinc-400">
-											{process.memory ? (() => {
-												const [value, unit] = formatMemory(process.memory);
-												return `${value} ${unit.toUpperCase()}`;
-											})() : 'N/A'}
+											{process.memory ? process.memory.toUpperCase() : 'N/A'}
 										</div>
 									</td>
 									<td className="py-3 pl-0 pr-4 text-right">
