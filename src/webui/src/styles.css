@@ -42,7 +42,7 @@ nav a {
 
 /* Toggle switch precision alignment - prevent misalignment */
 /* Note: !important used to ensure immediate application and prevent FOUC */
-/* Mobile: width 2.5rem (40px), height 1.5rem (24px) - compact for mobile screens */
+/* Mobile: width 2.25rem (36px), height 1.25rem (20px) - border-radius 0.625rem (10px) matches pin radius */
 /* Desktop: width 3.25rem (52px), height 2rem (32px) - 1.625:1 ratio for iOS-style pill shape */
 button[role="switch"],
 .toggle-switch {
@@ -52,13 +52,13 @@ button[role="switch"],
 	vertical-align: middle !important;
 	flex-shrink: 0 !important;
 	position: relative !important;
-	width: 2.5rem !important; /* 40px - mobile compact width */
-	height: 1.5rem !important; /* 24px - mobile compact height */
-	border-radius: 9999px !important; /* rounded-full */
+	width: 2.25rem !important; /* 36px - mobile width */
+	height: 1.25rem !important; /* 20px - mobile height matches pin diameter */
+	border-radius: 0.625rem !important; /* 10px - exactly half height for perfect pill shape */
 }
 
 /* Ensure toggle pin is perfectly centered within track */
-/* Mobile: Pin dimensions: 1.25rem x 1.25rem (20px x 20px) - compact for mobile */
+/* Mobile: Pin dimensions: 1.25rem x 1.25rem (20px x 20px) - height matches track height */
 /* Horizontal offset: 0.125rem (2px) provides visual padding from track edge */
 /* Vertical centering: 50% + translateY(-50%) for perfect alignment */
 button[role="switch"] > span,
@@ -69,8 +69,8 @@ button[role="switch"] > span,
 	left: 0.125rem !important; /* 2px visual padding */
 	transform: translateY(-50%) !important;
 	display: inline-block !important;
-	width: 1.25rem !important; /* 20px - mobile compact size */
-	height: 1.25rem !important; /* 20px - mobile compact size */
+	width: 1.25rem !important; /* 20px - mobile pin size */
+	height: 1.25rem !important; /* 20px - mobile pin size */
 	border-radius: 9999px !important; /* rounded-full */
 	background-color: white !important;
 	line-height: 1 !important;
@@ -79,11 +79,11 @@ button[role="switch"] > span,
 }
 
 /* Pin translation when checked - mobile */
-/* Translation: 1rem moves pin from left (0.125rem) to right with padding */
-/* Total movement: track width (2.5rem) - pin width (1.25rem) - total padding (0.25rem) = 1rem */
+/* Translation: 0.75rem moves pin from left (0.125rem) to right with padding */
+/* Total movement: track width (2.25rem) - pin width (1.25rem) - total padding (0.25rem) = 0.75rem */
 button[role="switch"][aria-checked="true"] > span,
 .toggle-switch[aria-checked="true"] > span {
-	transform: translateY(-50%) translateX(1rem) !important;
+	transform: translateY(-50%) translateX(0.75rem) !important;
 }
 
 /* Desktop toggle dimensions */
@@ -92,6 +92,7 @@ button[role="switch"][aria-checked="true"] > span,
 	.toggle-switch {
 		width: 3.25rem !important; /* 52px - iOS-style width */
 		height: 2rem !important; /* 32px - iOS-style height */
+		border-radius: 1rem !important; /* 16px - exactly half height for perfect pill shape */
 	}
 
 	/* Desktop pin dimensions: 1.75rem x 1.75rem (28px x 28px) */

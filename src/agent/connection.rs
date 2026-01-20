@@ -336,6 +336,36 @@ impl AgentConnection {
                                                 log::error!("[Agent] Failed to send action response: {}", e);
                                             }
                                         }
+                                        
+                                        // Immediately send process update after action to ensure UI reflects changes quickly
+                                        // Only send immediate updates for actions that modify process state
+                                        if success && matches!(method.as_str(), "start" | "restart" | "reload" | "stop" | "kill" | "remove" | "delete") {
+                                            let runner = Runner::new();
+                                            let processes = runner.fetch();
+                                            
+                                            let process_values: Vec<serde_json::Value> = processes
+                                                .into_iter()
+                                                .filter_map(|p| {
+                                                    serde_json::to_value(p).map_err(|e| {
+                                                        log::warn!("[Agent] Failed to serialize process: {}", e);
+                                                        e
+                                                    }).ok()
+                                                })
+                                                .collect();
+
+                                            let process_update_msg = AgentMessage::ProcessUpdate {
+                                                id: self.config.id.clone(),
+                                                processes: process_values,
+                                            };
+
+                                            if let Ok(update_json) = serde_json::to_string(&process_update_msg) {
+                                                if let Err(e) = ws_sender.send(Message::Text(update_json)).await {
+                                                    log::error!("[Agent] Failed to send immediate process update: {}", e);
+                                                } else {
+                                                    log::debug!("[Agent] Immediate process update sent after action");
+                                                }
+                                            }
+                                        }
                                     }
                                     _ => {}
                                 }
