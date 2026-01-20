@@ -300,18 +300,22 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 			)}
 
 			{/* Resource Usage Card */}
-			{agent.system_info?.resource_usage && (
-				// Only show if at least one metric is available
-				agent.system_info.resource_usage.cpu_usage != null ||
-				agent.system_info.resource_usage.memory_percent != null ||
-				agent.system_info.resource_usage.disk_percent != null ||
-				agent.system_info.resource_usage.load_avg_1 != null ||
-				agent.system_info.resource_usage.load_avg_5 != null ||
-				agent.system_info.resource_usage.load_avg_15 != null
-			) && (
-				<div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 mb-6">
-					<h2 className="text-lg font-semibold text-zinc-200 mb-4">Resource Usage</h2>
-					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+			{(() => {
+				// Only show resource usage card if at least one metric is available
+				const resourceUsage = agent.system_info?.resource_usage;
+				const hasResourceMetrics = resourceUsage && (
+					resourceUsage.cpu_usage != null ||
+					resourceUsage.memory_percent != null ||
+					resourceUsage.disk_percent != null ||
+					resourceUsage.load_avg_1 != null ||
+					resourceUsage.load_avg_5 != null ||
+					resourceUsage.load_avg_15 != null
+				);
+
+				return hasResourceMetrics && (
+					<div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 mb-6">
+						<h2 className="text-lg font-semibold text-zinc-200 mb-4">Resource Usage</h2>
+						<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 						{/* CPU Usage */}
 						{agent.system_info.resource_usage.cpu_usage != null && (
 							<div>
@@ -422,7 +426,8 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 						)}
 					</div>
 				</div>
-			)}
+				);
+			})()}
 
 			{/* Processes Section */}
 			<div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6">
