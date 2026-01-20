@@ -131,9 +131,64 @@ opm daemon health
 
 # Setup systemd service (autostart with system)
 opm daemon setup
+
+# Agent Management Commands
+# List all connected agents
+opm agent list [--format <raw|json|default>]
+
+# List processes from all agents
+opm agent processes [--format <raw|json|default>]
+
+# List processes from a specific agent
+opm agent processes <agent-name-or-id> [--format <raw|json|default>]
+
+# Connect this machine as an agent to a server
+opm agent connect <server-url> [--name <agent-name>] [--token <auth-token>]
+
+# Disconnect agent
+opm agent disconnect
+
+# Show agent connection status
+opm agent status
 ```
 
 ### Advanced Features
+
+#### Agent Management
+Manage distributed processes across multiple machines using OPM's agent system.
+
+**Connecting Agents:**
+```bash
+# On a remote machine, connect to the main server
+opm agent connect http://192.168.1.100:9876 --name "production-server"
+```
+
+**Viewing Agents:**
+```bash
+# List all connected agents with system info
+opm agent list
+
+# View in JSON format
+opm agent list --format json
+```
+
+**Managing Agent Processes:**
+```bash
+# View processes from all agents
+# Agent names are shown as prefixes like [prod]app-name
+opm agent processes
+
+# View processes from a specific agent only
+opm agent processes "production-server"
+opm agent processes local  # View only local processes
+```
+
+**Features:**
+- Agent names are automatically truncated to 3-5 characters for compact display
+- Multi-agent view shows processes as `[agent]process_name`
+- Single-agent view shows processes without prefix
+- Real-time system metrics (CPU, Memory) for each agent
+- Process count per agent
 
 #### Configuration Import/Export
 Export and import process configurations to HCL files, allowing you to save and restore multiple process configurations easily.
