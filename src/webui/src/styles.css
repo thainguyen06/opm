@@ -42,7 +42,7 @@ nav a {
 
 /* Toggle switch precision alignment - prevent misalignment */
 /* Note: !important used to ensure immediate application and prevent FOUC */
-/* Mobile: width 2.75rem (44px), height 1.25rem (20px) - proper pill shape with 2.2:1 ratio */
+/* Mobile: width 2rem (32px), height 1.25rem (20px) - matches desktop proportions with 1.6:1 ratio */
 /* Desktop: width 3.25rem (52px), height 2rem (32px) - 1.625:1 ratio for iOS-style pill shape */
 button[role="switch"],
 .toggle-switch {
@@ -52,8 +52,8 @@ button[role="switch"],
 	vertical-align: middle !important;
 	flex-shrink: 0 !important;
 	position: relative !important;
-	width: 2.75rem !important; /* 44px - mobile pill width */
-	height: 1.25rem !important; /* 20px - mobile pill height */
+	width: 2rem !important; /* 32px - mobile width matching desktop proportions */
+	height: 1.25rem !important; /* 20px - mobile height */
 	border-radius: 9999px !important; /* rounded-full */
 }
 
@@ -79,11 +79,11 @@ button[role="switch"] > span,
 }
 
 /* Pin translation when checked - mobile */
-/* Translation: 1.5rem moves pin from left (0.125rem) to right with padding */
-/* Total movement: track width (2.75rem) - pin width (1rem) - total padding (0.25rem) = 1.5rem */
+/* Translation: 0.75rem moves pin from left (0.125rem) to right with padding */
+/* Total movement: track width (2rem) - pin width (1rem) - total padding (0.25rem) = 0.75rem */
 button[role="switch"][aria-checked="true"] > span,
 .toggle-switch[aria-checked="true"] > span {
-	transform: translateY(-50%) translateX(1.5rem) !important;
+	transform: translateY(-50%) translateX(0.75rem) !important;
 }
 
 /* Desktop toggle dimensions */
