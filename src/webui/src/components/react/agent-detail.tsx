@@ -316,8 +316,8 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 			{/* Resource Usage Card */}
 			{hasResourceMetrics && (
 				<div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 mb-6">
-						<h2 className="text-lg font-semibold text-zinc-200 mb-4">Resource Usage</h2>
-						<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+					<h2 className="text-lg font-semibold text-zinc-200 mb-4">Resource Usage</h2>
+					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 						{/* CPU Usage */}
 						{agent.system_info.resource_usage.cpu_usage != null && (
 							<div>
