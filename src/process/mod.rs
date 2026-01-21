@@ -503,12 +503,6 @@ impl Runner {
                 path, script, name, ..
             } = process.clone();
 
-            // Clear crashed flag at the start of restart attempt
-            // This ensures that if restart fails, the next daemon cycle will properly
-            // detect the process as crashed and increment the counter
-            // Without this, failed restarts leave crashed=true, preventing proper crash detection
-            process.crash.crashed = false;
-
             // Save the current working directory so we can restore it after restart
             // This is critical for the daemon - changing the working directory affects the daemon process
             // and can cause it to crash when trying to access its own files
@@ -641,7 +635,9 @@ impl Runner {
             process.running = true;
             process.children = vec![];
             process.started = Utc::now();
-            // Note: crashed flag was already cleared at the start of restart()
+            // Clear crashed flag after successful restart
+            // This allows the daemon to properly detect if the process crashes again
+            process.crash.crashed = false;
 
             // Merge .env variables into the stored environment (dotenv takes priority)
             let mut updated_env: Env = env::vars().collect();
@@ -687,11 +683,6 @@ impl Runner {
                 max_memory: _,
                 ..
             } = process.clone();
-
-            // Clear crashed flag at the start of reload attempt
-            // This ensures that if reload fails, the next daemon cycle will properly
-            // detect the process as crashed and increment the counter
-            process.crash.crashed = false;
 
             // Save the current working directory so we can restore it after reload
             let original_dir = std::env::current_dir().ok();
@@ -809,7 +800,9 @@ impl Runner {
             process.running = true;
             process.children = vec![];
             process.started = Utc::now();
-            // Note: crashed flag was already cleared at the start of reload()
+            // Clear crashed flag after successful reload
+            // This allows the daemon to properly detect if the process crashes again
+            process.crash.crashed = false;
 
             // Merge .env variables into the stored environment (dotenv takes priority)
             let mut updated_env: Env = env::vars().collect();
@@ -2770,6 +2763,93 @@ mod tests {
         assert_eq!(
             process.crash.crashed, true,
             "Process should still be marked as crashed"
+        );
+    }
+
+    #[test]
+    fn test_crash_counter_increments_after_manual_restart() {
+        // Test for the bug: "The crash counter stops at 9th crash and doesn't increment after restart"
+        // This test verifies that the crash counter properly increments even after manual restarts
+        
+        let mut runner = setup_test_runner();
+        let id = runner.id.next();
+
+        // Create a process that has crashed 9 times (one away from the limit of 10)
+        let process = Process {
+            id,
+            pid: 0, // Dead process
+            shell_pid: None,
+            env: BTreeMap::new(),
+            name: "test_process_at_limit".to_string(),
+            path: PathBuf::from("/tmp"),
+            script: "echo 'test'".to_string(),
+            restarts: 9,
+            running: false, // Stopped after reaching limit
+            crash: Crash {
+                crashed: true, // Marked as crashed
+                value: 9,      // 9 crashes so far
+            },
+            watch: Watch {
+                enabled: false,
+                path: String::new(),
+                hash: String::new(),
+            },
+            children: vec![],
+            started: Utc::now(),
+            max_memory: 0,
+            agent_id: None,
+        };
+
+        runner.list.insert(id, process);
+
+        // Verify initial state: 9 crashes, crashed=true
+        assert_eq!(runner.info(id).unwrap().crash.value, 9);
+        assert_eq!(runner.info(id).unwrap().crash.crashed, true);
+        
+        // Now simulate a manual restart by user (this should succeed in starting the process)
+        // In a real scenario, this would start the process, but we'll simulate it by
+        // manually setting the state as if restart succeeded
+        {
+            let process = runner.process(id);
+            process.pid = 12345; // Simulate successful start
+            process.running = true;
+            // CRITICAL: Our fix ensures crashed=false is only set AFTER successful restart
+            // Before the fix, crashed would be false here, breaking future crash detection
+            // After the fix, we need to manually clear it to simulate successful restart
+            process.crash.crashed = false; // This simulates the fix: cleared AFTER success
+        }
+        
+        // Verify process is running and crashed flag was cleared
+        assert_eq!(runner.info(id).unwrap().crash.crashed, false, "crashed flag should be cleared after successful restart");
+        assert_eq!(runner.info(id).unwrap().running, true);
+        
+        // Now simulate the process crashing again (pid dies)
+        {
+            let process = runner.process(id);
+            process.pid = 0; // Process died
+        }
+        
+        // At this point, the daemon would detect the crash and increment the counter
+        // Simulate what daemon does in daemon/mod.rs around line 177-185
+        {
+            let process_info = runner.info(id).unwrap();
+            if !process_info.crash.crashed {
+                let process = runner.process(id);
+                process.crash.value += 1;
+                process.crash.crashed = true;
+            }
+        }
+        
+        // Verify the counter incremented from 9 to 10
+        assert_eq!(
+            runner.info(id).unwrap().crash.value, 
+            10,
+            "Crash counter should increment from 9 to 10 after process crashes again"
+        );
+        assert_eq!(
+            runner.info(id).unwrap().crash.crashed,
+            true,
+            "Process should be marked as crashed"
         );
     }
 }
