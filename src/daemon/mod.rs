@@ -186,16 +186,16 @@ fn restart_process() {
 
                 // Only handle restart logic if process was supposed to be running
                 if item.running {
-                    // Check if we've exceeded the maximum crash limit
-                    // Using > instead of >= because:
-                    // - crash_count=10 with max_restarts=10: allow restart (10th restart attempt)
-                    // - crash_count=11 with max_restarts=10: give up (exceeded 10 restarts)
-                    // This means "restarts: 10" allows exactly 10 restart attempts
-                    if crash_count > daemon_config.restarts {
-                        // Exceeded max restarts - give up and set running=false
+                    // Check if we've reached or exceeded the maximum crash limit
+                    // Using >= instead of > because:
+                    // - crash_count=9 with max_restarts=10: allow restart (9th crash, 9 < 10)
+                    // - crash_count=10 with max_restarts=10: stop (10th crash, reached limit 10 >= 10)
+                    // This means "restarts: 10" allows up to 9 restart attempts, stopping at 10th crash
+                    if crash_count >= daemon_config.restarts {
+                        // Reached max restarts - give up and set running=false
                         let process = runner.process(id);
                         process.running = false;
-                        log!("[daemon] process exceeded max crash limit", 
+                        log!("[daemon] process reached max crash limit", 
                              "name" => item.name, "id" => id, "crash_count" => crash_count, "max_restarts" => daemon_config.restarts);
                         runner.save();
                     } else {
@@ -215,11 +215,11 @@ fn restart_process() {
             } else if item.running {
                 // Process is already marked as crashed - check limit before attempting restart
                 // This handles cases where counter may have been incremented by restart failures
-                if item.crash.value > daemon_config.restarts {
-                    // Already exceeded max restarts - set running=false and stop trying
+                if item.crash.value >= daemon_config.restarts {
+                    // Already reached max restarts - set running=false and stop trying
                     let process = runner.process(id);
                     process.running = false;
-                    log!("[daemon] process already exceeded max crash limit, stopping restart attempts", 
+                    log!("[daemon] process already reached max crash limit, stopping restart attempts", 
                          "name" => item.name, "id" => id, "crash_count" => item.crash.value, "max_restarts" => daemon_config.restarts);
                     runner.save();
                 } else {
