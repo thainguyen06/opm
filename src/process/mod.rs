@@ -2292,7 +2292,8 @@ mod tests {
 
         runner.list.insert(id, process.clone());
 
-        // With max_restarts=10, crash.value=9 should allow restart (9 < 10)
+        // With max_restarts=10, crash.value in range 0-9 allows restart (< 10)
+        // crash.value >= 10 prevents restart (reached or exceeded limit)
         let max_restarts = 10;
         assert!(
             process.crash.value < max_restarts,

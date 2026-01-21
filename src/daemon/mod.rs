@@ -188,9 +188,10 @@ fn restart_process() {
                 if item.running {
                     // Check if we've reached or exceeded the maximum crash limit
                     // Using >= instead of > because:
-                    // - crash_count=9 with max_restarts=10: allow restart (9th crash, 9 < 10)
-                    // - crash_count=10 with max_restarts=10: stop (10th crash, reached limit 10 >= 10)
-                    // This means "restarts: 10" allows up to 9 restart attempts, stopping at 10th crash
+                    // - crash_count < 10 with max_restarts=10: allow restart (crashes 1-9)
+                    // - crash_count >= 10 with max_restarts=10: stop (10th crash reaches limit)
+                    // This means "restarts: 10" allows up to 9 restart attempts (after crashes 1-9)
+                    // and stops at the 10th crash when counter reaches 10
                     if crash_count >= daemon_config.restarts {
                         // Reached max restarts - give up and set running=false
                         let process = runner.process(id);
