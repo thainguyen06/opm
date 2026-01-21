@@ -18,7 +18,6 @@ html {
    ======================================================================== */
 nav {
 	display: flex !important;
-	/* Ép dính trái tuyệt đối */
 	justify-content: flex-start !important; 
 	align-items: center !important;
 	width: 100% !important; 
@@ -28,7 +27,6 @@ nav {
 	box-sizing: border-box !important;
 }
 
-/* Fix lỗi nhảy layout: Target tất cả div con trực tiếp của nav */
 nav > div {
 	display: flex !important;
 	justify-content: flex-start !important;
@@ -36,11 +34,10 @@ nav > div {
 	gap: 0.75rem;
 	width: auto !important;
 	
-	/* Quan trọng: Reset margin để tránh việc trình duyệt tự căn giữa */
+	/* Ép dính trái và ngăn tự động căn giữa */
 	margin-left: 0 !important;
 	margin-right: auto !important; 
 	
-	/* Mobile fix: Đảm bảo không bị wrap xuống dòng gây vỡ */
 	flex-wrap: nowrap !important;
 }
 
@@ -50,7 +47,7 @@ nav a {
 }
 
 /* ========================================================================
-   TOGGLE SWITCH (Pixel-Perfect Fix for Mobile)
+   TOGGLE SWITCH (Size Updated: Medium Mobile)
    ======================================================================== */
 
 button[role="switch"],
@@ -65,16 +62,15 @@ button[role="switch"],
 	border: 1px solid transparent !important;
 	box-sizing: border-box !important;
 	
-	/* Reset mặc định của button mobile */
 	padding: 0 !important;
 	margin: 0 !important;
 	appearance: none !important;
 	-webkit-appearance: none !important;
 
-	/* --- MOBILE SIZE (Dùng PX để tránh lỗi render) --- */
-	/* Kích thước an toàn: 32px x 18px */
-	width: 32px !important;
-	height: 18px !important;
+	/* --- MOBILE SIZE (Đã tăng to hơn xíu) --- */
+	/* Kích thước: 40px x 22px */
+	width: 40px !important;
+	height: 22px !important;
 	
 	transition: background-color 0.2s, border-color 0.2s;
 }
@@ -86,30 +82,30 @@ button[role="switch"] > span,
 	position: absolute !important;
 	top: 50% !important;
 	transform: translateY(-50%) !important;
-	display: block !important; /* Đổi thành block để render cứng cáp hơn */
+	display: block !important;
 	
-	border-radius: 50% !important; /* Tròn tuyệt đối */
+	border-radius: 50% !important;
 	background-color: white !important;
 	pointer-events: none;
 	
 	transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
 
 	/* --- MOBILE KNOB --- */
-	left: 2px !important; /* Cách trái 2px */
+	left: 2px !important;
 	
-	/* Size: Track(18) - Pad(2+2) = 14px */
-	width: 14px !important; 
-	height: 14px !important;
+	/* Size: Track(22) - Pad(4) = 18px -> To, dễ nhìn */
+	width: 18px !important; 
+	height: 18px !important;
 }
 
 /* Trạng thái Checked - Mobile */
 button[role="switch"][aria-checked="true"] > span,
 .toggle-switch[aria-checked="true"] > span {
-	/* Move: Track(32) - Knob(14) - Pad(2+2) = 14px */
-	transform: translateY(-50%) translateX(14px) !important;
+	/* Move: Track(40) - Knob(18) - Pad(4) = 18px */
+	transform: translateY(-50%) translateX(18px) !important;
 }
 
-/* --- DESKTOP OVERRIDES --- */
+/* --- DESKTOP OVERRIDES (Giữ nguyên vì đã ổn) --- */
 @media (min-width: 640px) {
 	button[role="switch"],
 	.toggle-switch {
@@ -142,16 +138,13 @@ button[role="switch"][aria-checked="true"] > span,
 @media (max-width: 768px) {
 	body { font-size: 14px; }
 	
-	/* Mobile Inputs fix */
 	input[type="checkbox"] { padding: 8px; }
 	
-	/* Đảm bảo switch không bị đè bởi rule min-width/height chung */
 	button[role="switch"], .toggle-switch {
 		min-width: auto !important;
 		min-height: auto !important;
 	}
 	
-	/* Các button khác (trừ switch) */
 	button:not([role="switch"]):not(.toggle-switch) {
 		padding: 0.375rem 0.5rem;
 		min-height: 36px;
@@ -172,7 +165,7 @@ button, a, input, select {
 	}
 }
 
-/* Skeleton & Animation Utilities (Giữ nguyên) */
+/* Skeleton & Animation Utilities */
 @keyframes shimmer {
 	0% { background-position: -1000px 0; }
 	100% { background-position: 1000px 0; }
