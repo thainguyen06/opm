@@ -208,13 +208,24 @@ fn restart_process() {
                         runner.save();
                     }
                 } else {
-                    // Process is already marked as crashed - attempt restart now
-                    log!("[daemon] restarting crashed process", 
-                         "name" => item.name, "id" => id, "crash_count" => item.crash.value, "max_restarts" => daemon_config.restarts);
-                    runner.restart(id, true, true);
-                    runner.save();
-                    log!("[daemon] restart complete", 
-                         "name" => item.name, "id" => id, "new_pid" => runner.info(id).map(|p| p.pid).unwrap_or(0));
+                    // Process is already marked as crashed - check limit before attempting restart
+                    // This handles cases where counter may have been incremented by restart failures
+                    if item.crash.value > daemon_config.restarts {
+                        // Already exceeded max restarts - set running=false and stop trying
+                        let process = runner.process(id);
+                        process.running = false;
+                        log!("[daemon] process already exceeded max crash limit, stopping restart attempts", 
+                             "name" => item.name, "id" => id, "crash_count" => item.crash.value, "max_restarts" => daemon_config.restarts);
+                        runner.save();
+                    } else {
+                        // Still within limit - attempt restart now
+                        log!("[daemon] restarting crashed process", 
+                             "name" => item.name, "id" => id, "crash_count" => item.crash.value, "max_restarts" => daemon_config.restarts);
+                        runner.restart(id, true, true);
+                        runner.save();
+                        log!("[daemon] restart complete", 
+                             "name" => item.name, "id" => id, "new_pid" => runner.info(id).map(|p| p.pid).unwrap_or(0));
+                    }
                 }
             } else {
                 // Process was already stopped (running=false), just update PID
