@@ -501,6 +501,12 @@ impl Runner {
                 path, script, name, ..
             } = process.clone();
 
+            // Clear crashed flag at the start of restart attempt
+            // This ensures that if restart fails, the next daemon cycle will properly
+            // detect the process as crashed and increment the counter
+            // Without this, failed restarts leave crashed=true, preventing proper crash detection
+            process.crash.crashed = false;
+
             // Save the current working directory so we can restore it after restart
             // This is critical for the daemon - changing the working directory affects the daemon process
             // and can cause it to crash when trying to access its own files
@@ -635,7 +641,7 @@ impl Runner {
             process.running = true;
             process.children = vec![];
             process.started = Utc::now();
-            process.crash.crashed = false;
+            // Note: crashed flag was already cleared at the start of restart()
 
             // Merge .env variables into the stored environment (dotenv takes priority)
             let mut updated_env: Env = env::vars().collect();
@@ -679,6 +685,11 @@ impl Runner {
                 max_memory: _,
                 ..
             } = process.clone();
+
+            // Clear crashed flag at the start of reload attempt
+            // This ensures that if reload fails, the next daemon cycle will properly
+            // detect the process as crashed and increment the counter
+            process.crash.crashed = false;
 
             // Save the current working directory so we can restore it after reload
             let original_dir = std::env::current_dir().ok();
@@ -798,7 +809,7 @@ impl Runner {
             process.running = true;
             process.children = vec![];
             process.started = Utc::now();
-            process.crash.crashed = false;
+            // Note: crashed flag was already cleared at the start of reload()
 
             // Merge .env variables into the stored environment (dotenv takes priority)
             let mut updated_env: Env = env::vars().collect();
