@@ -85,6 +85,7 @@ pub struct Info {
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct Stats {
     pub restarts: u64,
+    pub crashes: u64,
     pub start_time: i64,
     pub cpu_percent: Option<f64>,
     pub memory_usage: Option<MemoryInfo>,
@@ -132,6 +133,7 @@ pub struct ProcessItem {
     pub mem: String,
     pub name: String,
     pub restarts: u64,
+    pub crashes: u64,
     pub status: String,
     pub uptime: String,
     #[schema(example = "/path")]
@@ -1169,6 +1171,7 @@ impl Runner {
             cpu: cpu_percent,
             mem: memory_usage,
             restarts: item.restarts,
+            crashes: item.crash.value,
             name: item.name.clone(),
             start_time: item.started,
             watch_path: item.watch.path.clone(),
@@ -1375,6 +1378,7 @@ impl ProcessWrapper {
                 cpu_percent,
                 memory_usage,
                 restarts: item.restarts,
+                crashes: item.crash.value,
                 start_time: item.started.timestamp_millis(),
             },
             watch: Watch {

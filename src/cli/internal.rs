@@ -1207,7 +1207,7 @@ impl<'i> Internal<'i> {
                 pid: String,
                 uptime: String,
                 #[tabled(rename = "↺")]
-                restarts: String,
+                crashes: String,
                 status: ColoredString,
                 cpu: String,
                 mem: String,
@@ -1229,7 +1229,7 @@ impl<'i> Internal<'i> {
                         "watch": &self.watch.trim(),
                         "uptime": &self.uptime.trim(),
                         "status": &self.status.0.trim(),
-                        "restarts": &self.restarts.trim(),
+                        "crashes": &self.crashes.trim(),
                     });
                     trimmed_json.serialize(serializer)
                 }
@@ -1321,7 +1321,7 @@ impl<'i> Internal<'i> {
                         cpu: format!("{cpu_percent}   "),
                         mem: format!("{memory_usage}   "),
                         id: id.to_string().cyan().bold().into(),
-                        restarts: format!("{}  ", item.restarts),
+                        crashes: format!("{}  ", item.crash.value),
                         name: format!("{}   ", item.name.clone()),
                         pid: ternary!(
                             process_actually_running,

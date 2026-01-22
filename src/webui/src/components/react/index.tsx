@@ -18,6 +18,7 @@ type ProcessItem = {
 	pid: string;
 	uptime: string;
 	restarts: number;
+	crashes: number;
 	cpu: string;
 	mem: string;
 	watch: string;
@@ -92,8 +93,8 @@ const Index = (props: { base: string }) => {
 					<dd className="text-zinc-400 font-mono">{isRunning(item.status) ? item.uptime : 'none'}</dd>
 				</div>
 				<div className={`flex justify-between gap-x-2 py-2 ${isClickable ? 'transition-colors hover:text-zinc-300' : ''}`}>
-					<dt className="text-zinc-600 font-medium">restarts</dt>
-					<dd className="text-zinc-400 font-mono">{item.restarts == 0 ? 'none' : item.restarts}</dd>
+					<dt className="text-zinc-600 font-medium">crashes</dt>
+					<dd className="text-zinc-400 font-mono">{item.crashes == 0 ? 'none' : item.crashes}</dd>
 				</div>
 			</dl>
 		);
