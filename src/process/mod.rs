@@ -2751,8 +2751,9 @@ mod tests {
             "Restart failure should keep running=true so daemon will retry (not yet at limit)"
         );
 
-        // Simulate daemon detecting more crashes and restart failures up to the limit
+        // Simulate daemon detecting more crashes and restart failures (crashes 2-9)
         // Each iteration: daemon increments, then restart fails (no additional increment)
+        // Loop covers crash values 2 through 9; crash 10 is tested separately below
         let max_restarts = 10;
         for expected_crash_value in 2..max_restarts {
             // Daemon detects another crash and increments
@@ -2926,7 +2927,9 @@ mod tests {
 
         runner.list.insert(id, process);
 
-        // Simulate crashes up to the limit (1-9 should auto-restart, 10 should stop)
+        // Simulate crashes 1 through 10 (inclusive)
+        // - Crashes 1-9: should auto-restart (counter < MAX_RESTARTS)
+        // - Crash 10: should stop (counter >= MAX_RESTARTS)
         for expected_crash_count in 1..=MAX_RESTARTS {
             // Simulate process crash
             {
