@@ -522,7 +522,6 @@ impl<'i> Internal<'i> {
             if let Some(home) = home::home_dir() {
                 let full_config = config::read();
                 let config = full_config.runner;
-                let max_restarts = full_config.daemon.restarts;
                 let mut runner = Runner::new();
                 let item = runner.process(self.id);
 
@@ -602,7 +601,7 @@ impl<'i> Internal<'i> {
                     memory_limit,
                     id: string!(self.id),
                     restarts: if item.crash.crashed { 
-                        std::cmp::min(item.crash.value, max_restarts) 
+                        item.crash.value 
                     } else { 
                         item.restarts 
                     },
@@ -640,7 +639,6 @@ impl<'i> Internal<'i> {
                 crashln!("{} Impossible to get your home directory", *helpers::FAIL);
             }
         } else {
-            let max_restarts = config::read().daemon.restarts;
             let data: (opm::process::Process, Runner);
             let Some(servers) = config::servers().servers else {
                 crashln!("{} Failed to read servers", *helpers::FAIL)
@@ -722,7 +720,7 @@ impl<'i> Internal<'i> {
                     path: path.clone(),
                     status: status.into(),
                     restarts: if item.crash.crashed { 
-                        std::cmp::min(item.crash.value, max_restarts) 
+                        item.crash.value 
                     } else { 
                         item.restarts 
                     },
@@ -1259,9 +1257,6 @@ impl<'i> Internal<'i> {
             if runner.is_empty() {
                 println!("{} Process table empty", *helpers::SUCCESS);
             } else {
-                // Get daemon config for crash limit
-                let max_restarts = config::read().daemon.restarts;
-                
                 for (id, item) in runner.items() {
                     // Check if process actually exists before reporting as online
                     // A process marked as running but with a non-existent PID should be shown as crashed
@@ -1346,7 +1341,7 @@ impl<'i> Internal<'i> {
                         mem: format!("{memory_usage}   "),
                         id: id.to_string().cyan().bold().into(),
                         restarts: format!("{}  ", if item.crash.crashed { 
-                            std::cmp::min(item.crash.value, max_restarts) 
+                            item.crash.value 
                         } else { 
                             item.restarts 
                         }),
