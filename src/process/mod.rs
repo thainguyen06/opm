@@ -1168,7 +1168,7 @@ impl Runner {
             pid: item.pid,
             cpu: cpu_percent,
             mem: memory_usage,
-            restarts: item.restarts,
+            restarts: item.crash.value,
             name: item.name.clone(),
             start_time: item.started,
             watch_path: item.watch.path.clone(),
