@@ -1340,11 +1340,7 @@ impl<'i> Internal<'i> {
                         cpu: format!("{cpu_percent}   "),
                         mem: format!("{memory_usage}   "),
                         id: id.to_string().cyan().bold().into(),
-                        restarts: format!("{}  ", if item.crash.crashed { 
-                            item.crash.value 
-                        } else { 
-                            item.restarts 
-                        }),
+                        restarts: format!("{}  ", item.crash.value),
                         name: format!("{}   ", item.name.clone()),
                         pid: ternary!(
                             process_actually_running,

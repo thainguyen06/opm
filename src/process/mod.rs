@@ -514,6 +514,7 @@ impl Runner {
             // - dead=false with increment_counter=false (start command): don't increment
             if dead || increment_counter {
                 process.restarts += 1;
+                process.crash.value += 1;
             }
 
             kill_children(process.children.clone());
@@ -693,6 +694,7 @@ impl Runner {
             // - dead=false with increment_counter=false (not currently used): don't increment
             if dead || increment_counter {
                 process.restarts += 1;
+                process.crash.value += 1;
             }
 
             if let Err(err) = std::env::set_current_dir(&path) {
@@ -1205,11 +1207,7 @@ impl Runner {
             pid: item.pid,
             cpu: cpu_percent,
             mem: memory_usage,
-            restarts: if item.crash.crashed { 
-                item.crash.value 
-            } else { 
-                item.restarts 
-            },
+            restarts: item.crash.value,
             name: item.name.clone(),
             start_time: item.started,
             watch_path: item.watch.path.clone(),
