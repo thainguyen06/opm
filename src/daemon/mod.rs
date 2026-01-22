@@ -93,15 +93,22 @@ extern "C" fn handle_sigpipe(_: libc::c_int) {
 fn send_notification(event: opm::notifications::NotificationEvent, title: String, message: String) {
     if let Some(notif_mgr) = NOTIFICATION_MANAGER.get() {
         let notif_mgr = notif_mgr.clone();
-        // Spawn a task to send the notification asynchronously
-        std::thread::spawn(move || {
-            let rt = tokio::runtime::Runtime::new();
-            if let Ok(rt) = rt {
-                rt.block_on(async {
-                    notif_mgr.send(event, &title, &message).await;
-                });
-            }
-        });
+        // Try to use current tokio runtime if available, otherwise spawn a thread with new runtime
+        if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            // We're already in a tokio runtime context, spawn directly
+            handle.spawn(async move {
+                notif_mgr.send(event, &title, &message).await;
+            });
+        } else {
+            // No tokio runtime available, create one in a thread
+            std::thread::spawn(move || {
+                if let Ok(rt) = tokio::runtime::Runtime::new() {
+                    rt.block_on(async {
+                        notif_mgr.send(event, &title, &message).await;
+                    });
+                }
+            });
+        }
     }
 }
 

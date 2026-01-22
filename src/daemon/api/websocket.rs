@@ -48,10 +48,13 @@ pub fn websocket_handler(
                                 AgentMessage::Register { id, name, hostname, api_endpoint } => {
                                     log::info!("[WebSocket] Agent registration: {} ({})", name, id);
 
+                                    // Clone hostname once for notification
+                                    let hostname_for_notif = hostname.clone();
+
                                     let agent_info = AgentInfo {
                                         id: id.clone(),
                                         name: name.clone(),
-                                        hostname: hostname.clone(),
+                                        hostname,
                                         status: AgentStatus::Online,
                                         connection_type: ConnectionType::In,
                                         last_seen: std::time::SystemTime::now(),
@@ -70,7 +73,7 @@ pub fn websocket_handler(
                                         "Agent '{}' (ID: {}) has connected{}",
                                         name,
                                         id,
-                                        hostname.map(|h| format!(" from {}", h)).unwrap_or_default()
+                                        hostname_for_notif.map(|h| format!(" from {}", h)).unwrap_or_default()
                                     );
                                     let nm = notif_mgr.clone();
                                     tokio::spawn(async move {
