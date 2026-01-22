@@ -599,7 +599,7 @@ impl<'i> Internal<'i> {
                     memory_usage,
                     memory_limit,
                     id: string!(self.id),
-                    restarts: item.restarts,
+                    restarts: item.crash.value,
                     name: item.name.clone(),
                     log_out: item.logs().out,
                     path: format!("{} ", path),
@@ -714,7 +714,7 @@ impl<'i> Internal<'i> {
                     id: string!(self.id),
                     path: path.clone(),
                     status: status.into(),
-                    restarts: item.restarts,
+                    restarts: item.crash.value,
                     name: item.name.clone(),
                     pid: ternary!(
                         item.running && !item.crash.crashed,

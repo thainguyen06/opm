@@ -1374,7 +1374,7 @@ impl ProcessWrapper {
             stats: Stats {
                 cpu_percent,
                 memory_usage,
-                restarts: item.restarts,
+                restarts: item.crash.value,
                 start_time: item.started.timestamp_millis(),
             },
             watch: Watch {
