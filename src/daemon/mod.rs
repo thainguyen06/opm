@@ -42,6 +42,39 @@ static ENABLE_API: AtomicBool = AtomicBool::new(false);
 static ENABLE_WEBUI: AtomicBool = AtomicBool::new(false);
 
 extern "C" fn handle_termination_signal(_: libc::c_int) {
+    // SAFETY: Signal handlers should be kept simple and avoid complex operations.
+    // However, we need to save crashed process state before daemon exits.
+    // This is a critical operation to ensure crashed processes can be restored.
+    // We accept the small risk of issues during signal handling because:
+    // 1. The alternative (losing crashed process state) is worse
+    // 2. This only runs on daemon shutdown, not during normal operation
+    // 3. Worst case: state isn't saved, but daemon still exits cleanly
+    
+    // Try to save crashed process state before exiting
+    // Use catch_unwind to prevent panics from crashing the signal handler
+    let save_result = std::panic::catch_unwind(|| {
+        let mut runner = Runner::new();
+        let process_ids: Vec<usize> = runner.process_ids().collect();
+        for id in process_ids {
+            // Get process info once and clone name if needed to avoid multiple lookups
+            if let Some(process) = runner.info(id) {
+                if process.crash.crashed && process.running {
+                    let name = process.name.clone();
+                    runner.process(id).running = false;
+                    log!("[daemon] marking crashed process as stopped for restore", 
+                         "id" => id, "name" => name);
+                }
+            }
+        }
+        runner.save();
+    });
+    
+    // If save failed, log a warning (but still proceed with cleanup)
+    if save_result.is_err() {
+        // Note: Can't use log! macro without key-value pairs, using eprintln instead
+        eprintln!("[daemon] warning: failed to save crashed process state during shutdown");
+    }
+    
     pid::remove();
     log!("[daemon] killed", "pid" => process::id());
     unsafe { libc::_exit(0) }
@@ -175,10 +208,10 @@ fn restart_process() {
             // Check if this is a newly detected crash (not already marked as crashed)
             // Always increment crash counter to track actual crash count, regardless of running state
             if !item.crash.crashed {
-                // Get crash count before modifying
+                // Get crash count after incrementing
                 let crash_count = {
                     let process = runner.process(id);
-                    // Increment consecutive crash counter
+                    // Increment crash counter - allow it to exceed limit to show total crash history
                     process.crash.value += 1;
                     process.crash.crashed = true;
                     process.crash.value
@@ -186,13 +219,11 @@ fn restart_process() {
 
                 // Only handle restart logic if process was supposed to be running
                 if item.running {
-                    // SEMANTIC CHANGE: max_restarts now represents the maximum counter value
-                    // Counter stops when it reaches this limit (displays the limit value)
                     // Check if we've reached or exceeded the maximum crash limit
                     // Using >= to stop when counter reaches the limit:
                     // - crash_count < 10 with max_restarts=10: allow restart (crash counter 1-9)
                     // - crash_count >= 10 with max_restarts=10: stop (counter reaches 10, no more restarts)
-                    // Previous behavior: allowed counter to go to 11 before stopping
+                    // Counter can exceed limit to track total crashes, but restarts stop at limit
                     if crash_count >= daemon_config.restarts {
                         // Reached max restarts - give up and set running=false
                         let process = runner.process(id);
@@ -209,7 +240,7 @@ fn restart_process() {
                     }
                 } else {
                     // Process was already stopped but crashed again (e.g., after manual restart)
-                    // Counter has been incremented to track crash history
+                    // Counter has been incremented to track crash history even after limit
                     log!("[daemon] stopped process crashed again", 
                          "name" => item.name, "id" => id, "crash_count" => crash_count);
                     runner.save();

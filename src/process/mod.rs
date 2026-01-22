@@ -851,8 +851,45 @@ impl Runner {
         } else {
             self.stop(id);
             self.list.remove(&id);
+            self.compact(); // Compact IDs after removal
             self.save();
         }
+    }
+
+    /// Compact process IDs by reindexing all processes to fill gaps
+    /// Example: if processes 0, 2, 5 exist, they become 0, 1, 2
+    pub fn compact(&mut self) {
+        if self.remote.is_some() {
+            return; // Don't compact remote processes
+        }
+
+        // If list is empty, reset ID counter to 0
+        if self.list.is_empty() {
+            self.id = id::Id::new(0);
+            return;
+        }
+
+        // Check if compaction is needed by comparing keys to sequential range
+        let keys: Vec<usize> = self.list.keys().copied().collect();
+        let expected_keys: Vec<usize> = (0..keys.len()).collect();
+        if keys == expected_keys {
+            // Already compact, just ensure ID counter is correct
+            self.id = id::Id::new(keys.len());
+            return;
+        }
+
+        // BTreeMap is already sorted, so we can use into_iter() directly
+        // Extract all processes by replacing the list with an empty one
+        let old_list = std::mem::replace(&mut self.list, BTreeMap::new());
+        
+        // Re-insert with new sequential IDs starting from 0
+        // BTreeMap::into_iter() yields items in sorted key order
+        for (new_id, (_old_id, process)) in old_list.into_iter().enumerate() {
+            self.list.insert(new_id, process);
+        }
+
+        // Reset the ID counter to the next available ID
+        self.id = id::Id::new(self.list.len());
     }
 
     pub fn set_id(&mut self, id: id::Id) {
@@ -3111,6 +3148,99 @@ mod tests {
             runner.info(id).unwrap().crash.crashed,
             true,
             "Process should be marked as crashed after new crash"
+        );
+    }
+
+    #[test]
+    fn test_compact_process_ids() {
+        // Test that process IDs are compacted (reindexed) after removal
+        let mut runner = setup_test_runner();
+        
+        // Create 5 processes - ID counter starts at 1, so IDs will be 1, 2, 3, 4, 5
+        // After compaction, IDs will be renumbered starting from 0
+        for i in 0..5 {
+            let id = runner.id.next();
+            let process = Process {
+                id,
+                pid: 1000 + i as i64,
+                shell_pid: None,
+                env: BTreeMap::new(),
+                name: format!("process_{}", i),
+                path: PathBuf::from("/tmp"),
+                script: "echo 'test'".to_string(),
+                restarts: 0,
+                running: true,
+                crash: Crash {
+                    crashed: false,
+                    value: 0,
+                },
+                watch: Watch {
+                    enabled: false,
+                    path: String::new(),
+                    hash: String::new(),
+                },
+                children: vec![],
+                started: Utc::now(),
+                max_memory: 0,
+                agent_id: None,
+            };
+            runner.list.insert(id, process);
+        }
+        
+        // Verify initial state - should have IDs 1, 2, 3, 4, 5
+        assert_eq!(runner.list.len(), 5, "Should have 5 processes");
+        assert!(runner.exists(1), "Process 1 should exist");
+        assert!(runner.exists(2), "Process 2 should exist");
+        assert!(runner.exists(3), "Process 3 should exist");
+        assert!(runner.exists(4), "Process 4 should exist");
+        assert!(runner.exists(5), "Process 5 should exist");
+        
+        // Remove processes 1 and 3 (creating gaps)
+        runner.list.remove(&1);
+        runner.list.remove(&3);
+        
+        // Before compact: IDs should be 2, 4, 5 (with gaps)
+        assert_eq!(runner.list.len(), 3, "Should have 3 processes after removal");
+        assert!(!runner.exists(1), "Process 1 should not exist");
+        assert!(runner.exists(2), "Process 2 should still exist");
+        assert!(!runner.exists(3), "Process 3 should not exist");
+        assert!(runner.exists(4), "Process 4 should still exist");
+        assert!(runner.exists(5), "Process 5 should still exist");
+        
+        // Now compact the IDs
+        runner.compact();
+        
+        // After compact: IDs should be 0, 1, 2 (sequential starting from 0)
+        assert_eq!(runner.list.len(), 3, "Should still have 3 processes");
+        assert!(runner.exists(0), "Process 0 should exist after compact");
+        assert!(runner.exists(1), "Process 1 should exist after compact");
+        assert!(runner.exists(2), "Process 2 should exist after compact");
+        assert!(!runner.exists(3), "Process 3 should not exist after compact");
+        assert!(!runner.exists(4), "Process 4 should not exist after compact");
+        assert!(!runner.exists(5), "Process 5 should not exist after compact");
+        
+        // Verify the names are correct (should maintain order)
+        assert_eq!(
+            runner.info(0).unwrap().name,
+            "process_1",
+            "First process should be process_1 (was ID 2)"
+        );
+        assert_eq!(
+            runner.info(1).unwrap().name,
+            "process_3",
+            "Second process should be process_3 (was ID 4)"
+        );
+        assert_eq!(
+            runner.info(2).unwrap().name,
+            "process_4",
+            "Third process should be process_4 (was ID 5)"
+        );
+        
+        // Verify ID counter is reset correctly
+        let next_id = runner.id.next();
+        assert_eq!(
+            next_id, 3,
+            "Next ID should be 3 (after processes 0, 1, 2)"
         );
     }
 }
