@@ -294,7 +294,7 @@ pub async fn start(webui: bool) {
         routes::dashboard,
         routes::view_process,
         routes::server_status,
-        routes::notifications,
+        routes::system,
         routes::agent_detail,
         routes::action_handler,
         routes::env_handler,

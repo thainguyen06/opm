@@ -221,14 +221,14 @@ pub async fn server_status(
     Ok((ContentType::HTML, render("status", &state, &mut ctx).await?))
 }
 
-#[get("/notifications")]
-pub async fn notifications(
+#[get("/system")]
+pub async fn system(
     state: &State<TeraState>,
     _webui: EnableWebUI,
 ) -> Result<(ContentType, String), NotFound> {
     Ok((
         ContentType::HTML,
-        render("notifications", &state, &mut Context::new()).await?,
+        render("system", &state, &mut Context::new()).await?,
     ))
 }
 
