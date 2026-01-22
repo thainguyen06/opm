@@ -203,8 +203,8 @@ fn restart_process() {
             // PID > 0 means we thought the process was alive, so this is a new crash event
             let is_new_crash = item.pid > 0;
             
-            // Reset PID to 0 if it wasn't already
-            if item.pid > 0 {
+            // Reset PID to 0 if it wasn't already (for new crashes)
+            if is_new_crash {
                 let process = runner.process(id);
                 process.pid = 0; // Set to 0 to indicate no valid PID
             }
