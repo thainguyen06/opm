@@ -23,11 +23,30 @@ process_restart = true     # Notify when a process restarts
 # channels = [
 #     "discord://token@id",                              # Discord webhook
 #     "slack://token:token@channel",                     # Slack webhook
-#     "telegram://token@telegram?chats=@chat",           # Telegram
+#     "telegram://BOT_TOKEN@telegram?chats=CHAT_ID",     # Telegram
 #     "gotify://gotify.example.com/token",               # Gotify
 #     "pushover://shoutrrr:token@user",                  # Pushover
 #     "matrix://user:password@homeserver/?rooms=!room",  # Matrix
 # ]
+
+# Telegram Configuration Guide:
+# - BOT_TOKEN: Get it from @BotFather on Telegram
+# - CHAT_ID can be:
+#   * @username - for public channels/groups (e.g., @mychannel)
+#   * -1001234567890 - numeric ID for private groups/supergroups/channels
+#   * 1234567890 - numeric ID for users (DMs)
+# 
+# To get your chat ID:
+# 1. Add the bot to your channel/group
+# 2. Send a message in the chat
+# 3. Visit: https://api.telegram.org/bot<BOT_TOKEN>/getUpdates
+# 4. Look for "chat":{"id": ... } in the response
+#
+# Note: For channels, the bot must be added as an administrator with permission to post messages
+#
+# Examples:
+#   "telegram://123456:ABCdefGHIjklMNOpqr@telegram?chats=@mychannel"
+#   "telegram://123456:ABCdefGHIjklMNOpqr@telegram?chats=-1001234567890"
 
 # For more information about Shoutrrr URL formats, visit:
 # https://containrrr.dev/shoutrrr/

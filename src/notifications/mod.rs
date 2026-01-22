@@ -237,23 +237,35 @@ impl NotificationManager {
         title: &str,
         message: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        // Telegram format: token@telegram?chats=@chat_id
+        // Telegram format: token@telegram?chats=CHAT_ID
+        // where CHAT_ID can be:
+        //   - @username (for public channels/groups)
+        //   - -1001234567890 (numeric ID for groups/channels)
+        //   - 1234567890 (numeric ID for users)
         // Extract token and chat ID
         let (token, rest) = webhook_data
             .split_once('@')
-            .ok_or("Invalid Telegram format: expected 'token@telegram?chats=@chat_id'")?;
+            .ok_or("Invalid Telegram format: expected 'token@telegram?chats=CHAT_ID'. Format: telegram://BOT_TOKEN@telegram?chats=CHAT_ID")?;
 
-        let chat_id = if let Some(query) = rest.strip_prefix("telegram?chats=") {
+        let chat_id_raw = if let Some(query) = rest.strip_prefix("telegram?chats=") {
             query
         } else {
-            return Err("Invalid Telegram format: expected 'token@telegram?chats=@chat_id'".into());
+            return Err(format!(
+                "Invalid Telegram format: expected 'token@telegram?chats=CHAT_ID' but got '{}@{}'. Format: telegram://BOT_TOKEN@telegram?chats=CHAT_ID",
+                token, rest
+            ).into());
         };
+
+        // URL-decode the chat_id to handle encoded special characters like %40 for @
+        let chat_id = urlencoding::decode(chat_id_raw)
+            .unwrap_or_else(|_| std::borrow::Cow::Borrowed(chat_id_raw))
+            .to_string();
 
         let api_url = format!("https://api.telegram.org/bot{}/sendMessage", token);
         let text = format!("<b>{}</b>\n{}", title, message);
 
         let mut payload = HashMap::new();
-        payload.insert("chat_id", chat_id);
+        payload.insert("chat_id", chat_id.as_str());
         payload.insert("text", &text);
         payload.insert("parse_mode", "HTML");
 
@@ -269,9 +281,19 @@ impl NotificationManager {
             } else {
                 "Non-success status but no error details available".to_string()
             };
+            
+            // Parse error message for common issues
+            let hint = if body.contains("chat not found") {
+                "\nHint: Make sure the bot is added to the chat/channel and has permission to send messages. For channels, the bot must be an administrator."
+            } else if body.contains("Unauthorized") || body.contains("bot token") {
+                "\nHint: Check that your bot token is correct."
+            } else {
+                ""
+            };
+            
             return Err(format!(
-                "Telegram API failed with status: {} - Response: {}",
-                status, body
+                "Telegram API failed with status: {} - Response: {}{}",
+                status, body, hint
             )
             .into());
         }
