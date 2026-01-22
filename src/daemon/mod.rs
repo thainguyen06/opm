@@ -186,13 +186,14 @@ fn restart_process() {
 
                 // Only handle restart logic if process was supposed to be running
                 if item.running {
-                    // Check if we've exceeded the maximum crash limit
-                    // Using > instead of >= to allow exactly max_restarts crashes:
-                    // - crash_count <= 10 with max_restarts=10: allow restart (crashes 1-10)
-                    // - crash_count > 10 with max_restarts=10: stop (11th crash exceeds limit)
-                    // This means "restarts: 10" allows exactly 10 restart attempts (after crashes 1-10)
-                    // and stops at the 11th crash when counter reaches 11
-                    if crash_count > daemon_config.restarts {
+                    // SEMANTIC CHANGE: max_restarts now represents the maximum counter value
+                    // Counter stops when it reaches this limit (displays the limit value)
+                    // Check if we've reached or exceeded the maximum crash limit
+                    // Using >= to stop when counter reaches the limit:
+                    // - crash_count < 10 with max_restarts=10: allow restart (crash counter 1-9)
+                    // - crash_count >= 10 with max_restarts=10: stop (counter reaches 10, no more restarts)
+                    // Previous behavior: allowed counter to go to 11 before stopping
+                    if crash_count >= daemon_config.restarts {
                         // Reached max restarts - give up and set running=false
                         let process = runner.process(id);
                         process.running = false;
@@ -216,7 +217,7 @@ fn restart_process() {
             } else if item.running {
                 // Process is already marked as crashed - check limit before attempting restart
                 // This handles cases where counter may have been incremented by restart failures
-                if item.crash.value > daemon_config.restarts {
+                if item.crash.value >= daemon_config.restarts {
                     // Already reached max restarts - set running=false and stop trying
                     let process = runner.process(id);
                     process.running = false;
