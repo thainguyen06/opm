@@ -2,7 +2,6 @@ pub mod channels;
 
 use crate::config::structs::Notifications;
 use channels::NotificationChannel;
-use notify_rust::{Notification, Urgency};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -46,11 +45,6 @@ impl NotificationManager {
                 if !enabled {
                     return;
                 }
-            }
-
-            // Send desktop notification (may fail in headless environments, which is OK)
-            if let Err(e) = self.send_desktop_notification(event, title, message).await {
-                log::debug!("Desktop notification not available: {}", e);
             }
 
             // Send to new format channels (preferred)
@@ -102,29 +96,6 @@ impl NotificationManager {
         }
 
         Self::handle_notification_results(success_count, errors)
-    }
-
-    async fn send_desktop_notification(
-        &self,
-        event: NotificationEvent,
-        title: &str,
-        message: &str,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let urgency = match event {
-            NotificationEvent::ProcessCrash => Urgency::Critical,
-            NotificationEvent::AgentDisconnect => Urgency::Normal,
-            _ => Urgency::Low,
-        };
-
-        Notification::new()
-            .summary(title)
-            .body(message)
-            .urgency(urgency)
-            .appname("OPM")
-            .timeout(5000)
-            .show()?;
-
-        Ok(())
     }
 
     async fn send_legacy_channel_notifications(

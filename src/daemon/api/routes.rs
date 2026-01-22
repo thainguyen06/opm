@@ -1119,24 +1119,8 @@ pub async fn test_notification_handler(
             ));
         }
 
-        let mut desktop_sent = false;
         let mut channels_sent = false;
         let mut errors = Vec::new();
-        let mut warnings = Vec::new();
-
-        // Try to send desktop notification (may fail in headless environments)
-        match send_test_desktop_notification(&body.title, &body.message).await {
-            Ok(_) => {
-                desktop_sent = true;
-            }
-            Err(e) => {
-                let error_msg = e.to_string();
-                // Desktop notifications are expected to fail in headless environments
-                // Treat as warning rather than error
-                log::debug!("Desktop notification not available: {}", error_msg);
-                warnings.push(format!("Desktop: {}", error_msg));
-            }
-        }
 
         // Send to external channels if configured
         if let Some(channels) = &cfg.channels {
@@ -1155,36 +1139,14 @@ pub async fn test_notification_handler(
             }
         }
 
-        // Return success if at least one notification method succeeded
-        if desktop_sent || channels_sent {
-            let mut message = "Test notification sent successfully".to_string();
-            let mut details = Vec::new();
+        // Return success if channels were sent successfully
+        if channels_sent {
+            let message = "Test notification sent successfully via external channels".to_string();
 
-            if desktop_sent {
-                details.push("desktop");
-            }
-            if channels_sent {
-                details.push("external channels");
-            }
-
-            if !details.is_empty() {
-                message.push_str(" via ");
-                message.push_str(&details.join(" and "));
-            }
-
-            // Include warnings if any (e.g., desktop failed but not critical)
-            let response = if !warnings.is_empty() {
-                json!({
-                    "success": true,
-                    "message": message,
-                    "warnings": warnings
-                })
-            } else {
-                json!({
-                    "success": true,
-                    "message": message
-                })
-            };
+            let response = json!({
+                "success": true,
+                "message": message
+            });
 
             timer.observe_duration();
             Ok(Json(response))
@@ -1192,27 +1154,10 @@ pub async fn test_notification_handler(
             // All notification methods failed
             timer.observe_duration();
 
-            // Build clear error message distinguishing expected vs unexpected failures
-            let mut error_parts = Vec::new();
-
-            if !warnings.is_empty() {
-                error_parts.push(format!(
-                    "Expected failures (headless environment): {}",
-                    warnings.join("; ")
-                ));
-            }
-
-            if !errors.is_empty() {
-                error_parts.push(format!("Unexpected failures: {}", errors.join("; ")));
-            }
-
-            let error_msg = if error_parts.is_empty() {
-                "No notification channels available".to_string()
+            let error_msg = if !errors.is_empty() {
+                format!("Failed to send notifications: {}", errors.join("; "))
             } else {
-                format!(
-                    "All notification methods failed. {}",
-                    error_parts.join(" | ")
-                )
+                "No notification channels configured".to_string()
             };
 
             Err(generic_error(Status::InternalServerError, error_msg))
@@ -1224,23 +1169,6 @@ pub async fn test_notification_handler(
             "Notifications are not configured".to_string(),
         ))
     }
-}
-
-async fn send_test_desktop_notification(
-    title: &str,
-    message: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    use notify_rust::{Notification, Urgency};
-
-    Notification::new()
-        .summary(title)
-        .body(message)
-        .urgency(Urgency::Normal)
-        .appname("OPM")
-        .timeout(5000)
-        .show()?;
-
-    Ok(())
 }
 
 async fn send_test_channel_notifications(
