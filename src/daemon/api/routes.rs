@@ -1035,6 +1035,7 @@ pub async fn save_notifications_handler(
             process_restart: body.events.process_restart,
         }),
         channels: Some(body.channels.clone()),
+        channel_configs: None, // New format not yet supported in API
     });
 
     // Save config to file

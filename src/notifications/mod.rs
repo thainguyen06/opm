@@ -1,4 +1,7 @@
+pub mod channels;
+
 use crate::config::structs::Notifications;
+use channels::NotificationChannel;
 use notify_rust::{Notification, Urgency};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -50,17 +53,60 @@ impl NotificationManager {
                 log::debug!("Desktop notification not available: {}", e);
             }
 
-            // Send to configured external channels
-            if let Some(channels) = &cfg.channels {
-                if !channels.is_empty() {
+            // Send to new format channels (preferred)
+            if let Some(channel_configs) = &cfg.channel_configs {
+                if !channel_configs.is_empty() {
                     if let Err(e) = self
-                        .send_channel_notifications(title, message, channels)
+                        .send_new_channel_notifications(title, message, channel_configs)
                         .await
                     {
                         log::warn!("Failed to send channel notifications: {}", e);
                     }
                 }
             }
+
+            // Send to legacy format channels (backward compatibility)
+            if let Some(channels) = &cfg.channels {
+                if !channels.is_empty() {
+                    if let Err(e) = self
+                        .send_legacy_channel_notifications(title, message, channels)
+                        .await
+                    {
+                        log::warn!("Failed to send legacy channel notifications: {}", e);
+                    }
+                }
+            }
+        }
+    }
+
+    async fn send_new_channel_notifications(
+        &self,
+        title: &str,
+        message: &str,
+        channels: &[NotificationChannel],
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        use reqwest::Client;
+
+        let client = Client::new();
+        let mut errors = Vec::new();
+        let mut success_count = 0;
+
+        for channel in channels {
+            match channel.send(&client, title, message).await {
+                Ok(_) => success_count += 1,
+                Err(e) => {
+                    log::warn!("Failed to send notification: {}", e);
+                    errors.push(e.to_string());
+                }
+            }
+        }
+
+        if success_count > 0 {
+            Ok(())
+        } else if !errors.is_empty() {
+            Err(errors.join("; ").into())
+        } else {
+            Err("No valid notification channels configured".into())
         }
     }
 
@@ -87,7 +133,7 @@ impl NotificationManager {
         Ok(())
     }
 
-    async fn send_channel_notifications(
+    async fn send_legacy_channel_notifications(
         &self,
         title: &str,
         message: &str,
