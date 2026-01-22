@@ -851,8 +851,34 @@ impl Runner {
         } else {
             self.stop(id);
             self.list.remove(&id);
+            self.compact(); // Compact IDs after removal
             self.save();
         }
+    }
+
+    /// Compact process IDs by reindexing all processes to fill gaps
+    /// Example: if processes 0, 2, 5 exist, they become 0, 1, 2
+    pub fn compact(&mut self) {
+        if self.remote.is_some() {
+            return; // Don't compact remote processes
+        }
+
+        // Collect all processes sorted by ID
+        let mut processes: Vec<(usize, Process)> = self.list.iter()
+            .map(|(id, p)| (*id, p.clone()))
+            .collect();
+        processes.sort_by_key(|(id, _)| *id);
+
+        // Clear the list and re-add with new sequential IDs
+        self.list.clear();
+        let mut new_id = 0;
+        for (_, process) in processes {
+            self.list.insert(new_id, process);
+            new_id += 1;
+        }
+
+        // Reset the ID counter to the next available ID
+        self.id = id::Id::new(new_id);
     }
 
     pub fn set_id(&mut self, id: id::Id) {
