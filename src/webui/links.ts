@@ -1,6 +1,5 @@
 import type { AstroIntegration, AstroConfig } from 'astro';
-import { writeFileSync, readFileSync } from 'fs';
-import { globSync } from 'glob';
+import { writeFileSync, readFileSync, readdirSync, statSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -27,6 +26,24 @@ export function replaceCSS({ outDirPath, filePath, base, css }: { outDirPath: st
 	return css.replace(pattern, `${relativePath}/`);
 }
 
+// Recursive function to find files with a specific extension
+function findFilesRecursive(dir: string, extension: string, fileList: string[] = []): string[] {
+	const files = readdirSync(dir);
+
+	files.forEach((file) => {
+		const filePath = path.join(dir, file);
+		const stat = statSync(filePath);
+
+		if (stat.isDirectory()) {
+			findFilesRecursive(filePath, extension, fileList);
+		} else if (file.endsWith(extension)) {
+			fileList.push(filePath);
+		}
+	});
+
+	return fileList;
+}
+
 function relativeLinks({ config }: { config?: AstroConfig }): AstroIntegration {
 	const base = leadingTrailingSlash(config?.base);
 
@@ -37,7 +54,8 @@ function relativeLinks({ config }: { config?: AstroConfig }): AstroIntegration {
 				const outDirPath = fileURLToPath(dir);
 
 				try {
-					globSync(`${outDirPath}**/*.html`).forEach((filePath) => {
+					const htmlFiles = findFilesRecursive(outDirPath, '.html');
+					htmlFiles.forEach((filePath) => {
 						writeFileSync(
 							filePath,
 							replaceHTML({
@@ -50,7 +68,8 @@ function relativeLinks({ config }: { config?: AstroConfig }): AstroIntegration {
 						);
 					});
 
-					globSync(`${outDirPath}**/*.css`).forEach((filePath) => {
+					const cssFiles = findFilesRecursive(outDirPath, '.css');
+					cssFiles.forEach((filePath) => {
 						writeFileSync(
 							filePath,
 							replaceCSS({
