@@ -85,80 +85,88 @@ const SystemPage = (props: { base: string }) => {
 				</div>
 			</Header>
 
-			<div className="space-y-6 px-4 sm:px-6 lg:px-8">
-				{/* System Overview */}
+			{/* System Information Card */}
+			<div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 mb-6">
+				<h2 className="text-lg font-semibold text-zinc-200 mb-4">System Information</h2>
 				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-					<div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6">
-						<div className="text-zinc-400 text-sm mb-2">Hostname</div>
-						<div className="text-2xl font-bold text-zinc-100">{systemInfo.hostname}</div>
+					<div>
+						<div className="text-sm text-zinc-400 mb-1">Hostname</div>
+						<div className="text-zinc-200">{systemInfo.hostname}</div>
 					</div>
-					
-					<div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6">
-						<div className="text-zinc-400 text-sm mb-2">Operating System</div>
-						<div className="text-2xl font-bold text-zinc-100">{systemInfo.os_type}</div>
-						<div className="text-sm text-zinc-500">{systemInfo.os_version}</div>
+					<div>
+						<div className="text-sm text-zinc-400 mb-1">Operating System</div>
+						<div className="text-zinc-200">{systemInfo.os_type}</div>
 					</div>
-					
-					<div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6">
-						<div className="text-zinc-400 text-sm mb-2">CPU Cores</div>
-						<div className="text-2xl font-bold text-zinc-100">{systemInfo.cpu_count}</div>
+					<div>
+						<div className="text-sm text-zinc-400 mb-1">OS Version</div>
+						<div className="text-zinc-200">{systemInfo.os_version}</div>
 					</div>
-					
-					<div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6">
-						<div className="text-zinc-400 text-sm mb-2">Uptime</div>
-						<div className="text-2xl font-bold text-zinc-100">{formatUptime(systemInfo.uptime)}</div>
+					<div>
+						<div className="text-sm text-zinc-400 mb-1">CPU Cores</div>
+						<div className="text-zinc-200">{systemInfo.cpu_count}</div>
+					</div>
+					<div>
+						<div className="text-sm text-zinc-400 mb-1">Total Memory</div>
+						<div className="text-zinc-200">{formatBytes(systemInfo.total_memory)}</div>
+					</div>
+					<div>
+						<div className="text-sm text-zinc-400 mb-1">Uptime</div>
+						<div className="text-zinc-200">{formatUptime(systemInfo.uptime)}</div>
 					</div>
 				</div>
+			</div>
 
-				{/* Memory Usage */}
-				<div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6">
-					<h3 className="text-lg font-semibold text-zinc-200 mb-4">Memory Usage</h3>
-					<div className="space-y-4">
-						<div>
-							<div className="flex justify-between text-sm mb-2">
-								<span className="text-zinc-400">Used</span>
-								<span className="text-zinc-200 font-medium">
-									{formatBytes(systemInfo.used_memory)} / {formatBytes(systemInfo.total_memory)}
-									<span className="text-zinc-400 ml-2">
-										({systemInfo.memory_percent.toFixed(1)}%)
-									</span>
-								</span>
+			{/* Resource Usage Card */}
+			<div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 mb-6">
+				<h2 className="text-lg font-semibold text-zinc-200 mb-4">Resource Usage</h2>
+				<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+					{/* Memory Usage */}
+					<div>
+						<div className="text-sm text-zinc-400 mb-1">Memory Usage</div>
+						<div className="flex items-center gap-2">
+							<div className="text-zinc-200 font-semibold">
+								{systemInfo.memory_percent.toFixed(1)}%
 							</div>
-							<div className="w-full bg-zinc-800 rounded-full h-3 overflow-hidden">
-								<div
-									className={`h-full transition-all duration-300 ${
-										systemInfo.memory_percent > 90
-											? 'bg-red-500'
-											: systemInfo.memory_percent > 70
-											? 'bg-yellow-500'
-											: 'bg-emerald-500'
+							<div className="flex-1 bg-zinc-800 rounded-full h-2">
+								<div 
+									className={`h-2 rounded-full transition-all ${
+										systemInfo.memory_percent > 80 
+											? 'bg-red-500' 
+											: systemInfo.memory_percent > 50 
+											? 'bg-yellow-500' 
+											: 'bg-green-500'
 									}`}
-									style={{ width: `${systemInfo.memory_percent}%` }}
+									style={{ width: `${Math.min(systemInfo.memory_percent, 100)}%` }}
 								/>
 							</div>
 						</div>
-						
-						<div className="grid grid-cols-2 gap-4 pt-4 border-t border-zinc-800">
-							<div>
-								<div className="text-zinc-400 text-sm mb-1">Total Memory</div>
-								<div className="text-zinc-200 font-medium">{formatBytes(systemInfo.total_memory)}</div>
-							</div>
-							<div>
-								<div className="text-zinc-400 text-sm mb-1">Available Memory</div>
-								<div className="text-zinc-200 font-medium">{formatBytes(systemInfo.available_memory)}</div>
-							</div>
+						<div className="text-xs text-zinc-500 mt-1">
+							{formatBytes(systemInfo.used_memory)} used
+						</div>
+					</div>
+
+					{/* Available Memory */}
+					<div>
+						<div className="text-sm text-zinc-400 mb-1">Available Memory</div>
+						<div className="text-zinc-200 font-semibold">
+							{formatBytes(systemInfo.available_memory)}
+						</div>
+						<div className="text-xs text-zinc-500 mt-1">
+							Free of {formatBytes(systemInfo.total_memory)} total
 						</div>
 					</div>
 				</div>
+			</div>
 
-				{/* Process Count */}
-				<div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6">
-					<h3 className="text-lg font-semibold text-zinc-200 mb-2">Managed Processes</h3>
-					<div className="flex items-center gap-4">
-						<div className="text-5xl font-bold text-blue-400">{systemInfo.process_count}</div>
-						<div className="text-zinc-400 text-sm">
-							Total processes currently managed by OPM
-						</div>
+			{/* Processes Section */}
+			<div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6">
+				<h2 className="text-lg font-semibold text-zinc-200 mb-4">
+					Managed Processes
+				</h2>
+				<div className="flex items-center gap-4">
+					<div className="text-5xl font-bold text-blue-400">{systemInfo.process_count}</div>
+					<div className="text-zinc-400 text-sm">
+						Total processes currently managed by OPM
 					</div>
 				</div>
 			</div>
