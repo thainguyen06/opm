@@ -9,6 +9,7 @@ use crate::webui::{self, assets::NamedFile};
 use helpers::{NotFound, create_status};
 use include_dir::{Dir, include_dir};
 use lazy_static::lazy_static;
+use once_cell::sync::OnceCell;
 use opm::{config, process};
 use prometheus::{Counter, Gauge, Histogram, HistogramVec};
 use prometheus::{
@@ -16,6 +17,7 @@ use prometheus::{
 };
 use serde_json::{Value, json};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use global_placeholders::global;
 use libc;
@@ -36,6 +38,10 @@ use rocket::{
     request::{self, FromRequest, Request},
     serde::json::Json,
 };
+
+// Global event and notification managers for daemon access
+pub static GLOBAL_EVENT_MANAGER: OnceCell<Arc<opm::events::EventManager>> = OnceCell::new();
+pub static GLOBAL_NOTIFICATION_MANAGER: OnceCell<Arc<opm::notifications::NotificationManager>> = OnceCell::new();
 
 lazy_static! {
     pub static ref HTTP_COUNTER: Counter = register_counter!(opts!(
@@ -267,6 +273,17 @@ pub async fn start(webui: bool) {
     log::info!("API start: Initializing event manager");
     // Initialize event manager (max 1000 events in memory)
     let event_manager = std::sync::Arc::new(opm::events::EventManager::new(1000));
+    
+    // Store in global static for daemon access
+    let _ = GLOBAL_EVENT_MANAGER.set(event_manager.clone());
+    
+    log::info!("API start: Initializing notification manager");
+    // Initialize notification manager with current config
+    let notification_config = config::read().daemon.notifications;
+    let notification_manager = std::sync::Arc::new(opm::notifications::NotificationManager::new(notification_config));
+    
+    // Store in global static for daemon access
+    let _ = GLOBAL_NOTIFICATION_MANAGER.set(notification_manager.clone());
 
     log::info!("API start: Initializing agent registry");
     // Initialize agent registry
@@ -344,6 +361,7 @@ pub async fn start(webui: bool) {
             tera: tera.0,
         })
         .manage(event_manager)
+        .manage(notification_manager)
         .manage(agent_registry)
         .mount(format!("{s_path}/"), routes)
         .register(
