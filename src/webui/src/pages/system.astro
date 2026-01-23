@@ -1,0 +1,15 @@
+---
+import Layout from '@/components/base.astro';
+import Navbar from '@/components/navbar.astro';
+import SystemPage from '@/components/react/system';
+import { SITE_TITLE, SITE_DESCRIPTION } from '@/consts';
+---
+
+<Layout title={SITE_TITLE + " - System"} description={SITE_DESCRIPTION}>
+	<Navbar active={"system"} />
+	<main class="min-h-screen bg-zinc-950 pt-20">
+		<div class="py-8">
+			<SystemPage base={"{{base_path | safe}}"} client:only="@astrojs/react" />
+		</div>
+	</main>
+</Layout>
