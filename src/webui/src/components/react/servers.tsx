@@ -52,7 +52,9 @@ const Index = (props: { base: string }) => {
 				const data = JSON.parse(event.data);
 				agents.clear();
 				if (Array.isArray(data)) {
-					data.forEach((agent: any) => agents.push(agent));
+					// Filter out the local agent
+					const remoteAgents = data.filter((agent: any) => !isLocalAgent(agent.id));
+					remoteAgents.forEach((agent: any) => agents.push(agent));
 				}
 				setLoading(false);
 			} catch (err) {
