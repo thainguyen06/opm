@@ -99,7 +99,7 @@ fn download_node() -> PathBuf {
     return node_extract_dir;
 }
 
-fn download_then_build(node_bin_dir: PathBuf) {
+fn download_then_build(node_bin_dir: PathBuf) -> io::Result<()> {
     let bin = &node_bin_dir;
     let node = &bin.join("node");
     let project_dir = &Path::new("src").join("webui");
@@ -112,7 +112,7 @@ fn download_then_build(node_bin_dir: PathBuf) {
         // Downloaded Node with npm as a script
         let parent = node_bin_dir
             .parent()
-            .expect("Node binary directory should have a parent directory");
+            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Node binary directory should have a parent directory"))?;
         parent.join("lib/node_modules/npm/index.js")
     };
 
@@ -124,37 +124,42 @@ fn download_then_build(node_bin_dir: PathBuf) {
 
     paths.push(bin.clone());
 
-    let path = match env::join_paths(paths) {
-        Ok(joined) => joined,
-        Err(err) => panic!("{err}"),
-    };
+    let path = env::join_paths(paths)
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
     /* install deps */
-    if npm.extension().and_then(|s| s.to_str()) == Some("js") {
+    let npm_status = if npm.extension().and_then(|s| s.to_str()) == Some("js") {
         // Downloaded npm - run as script
         Command::new(node)
             .args([npm.to_str().unwrap(), "ci"])
             .current_dir(project_dir)
             .env("PATH", &path)
-            .status()
-            .expect("Failed to install dependencies");
+            .status()?
     } else {
         // System npm - run as binary
         Command::new(&npm)
             .args(["ci"])
             .current_dir(project_dir)
             .env("PATH", &path)
-            .status()
-            .expect("Failed to install dependencies");
+            .status()?
+    };
+
+    if !npm_status.success() {
+        return Err(io::Error::new(io::ErrorKind::Other, "Failed to install dependencies"));
     }
 
     /* build frontend */
-    Command::new(node)
+    let build_status = Command::new(node)
         .args(["node_modules/astro/astro.js", "build"])
         .current_dir(project_dir)
         .env("PATH", &path)
-        .status()
-        .expect("Failed to build frontend");
+        .status()?;
+
+    if !build_status.success() {
+        return Err(io::Error::new(io::ErrorKind::Other, "Failed to build frontend"));
+    }
+
+    Ok(())
 }
 
 fn main() {
@@ -226,9 +231,36 @@ fn main() {
             /* cleanup */
             fs::remove_dir_all(format!("src/webui/dist")).ok();
 
-            /* pre-build */
+            /* create dist directory and placeholder HTML files first as fallback */
+            let dist_dir = Path::new("src/webui/dist");
+            fs::create_dir_all(dist_dir).expect("Failed to create dist directory");
+            
+            let placeholder = "<html><body><h1>WebUI build in progress or failed</h1></body></html>";
+            let html_files = vec![
+                "view.html",
+                "login.html",
+                "index.html",
+                "status.html",
+                "servers.html",
+                "system.html",
+                "events.html",
+                "agent-detail.html",
+            ];
+            
+            for file in &html_files {
+                let file_path = dist_dir.join(file);
+                fs::write(file_path, placeholder).expect("Failed to create placeholder HTML file");
+            }
+
+            /* pre-build - this will overwrite placeholders on success */
             let node_bin_dir = use_system_node_or_download();
-            download_then_build(node_bin_dir);
+            match download_then_build(node_bin_dir) {
+                Ok(_) => eprintln!("WebUI built successfully"),
+                Err(e) => {
+                    eprintln!("Warning: Failed to build WebUI: {}. Using placeholder files instead.", e);
+                    eprintln!("The application will compile but the WebUI will show placeholder content.");
+                }
+            }
         }
         _ => println!("cargo:rustc-env=PROFILE=none"),
     }
