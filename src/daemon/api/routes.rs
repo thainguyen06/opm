@@ -220,6 +220,28 @@ pub async fn server_status(
     Ok((ContentType::HTML, render("status", &state, &mut ctx).await?))
 }
 
+#[get("/events")]
+pub async fn events_page(
+    state: &State<TeraState>,
+    _webui: EnableWebUI,
+) -> Result<(ContentType, String), NotFound> {
+    Ok((
+        ContentType::HTML,
+        render("events", state, &mut Context::new()).await?,
+    ))
+}
+
+#[get("/system")]
+pub async fn system_page(
+    state: &State<TeraState>,
+    _webui: EnableWebUI,
+) -> Result<(ContentType, String), NotFound> {
+    Ok((
+        ContentType::HTML,
+        render("system", state, &mut Context::new()).await?,
+    ))
+}
+
 #[get("/agent-detail")]
 pub async fn agent_detail(
     state: &State<TeraState>,
