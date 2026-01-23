@@ -14,12 +14,12 @@ pub fn gather_resource_usage() -> Option<ResourceUsage> {
         0.0
     };
     
-    // Calculate disk usage
+    // Calculate disk usage - show as free space percentage
     let (disk_total, disk_free, disk_percent) = if let Some(disk) = disk_info {
         let total = disk.total;
         let free = disk.free;
         let percent = if total > 0 {
-            ((total - free) as f64 / total as f64) * 100.0
+            (free as f64 / total as f64) * 100.0
         } else {
             0.0
         };
