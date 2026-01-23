@@ -263,11 +263,9 @@ pub async fn start(webui: bool) {
     let tera = webui::create_templates();
     let s_path = config::read().get_path().trim_end_matches('/').to_string();
 
-    log::info!("API start: Initializing notification manager");
-    // Initialize notification manager
-    let notif_config = config::read().daemon.notifications.clone();
-    let _notification_manager =
-        std::sync::Arc::new(opm::notifications::NotificationManager::new(notif_config));
+    log::info!("API start: Initializing event manager");
+    // Initialize event manager (max 1000 events in memory)
+    let event_manager = std::sync::Arc::new(opm::events::EventManager::new(1000));
 
     log::info!("API start: Initializing agent registry");
     // Initialize agent registry
@@ -285,7 +283,8 @@ pub async fn start(webui: bool) {
         routes::dashboard,
         routes::view_process,
         routes::server_status,
-        routes::notifications,
+        routes::events_page,
+        routes::system_page,
         routes::agent_detail,
         routes::action_handler,
         routes::env_handler,
@@ -302,9 +301,9 @@ pub async fn start(webui: bool) {
         routes::add_server_handler,
         routes::remove_server_handler,
         routes::config_handler,
-        routes::get_notifications_handler,
-        routes::save_notifications_handler,
-        routes::test_notification_handler,
+        routes::get_events_handler,
+        routes::clear_events_handler,
+        routes::get_system_info_handler,
         routes::bulk_action_handler,
         routes::list_handler,
         routes::logs_handler,
@@ -315,6 +314,7 @@ pub async fn start(webui: bool) {
         routes::stream_metrics,
         routes::stream_agents,
         routes::stream_agent_detail,
+        routes::stream_events,
         routes::prometheus_handler,
         routes::create_handler,
         routes::rename_handler,
@@ -338,6 +338,7 @@ pub async fn start(webui: bool) {
             path: tera.1,
             tera: tera.0,
         })
+        .manage(event_manager)
         .manage(agent_registry)
         .mount(format!("{s_path}/"), routes)
         .register(

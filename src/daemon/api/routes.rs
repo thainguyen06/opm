@@ -220,14 +220,25 @@ pub async fn server_status(
     Ok((ContentType::HTML, render("status", &state, &mut ctx).await?))
 }
 
-#[get("/notifications")]
-pub async fn notifications(
+#[get("/events")]
+pub async fn events_page(
     state: &State<TeraState>,
     _webui: EnableWebUI,
 ) -> Result<(ContentType, String), NotFound> {
     Ok((
         ContentType::HTML,
-        render("notifications", &state, &mut Context::new()).await?,
+        render("events", state, &mut Context::new()).await?,
+    ))
+}
+
+#[get("/system")]
+pub async fn system_page(
+    state: &State<TeraState>,
+    _webui: EnableWebUI,
+) -> Result<(ContentType, String), NotFound> {
+    Ok((
+        ContentType::HTML,
+        render("system", state, &mut Context::new()).await?,
     ))
 }
 
@@ -1721,6 +1732,7 @@ pub async fn env_handler(id: usize, _t: Token) -> Result<EnvList, NotFound> {
 pub async fn action_handler(
     id: usize,
     body: Json<ActionBody>,
+    event_manager: &State<std::sync::Arc<opm::events::EventManager>>,
     _t: Token,
 ) -> Result<Json<ActionResponse>, NotFound> {
     let timer = HTTP_REQ_HISTOGRAM
@@ -1731,11 +1743,28 @@ pub async fn action_handler(
 
     if runner.exists(id) {
         HTTP_COUNTER.inc();
+        
+        // Get process info for event emission
+        let process_info = runner.info(id).unwrap();
+        let process_name = process_info.name.clone();
+        
         match method {
             "start" => {
                 let mut item = runner.get(id);
                 item.restart(false); // start should not increment
                 item.get_runner().save();
+                
+                // Emit process start event
+                let event = opm::events::Event::new(
+                    opm::events::EventType::ProcessStart,
+                    "local".to_string(),
+                    "Local".to_string(),
+                    Some(id.to_string()),
+                    Some(process_name.clone()),
+                    format!("Process '{}' started", process_name),
+                );
+                event_manager.add_event(event).await;
+                
                 timer.observe_duration();
                 Ok(Json(attempt(true, method)))
             }
@@ -1743,6 +1772,18 @@ pub async fn action_handler(
                 let mut item = runner.get(id);
                 item.restart(true); // restart should increment
                 item.get_runner().save();
+                
+                // Emit process restart event
+                let event = opm::events::Event::new(
+                    opm::events::EventType::ProcessRestart,
+                    "local".to_string(),
+                    "Local".to_string(),
+                    Some(id.to_string()),
+                    Some(process_name.clone()),
+                    format!("Process '{}' restarted", process_name),
+                );
+                event_manager.add_event(event).await;
+                
                 timer.observe_duration();
                 Ok(Json(attempt(true, method)))
             }
@@ -1750,6 +1791,18 @@ pub async fn action_handler(
                 let mut item = runner.get(id);
                 item.reload(true); // reload should increment
                 item.get_runner().save();
+                
+                // Emit process restart event (reload is essentially a restart)
+                let event = opm::events::Event::new(
+                    opm::events::EventType::ProcessRestart,
+                    "local".to_string(),
+                    "Local".to_string(),
+                    Some(id.to_string()),
+                    Some(process_name.clone()),
+                    format!("Process '{}' reloaded", process_name),
+                );
+                event_manager.add_event(event).await;
+                
                 timer.observe_duration();
                 Ok(Json(attempt(true, method)))
             }
@@ -1757,6 +1810,18 @@ pub async fn action_handler(
                 let mut item = runner.get(id);
                 item.stop();
                 item.get_runner().save();
+                
+                // Emit process stop event
+                let event = opm::events::Event::new(
+                    opm::events::EventType::ProcessStop,
+                    "local".to_string(),
+                    "Local".to_string(),
+                    Some(id.to_string()),
+                    Some(process_name.clone()),
+                    format!("Process '{}' stopped", process_name),
+                );
+                event_manager.add_event(event).await;
+                
                 timer.observe_duration();
                 Ok(Json(attempt(true, method)))
             }
@@ -2491,3 +2556,182 @@ pub async fn agent_action_handler(
         ))
     }
 }
+
+/// Get all events
+#[get("/daemon/events?<limit>")]
+#[utoipa::path(get, path = "/daemon/events", tag = "Events", security((), ("api_key" = [])),
+    params(
+        ("limit" = Option<usize>, Query, description = "Maximum number of events to return")
+    ),
+    responses(
+        (status = 200, description = "Events fetched successfully", body = Vec<opm::events::Event>),
+        (
+            status = UNAUTHORIZED, description = "Authentication failed or not provided", body = ErrorMessage, 
+            example = json!({"code": 401, "message": "Unauthorized"})
+        )
+    )
+)]
+pub async fn get_events_handler(
+    event_manager: &State<std::sync::Arc<opm::events::EventManager>>,
+    limit: Option<usize>,
+    _t: Token,
+) -> Json<Vec<opm::events::Event>> {
+    let timer = HTTP_REQ_HISTOGRAM
+        .with_label_values(&["get_events"])
+        .start_timer();
+    
+    let events = event_manager.get_events(limit).await;
+    
+    HTTP_COUNTER.inc();
+    timer.observe_duration();
+    
+    Json(events)
+}
+
+/// Clear all events
+#[delete("/daemon/events")]
+#[utoipa::path(delete, path = "/daemon/events", tag = "Events", security((), ("api_key" = [])),
+    responses(
+        (status = 200, description = "Events cleared successfully"),
+        (
+            status = UNAUTHORIZED, description = "Authentication failed or not provided", body = ErrorMessage, 
+            example = json!({"code": 401, "message": "Unauthorized"})
+        )
+    )
+)]
+pub async fn clear_events_handler(
+    event_manager: &State<std::sync::Arc<opm::events::EventManager>>,
+    _t: Token,
+) -> Json<serde_json::Value> {
+    let timer = HTTP_REQ_HISTOGRAM
+        .with_label_values(&["clear_events"])
+        .start_timer();
+    
+    event_manager.clear_events().await;
+    
+    HTTP_COUNTER.inc();
+    timer.observe_duration();
+    
+    Json(json!({"success": true, "message": "Events cleared"}))
+}
+
+/// Stream events in real-time using Server-Sent Events
+#[get("/live/events")]
+pub async fn stream_events(
+    event_manager: &State<std::sync::Arc<opm::events::EventManager>>,
+    _t: Token,
+) -> EventStream![] {
+    let event_manager = event_manager.inner().clone();
+    
+    EventStream! {
+        let mut interval = tokio::time::interval(Duration::from_secs(1));
+        
+        loop {
+            interval.tick().await;
+            let events = event_manager.get_events(Some(100)).await;
+            
+            match serde_json::to_string(&events) {
+                Ok(json_data) => {
+                    yield Event::data(json_data);
+                }
+                Err(e) => {
+                    log::error!("Failed to serialize events: {}", e);
+                }
+            }
+        }
+    }
+}
+
+/// Get system information
+#[derive(Serialize, Deserialize, ToSchema)]
+pub struct SystemInfo {
+    pub hostname: String,
+    pub os_type: String,
+    pub os_version: String,
+    pub cpu_count: usize,
+    pub total_memory: u64,
+    pub available_memory: u64,
+    pub used_memory: u64,
+    pub memory_percent: f64,
+    pub uptime: u64,
+    pub process_count: usize,
+}
+
+#[get("/daemon/system")]
+#[utoipa::path(get, path = "/daemon/system", tag = "System", security((), ("api_key" = [])),
+    responses(
+        (status = 200, description = "System information fetched successfully", body = SystemInfo),
+        (
+            status = UNAUTHORIZED, description = "Authentication failed or not provided", body = ErrorMessage, 
+            example = json!({"code": 401, "message": "Unauthorized"})
+        )
+    )
+)]
+pub async fn get_system_info_handler(_t: Token) -> Result<Json<SystemInfo>, GenericError> {
+    let timer = HTTP_REQ_HISTOGRAM
+        .with_label_values(&["system_info"])
+        .start_timer();
+    
+    // Get hostname
+    let hostname = hostname::get()
+        .unwrap_or_else(|_| std::ffi::OsString::from("unknown"))
+        .to_string_lossy()
+        .to_string();
+    
+    // Get OS info
+    let os_info = os_info::get();
+    let os_type = os_info.os_type().to_string();
+    let os_version = os_info.version().to_string();
+    
+    // Get CPU count
+    let cpu_count = num_cpus::get();
+    
+    // Get memory info
+    let mem_info = sys_info::mem_info().map_err(|e| {
+        generic_error(
+            Status::InternalServerError,
+            format!("Failed to get memory info: {}", e)
+        )
+    })?;
+    
+    let total_memory = mem_info.total * 1024; // Convert from KB to bytes
+    let available_memory = mem_info.avail * 1024;
+    let used_memory = total_memory - available_memory;
+    let memory_percent = if total_memory > 0 {
+        (used_memory as f64 / total_memory as f64) * 100.0
+    } else {
+        0.0
+    };
+    
+    // Get system uptime
+    let uptime = sys_info::boottime()
+        .map(|boot_time| {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            // boottime returns a timeval struct, extract tv_sec
+            now.saturating_sub(boot_time.tv_sec as u64)
+        })
+        .unwrap_or(0);
+    
+    // Get process count
+    let process_count = Runner::new().fetch().len();
+    
+    HTTP_COUNTER.inc();
+    timer.observe_duration();
+    
+    Ok(Json(SystemInfo {
+        hostname,
+        os_type,
+        os_version,
+        cpu_count,
+        total_memory,
+        available_memory,
+        used_memory,
+        memory_percent,
+        uptime,
+        process_count,
+    }))
+}
+
