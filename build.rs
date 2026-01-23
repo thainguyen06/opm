@@ -194,7 +194,32 @@ fn main() {
 
     /* profile matching */
     match profile.as_str() {
-        "debug" => println!("cargo:rustc-env=PROFILE=debug"),
+        "debug" => {
+            println!("cargo:rustc-env=PROFILE=debug");
+            
+            /* create dist directory and placeholder HTML files for debug builds */
+            let dist_dir = Path::new("src/webui/dist");
+            if !dist_dir.exists() {
+                fs::create_dir_all(dist_dir).expect("Failed to create dist directory");
+                
+                let placeholder = "<html><body><h1>Debug Mode - WebUI not built</h1></body></html>";
+                let html_files = vec![
+                    "view.html",
+                    "login.html",
+                    "index.html",
+                    "status.html",
+                    "servers.html",
+                    "system.html",
+                    "events.html",
+                    "agent-detail.html",
+                ];
+                
+                for file in html_files {
+                    let file_path = dist_dir.join(file);
+                    fs::write(file_path, placeholder).expect("Failed to create placeholder HTML file");
+                }
+            }
+        }
         "release" => {
             println!("cargo:rustc-env=PROFILE=release");
 
