@@ -2647,12 +2647,20 @@ pub struct CliEventData {
     pub message: String,
 }
 
-/// Receive event from CLI operations (internal endpoint, no auth required)
+/// Receive event from CLI operations (internal endpoint, localhost only)
+/// This endpoint is restricted to localhost connections for security
 #[post("/api/internal/cli-event", format = "json", data = "<body>")]
 pub async fn cli_event_handler(
     event_manager: &State<std::sync::Arc<opm::events::EventManager>>,
     body: Json<CliEventData>,
-) -> Json<serde_json::Value> {
+    remote: std::net::SocketAddr,
+) -> Result<Json<serde_json::Value>, Status> {
+    // Security: Only allow requests from localhost
+    if !remote.ip().is_loopback() {
+        log::warn!("Rejected CLI event from non-localhost address: {}", remote.ip());
+        return Err(Status::Forbidden);
+    }
+    
     // Create event from CLI data
     let event = opm::events::Event::new(
         body.event_type.clone(),
@@ -2665,7 +2673,7 @@ pub async fn cli_event_handler(
     
     event_manager.add_event(event).await;
     
-    Json(json!({"success": true}))
+    Ok(Json(json!({"success": true})))
 }
 
 /// Stream events in real-time using Server-Sent Events
