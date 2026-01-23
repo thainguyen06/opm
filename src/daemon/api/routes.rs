@@ -1625,7 +1625,11 @@ pub async fn info_handler(id: usize, _t: Token) -> Result<Json<ItemSingle>, NotF
         )
     )
 )]
-pub async fn create_handler(body: Json<CreateBody>, _t: Token) -> Result<Json<ActionResponse>, ()> {
+pub async fn create_handler(
+    body: Json<CreateBody>, 
+    event_manager: &State<std::sync::Arc<opm::events::EventManager>>,
+    _t: Token
+) -> Result<Json<ActionResponse>, ()> {
     let timer = HTTP_REQ_HISTOGRAM
         .with_label_values(&["create"])
         .start_timer();
@@ -1639,8 +1643,23 @@ pub async fn create_handler(body: Json<CreateBody>, _t: Token) -> Result<Json<Ac
     };
 
     runner
-        .start(&name, &body.script, body.path.clone(), &body.watch, 0)
-        .save();
+        .start(&name, &body.script, body.path.clone(), &body.watch, 0);
+    
+    // Get the ID of the just-created process (current counter - 1)
+    let id = runner.id.counter.load(std::sync::atomic::Ordering::SeqCst).saturating_sub(1);
+    runner.save();
+    
+    // Emit process start event
+    let event = opm::events::Event::new(
+        opm::events::EventType::ProcessStart,
+        "local".to_string(),
+        "Local".to_string(),
+        Some(id.to_string()),
+        Some(name.clone()),
+        format!("Process '{}' created", name),
+    );
+    event_manager.add_event(event).await;
+    
     timer.observe_duration();
 
     Ok(Json(attempt(true, "create")))

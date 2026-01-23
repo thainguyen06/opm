@@ -5,7 +5,7 @@ import Header from '@/components/react/header';
 import ToastContainer from '@/components/react/toast';
 import { useToast } from '@/components/react/useToast';
 
-type EventType = 'agentconnect' | 'agentdisconnect' | 'processstart' | 'processstop' | 'processcrash' | 'processrestart';
+type EventType = 'agentconnect' | 'agentdisconnect' | 'processstart' | 'processstop' | 'processcrash' | 'processrestart' | 'processdelete';
 
 interface Event {
 	id: string;
@@ -31,6 +31,7 @@ const EventsPage = (props: { base: string }) => {
 		processstop: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
 		processcrash: 'bg-red-500/10 text-red-400 border-red-500/20',
 		processrestart: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+		processdelete: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
 	};
 
 	const eventIcons: Record<EventType, string> = {
@@ -40,6 +41,7 @@ const EventsPage = (props: { base: string }) => {
 		processstop: '⏹️',
 		processcrash: '💥',
 		processrestart: '🔄',
+		processdelete: '🗑️',
 	};
 
 	const formatEventType = (type: EventType): string => {
@@ -50,6 +52,7 @@ const EventsPage = (props: { base: string }) => {
 			processstop: 'Process Stop',
 			processcrash: 'Process Crash',
 			processrestart: 'Process Restart',
+			processdelete: 'Process Delete',
 		};
 		return typeMap[type] || type;
 	};
