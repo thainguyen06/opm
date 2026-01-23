@@ -2,6 +2,7 @@ import react from '@astrojs/react';
 import relativeLinks from './links';
 import tailwind from '@astrojs/tailwind';
 import { defineConfig } from 'astro/config';
+import nodeBuiltinsPlugin from './vite-plugin-ignore-fsevents.mjs';
 
 export default defineConfig({
 	output: 'static',
@@ -14,6 +15,7 @@ export default defineConfig({
 	},
 	integrations: [tailwind(), react(), relativeLinks()],
 	vite: {
+		plugins: [nodeBuiltinsPlugin()],
 		build: {
 			// Enable CSS code splitting and hashing
 			cssCodeSplit: true,
