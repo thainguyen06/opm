@@ -12,6 +12,8 @@ use std::{
 };
 
 const NODE_VERSION: &str = "20.11.0";
+const PLACEHOLDER_HTML: &str = "<html><body><h1>WebUI build in progress or failed</h1></body></html>";
+const DEBUG_PLACEHOLDER_HTML: &str = "<html><body><h1>Debug Mode - WebUI not built</h1></body></html>";
 
 fn extract_tar_gz(tar: &PathBuf, download_dir: &PathBuf) -> io::Result<()> {
     let file = File::open(tar)?;
@@ -206,7 +208,6 @@ fn main() {
             let dist_dir = Path::new("src/webui/dist");
             fs::create_dir_all(dist_dir).expect("Failed to create dist directory");
             
-            let placeholder = "<html><body><h1>Debug Mode - WebUI not built</h1></body></html>";
             let html_files = vec![
                 "view.html",
                 "login.html",
@@ -221,7 +222,7 @@ fn main() {
             for file in html_files {
                 let file_path = dist_dir.join(file);
                 if !file_path.exists() {
-                    fs::write(file_path, placeholder).expect("Failed to create placeholder HTML file");
+                    fs::write(file_path, DEBUG_PLACEHOLDER_HTML).expect("Failed to create debug placeholder HTML file");
                 }
             }
         }
@@ -235,7 +236,6 @@ fn main() {
             let dist_dir = Path::new("src/webui/dist");
             fs::create_dir_all(dist_dir).expect("Failed to create dist directory");
             
-            let placeholder = "<html><body><h1>WebUI build in progress or failed</h1></body></html>";
             let html_files = vec![
                 "view.html",
                 "login.html",
@@ -249,7 +249,7 @@ fn main() {
             
             for file in &html_files {
                 let file_path = dist_dir.join(file);
-                fs::write(file_path, placeholder).expect("Failed to create placeholder HTML file");
+                fs::write(file_path, PLACEHOLDER_HTML).expect("Failed to create initial placeholder HTML file");
             }
 
             /* pre-build - this will overwrite placeholders on success */
@@ -267,8 +267,8 @@ fn main() {
             for file in &html_files {
                 let file_path = dist_dir.join(file);
                 if !file_path.exists() {
-                    eprintln!("Creating placeholder for missing file: {}", file);
-                    fs::write(file_path, placeholder).expect("Failed to create placeholder HTML file");
+                    eprintln!("Creating fallback placeholder for missing file: {}", file);
+                    fs::write(file_path, PLACEHOLDER_HTML).expect("Failed to create fallback placeholder HTML file");
                 }
             }
         }
