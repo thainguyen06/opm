@@ -1255,6 +1255,109 @@ pub async fn test_notification_handler(
     }
 }
 
+#[derive(Serialize, Deserialize, ToSchema)]
+pub struct SecurityConfig {
+    enabled: bool,
+    token: String,
+}
+
+#[get("/daemon/config/security")]
+#[utoipa::path(get, tag = "Daemon", path = "/daemon/config/security", security((), ("api_key" = [])),
+    responses(
+        (status = 200, description = "Get security config successfully", body = SecurityConfig),
+        (
+            status = UNAUTHORIZED, description = "Authentication failed or not provided", body = ErrorMessage, 
+            example = json!({"code": 401, "message": "Unauthorized"})
+        )
+    )
+)]
+pub async fn get_security_handler(_t: Token) -> Json<SecurityConfig> {
+    let timer = HTTP_REQ_HISTOGRAM
+        .with_label_values(&["get_security"])
+        .start_timer();
+    let config = config::read().daemon.web.secure;
+
+    HTTP_COUNTER.inc();
+    timer.observe_duration();
+
+    let security_config = match config {
+        Some(sec) => SecurityConfig {
+            enabled: sec.enabled,
+            token: sec.token,
+        },
+        None => SecurityConfig {
+            enabled: false,
+            token: String::new(),
+        },
+    };
+
+    Json(security_config)
+}
+
+#[post("/daemon/config/security", format = "json", data = "<body>")]
+#[utoipa::path(post, tag = "Daemon", path = "/daemon/config/security", request_body = SecurityConfig,
+    security((), ("api_key" = [])),
+    responses(
+        (status = 200, description = "Security config saved successfully"),
+        (
+            status = UNAUTHORIZED, description = "Authentication failed or not provided", body = ErrorMessage, 
+            example = json!({"code": 401, "message": "Unauthorized"})
+        )
+    )
+)]
+pub async fn save_security_handler(
+    body: Json<SecurityConfig>,
+    _t: Token,
+) -> Result<Json<serde_json::Value>, GenericError> {
+    let timer = HTTP_REQ_HISTOGRAM
+        .with_label_values(&["save_security"])
+        .start_timer();
+
+    HTTP_COUNTER.inc();
+
+    // Read current config
+    let mut full_config = config::read();
+
+    // Update security config
+    full_config.daemon.web.secure = Some(config::structs::Secure {
+        enabled: body.enabled,
+        token: body.token.clone(),
+    });
+
+    // Save config to file
+    let config_path = match home::home_dir() {
+        Some(path) => format!("{}/.opm/config.toml", path.display()),
+        None => {
+            return Err(generic_error(
+                Status::InternalServerError,
+                "Cannot determine home directory".to_string(),
+            ));
+        }
+    };
+
+    let contents = match toml::to_string(&full_config) {
+        Ok(contents) => contents,
+        Err(err) => {
+            return Err(generic_error(
+                Status::InternalServerError,
+                format!("Cannot serialize config: {}", err),
+            ));
+        }
+    };
+
+    if let Err(err) = std::fs::write(&config_path, contents) {
+        return Err(generic_error(
+            Status::InternalServerError,
+            format!("Cannot write config: {}", err),
+        ));
+    }
+
+    timer.observe_duration();
+    Ok(Json(
+        json!({"success": true, "message": "Security settings saved. Restart daemon for token changes to take effect."}),
+    ))
+}
+
 async fn send_test_desktop_notification(
     title: &str,
     message: &str,
