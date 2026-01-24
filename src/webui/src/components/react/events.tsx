@@ -138,13 +138,21 @@ const EventsPage = (props: { base: string }) => {
 					<div className="space-y-3">
 						{(() => {
 							// Group similar events within 5 minute windows
-							const groupedEvents: Array<{ event: Event; count: number; latestTimestamp: string }> = [];
+							interface GroupedEvent {
+								event: Event;
+								count: number;
+								latestTimestamp: string;
+								latestTimestampMs: number;
+							}
+							const groupedEvents: GroupedEvent[] = [];
 							const TIME_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 							
 							events.forEach((event) => {
+								const eventTimestampMs = new Date(event.timestamp).getTime();
+								
 								// Find a similar event in the last 5 minutes
 								const similarGroup = groupedEvents.find((group) => {
-									const timeDiff = new Date(event.timestamp).getTime() - new Date(group.latestTimestamp).getTime();
+									const timeDiff = eventTimestampMs - group.latestTimestampMs;
 									return (
 										group.event.event_type === event.event_type &&
 										group.event.agent_id === event.agent_id &&
@@ -156,8 +164,9 @@ const EventsPage = (props: { base: string }) => {
 								if (similarGroup) {
 									// Increment count and update to latest timestamp
 									similarGroup.count++;
-									if (new Date(event.timestamp) > new Date(similarGroup.latestTimestamp)) {
+									if (eventTimestampMs > similarGroup.latestTimestampMs) {
 										similarGroup.latestTimestamp = event.timestamp;
+										similarGroup.latestTimestampMs = eventTimestampMs;
 										similarGroup.event = event; // Update to show latest message
 									}
 								} else {
@@ -165,7 +174,8 @@ const EventsPage = (props: { base: string }) => {
 									groupedEvents.push({
 										event,
 										count: 1,
-										latestTimestamp: event.timestamp
+										latestTimestamp: event.timestamp,
+										latestTimestampMs: eventTimestampMs
 									});
 								}
 							});

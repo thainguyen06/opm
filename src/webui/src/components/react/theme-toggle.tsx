@@ -9,6 +9,7 @@ export default function ThemeToggle() {
 	// Sync theme with localStorage changes (e.g., from other tabs)
 	useEffect(() => {
 		const syncTheme = () => {
+			// nanostores persistentMap stores with the provided key
 			const settingsStr = localStorage.getItem('settings:');
 			if (settingsStr) {
 				try {
@@ -16,7 +17,9 @@ export default function ThemeToggle() {
 					const theme = settings.theme || 'dark';
 					document.documentElement.classList.toggle('dark', theme === 'dark');
 				} catch (e) {
-					console.error('Failed to parse settings:', e);
+					// If parsing fails, default to dark mode
+					console.error('Failed to parse settings from localStorage:', e);
+					document.documentElement.classList.add('dark');
 				}
 			}
 		};
