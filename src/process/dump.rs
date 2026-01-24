@@ -12,6 +12,35 @@ use reqwest::blocking::Client;
 use reqwest::header::{HeaderMap, HeaderValue};
 use std::{collections::BTreeMap, fs};
 
+/// Helper function to create an empty Runner
+fn empty_runner() -> Runner {
+    Runner {
+        id: Id::new(0),
+        list: BTreeMap::new(),
+        remote: None,
+    }
+}
+
+/// Helper function to read permanent dump with fallback to empty runner
+fn read_permanent_dump() -> Runner {
+    if !Exists::check(&global!("opm.dump")).file() {
+        let runner = empty_runner();
+        write(&runner);
+        log!("created dump file");
+        return runner;
+    }
+
+    match file::try_read_object(global!("opm.dump")) {
+        Ok(runner) => runner,
+        Err(err) => {
+            log!("[dump] Failed to read permanent dump: {err}");
+            let runner = empty_runner();
+            write(&runner);
+            runner
+        }
+    }
+}
+
 pub fn from(address: &str, token: Option<&str>) -> Result<Runner, anyhow::Error> {
     let client = Client::new();
     let mut headers = HeaderMap::new();
@@ -89,12 +118,7 @@ pub fn read() -> Runner {
 
 pub fn raw() -> Vec<u8> {
     if !Exists::check(&global!("opm.dump")).file() {
-        let runner = Runner {
-            id: Id::new(0),
-            list: BTreeMap::new(),
-            remote: None,
-        };
-
+        let runner = empty_runner();
         write(&runner);
         log!("created dump file");
     }
@@ -124,23 +148,14 @@ pub fn write(dump: &Runner) {
 /// Read from temporary dump file
 pub fn read_temp() -> Runner {
     if !Exists::check(&global!("opm.dump.temp")).file() {
-        return Runner {
-            id: Id::new(0),
-            list: BTreeMap::new(),
-            remote: None,
-        };
+        return empty_runner();
     }
 
     match file::try_read_object(global!("opm.dump.temp")) {
         Ok(runner) => runner,
         Err(err) => {
             log!("[dump::read_temp] Failed to read temp dump: {err}");
-            // Return empty runner on error
-            Runner {
-                id: Id::new(0),
-                list: BTreeMap::new(),
-                remote: None,
-            }
+            empty_runner()
         }
     }
 }
@@ -163,23 +178,7 @@ pub fn write_temp(dump: &Runner) {
 /// Merge temporary dump into permanent and clear temporary
 pub fn commit_temp() {
     // Read permanent dump directly
-    let mut permanent = if !Exists::check(&global!("opm.dump")).file() {
-        Runner {
-            id: Id::new(0),
-            list: BTreeMap::new(),
-            remote: None,
-        }
-    } else {
-        match file::try_read_object(global!("opm.dump")) {
-            Ok(runner) => runner,
-            Err(_) => Runner {
-                id: Id::new(0),
-                list: BTreeMap::new(),
-                remote: None,
-            }
-        }
-    };
-    
+    let mut permanent = read_permanent_dump();
     let temporary = read_temp();
     
     // Merge temporary processes into permanent
@@ -206,31 +205,7 @@ pub fn commit_temp() {
 /// Read merged state (permanent + temporary)
 pub fn read_merged() -> Runner {
     // Read permanent dump directly without triggering recursive operations
-    let mut permanent = if !Exists::check(&global!("opm.dump")).file() {
-        let runner = Runner {
-            id: Id::new(0),
-            list: BTreeMap::new(),
-            remote: None,
-        };
-        write(&runner);
-        log!("created dump file");
-        runner
-    } else {
-        match file::try_read_object(global!("opm.dump")) {
-            Ok(runner) => runner,
-            Err(err) => {
-                log!("[dump::read_merged] Corrupted permanent dump: {err}");
-                // Create a fresh runner on error
-                let runner = Runner {
-                    id: Id::new(0),
-                    list: BTreeMap::new(),
-                    remote: None,
-                };
-                write(&runner);
-                runner
-            }
-        }
-    };
+    let mut permanent = read_permanent_dump();
     
     // Read temporary dump if it exists
     let temporary = read_temp();
@@ -254,30 +229,7 @@ pub fn read_merged() -> Runner {
 /// Initialize on daemon startup: merge temp into permanent, set crashed to stopped, clean temp
 pub fn init_on_startup() -> Runner {
     // Read permanent and temp
-    let mut permanent = if !Exists::check(&global!("opm.dump")).file() {
-        let runner = Runner {
-            id: Id::new(0),
-            list: BTreeMap::new(),
-            remote: None,
-        };
-        write(&runner);
-        log!("created dump file");
-        runner
-    } else {
-        match file::try_read_object(global!("opm.dump")) {
-            Ok(runner) => runner,
-            Err(err) => {
-                log!("[dump::init_on_startup] Corrupted permanent dump: {err}");
-                let runner = Runner {
-                    id: Id::new(0),
-                    list: BTreeMap::new(),
-                    remote: None,
-                };
-                write(&runner);
-                runner
-            }
-        }
-    };
+    let mut permanent = read_permanent_dump();
     
     // Merge temp dump if it exists
     let temp_dump_path = global!("opm.dump.temp");
