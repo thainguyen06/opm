@@ -521,8 +521,10 @@ pub fn start(verbose: bool) {
     }
 
     #[inline]
-    #[tokio::main]
-    async extern "C" fn init() {
+    extern "C" fn init() {
+        // Create a tokio runtime for async operations
+        let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
+        
         pid::name("OPM Restart Handler Daemon");
 
         let config = config::read().daemon;
@@ -547,7 +549,7 @@ pub fn start(verbose: bool) {
             );
 
             // Spawn API server in a separate task
-            let api_handle = tokio::spawn(async move { api::start(ui_enabled).await });
+            let api_handle = rt.spawn(async move { api::start(ui_enabled).await });
 
             // Wait for the API server to start and bind to the port
             // Use a retry loop with exponential backoff to allow time for Rocket initialization
@@ -559,10 +561,10 @@ pub fn start(verbose: bool) {
             while retry_count < max_retries {
                 // Wait before checking - start with 300ms and increase
                 let wait_ms = 300 + (retry_count * 200);
-                tokio::time::sleep(tokio::time::Duration::from_millis(wait_ms)).await;
+                rt.block_on(tokio::time::sleep(tokio::time::Duration::from_millis(wait_ms)));
 
                 // Try to connect to the API server
-                if tokio::net::TcpStream::connect(&addr).await.is_ok() {
+                if rt.block_on(tokio::net::TcpStream::connect(&addr)).is_ok() {
                     is_listening = true;
                     break;
                 }
