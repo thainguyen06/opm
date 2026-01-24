@@ -257,7 +257,7 @@ pub fn read_merged() -> Runner {
     permanent
 }
 
-/// Initialize on daemon startup: merge any old temp file into permanent, set crashed to stopped, clean temp, clear memory
+/// Initialize on daemon startup: merge any old temp file into permanent, clean temp, clear memory
 pub fn init_on_startup() -> Runner {
     // Read permanent dump
     let mut permanent = read_permanent_dump();
@@ -299,14 +299,9 @@ pub fn init_on_startup() -> Runner {
     clear_memory();
     log!("[dump::init_on_startup] Cleared memory cache for fresh daemon start");
 
-    // Set all crashed processes to stopped status
-    for (_id, process) in permanent.list.iter_mut() {
-        if process.crash.crashed {
-            process.running = false;
-            process.crash.crashed = false;
-            log!("[dump::init_on_startup] Set crashed process '{}' to stopped", process.name);
-        }
-    }
+    // Note: We preserve crash.crashed flag so restore command can identify crashed processes
+    // The daemon will mark crashed processes as stopped (running=false) when it detects they're dead
+    // but we keep crash.crashed=true so users can restore them with 'opm restore'
 
     permanent
 }
