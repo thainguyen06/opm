@@ -1650,7 +1650,7 @@ pub async fn create_handler(
     // Since we just created it and this is a fresh Runner instance, it should be the only one with this name
     if let Some(process_info) = runner.list.iter().find(|(_, p)| p.name == name).map(|(id, p)| (*id, p.name.clone())) {
         let (id, process_name) = process_info;
-        runner.save();
+        runner.save_temp();
         
         // Emit process start event
         let event = opm::events::Event::new(
@@ -1664,7 +1664,7 @@ pub async fn create_handler(
         event_manager.add_event(event).await;
     } else {
         // Process not found, just save without event
-        runner.save();
+        runner.save_temp();
     }
     
     timer.observe_duration();
@@ -1715,7 +1715,7 @@ pub async fn rename_handler(
     if is_running {
         runner.restart(id, false, true); // API rename+restart should increment
     }
-    runner.save(); // Persist the renamed process to dump file
+    runner.save_temp(); // Persist the renamed process to temp dump
     timer.observe_duration();
     Ok(Json(attempt(true, "rename")))
 }
@@ -1787,7 +1787,7 @@ pub async fn action_handler(
             "start" => {
                 let mut item = runner.get(id);
                 item.restart(false); // start should not increment
-                item.get_runner().save();
+                item.get_runner().save_temp();
                 
                 // Emit process start event
                 let event = opm::events::Event::new(
@@ -1806,7 +1806,7 @@ pub async fn action_handler(
             "restart" => {
                 let mut item = runner.get(id);
                 item.restart(true); // restart should increment
-                item.get_runner().save();
+                item.get_runner().save_temp();
                 
                 // Emit process restart event
                 let event = opm::events::Event::new(
@@ -1825,7 +1825,7 @@ pub async fn action_handler(
             "reload" => {
                 let mut item = runner.get(id);
                 item.reload(true); // reload should increment
-                item.get_runner().save();
+                item.get_runner().save_temp();
                 
                 // Emit process restart event (reload is essentially a restart)
                 let event = opm::events::Event::new(
@@ -1844,7 +1844,7 @@ pub async fn action_handler(
             "stop" | "kill" => {
                 let mut item = runner.get(id);
                 item.stop();
-                item.get_runner().save();
+                item.get_runner().save_temp();
                 
                 // Emit process stop event
                 let event = opm::events::Event::new(
@@ -1863,7 +1863,7 @@ pub async fn action_handler(
             "reset_env" | "clear_env" => {
                 let mut item = runner.get(id);
                 item.clear_env();
-                item.get_runner().save();
+                item.get_runner().save_temp();
                 timer.observe_duration();
                 Ok(Json(attempt(true, method)))
             }
@@ -1947,25 +1947,25 @@ pub async fn bulk_action_handler(
                 "start" => {
                     let mut item = runner.get(*id);
                     item.restart(false);
-                    item.get_runner().save();
+                    item.get_runner().save_temp();
                     success.push(*id);
                 }
                 "restart" => {
                     let mut item = runner.get(*id);
                     item.restart(true);
-                    item.get_runner().save();
+                    item.get_runner().save_temp();
                     success.push(*id);
                 }
                 "reload" => {
                     let mut item = runner.get(*id);
                     item.reload(true);
-                    item.get_runner().save();
+                    item.get_runner().save_temp();
                     success.push(*id);
                 }
                 "stop" | "kill" => {
                     let mut item = runner.get(*id);
                     item.stop();
-                    item.get_runner().save();
+                    item.get_runner().save_temp();
                     success.push(*id);
                 }
                 "delete" | "remove" => {
@@ -2504,35 +2504,35 @@ pub async fn agent_action_handler(
                 "start" => {
                     let mut item = runner.get(process_id);
                     item.restart(false);
-                    item.get_runner().save();
+                    item.get_runner().save_temp();
                     timer.observe_duration();
                     Ok(Json(attempt(true, method)))
                 }
                 "restart" => {
                     let mut item = runner.get(process_id);
                     item.restart(true);
-                    item.get_runner().save();
+                    item.get_runner().save_temp();
                     timer.observe_duration();
                     Ok(Json(attempt(true, method)))
                 }
                 "reload" => {
                     let mut item = runner.get(process_id);
                     item.reload(true);
-                    item.get_runner().save();
+                    item.get_runner().save_temp();
                     timer.observe_duration();
                     Ok(Json(attempt(true, method)))
                 }
                 "stop" | "kill" => {
                     let mut item = runner.get(process_id);
                     item.stop();
-                    item.get_runner().save();
+                    item.get_runner().save_temp();
                     timer.observe_duration();
                     Ok(Json(attempt(true, method)))
                 }
                 "reset_env" | "clear_env" => {
                     let mut item = runner.get(process_id);
                     item.clear_env();
-                    item.get_runner().save();
+                    item.get_runner().save_temp();
                     timer.observe_duration();
                     Ok(Json(attempt(true, method)))
                 }

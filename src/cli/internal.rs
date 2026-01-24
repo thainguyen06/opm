@@ -1059,7 +1059,7 @@ impl<'i> Internal<'i> {
             process.name = new_name.clone();
         }
 
-        self.runner.save();
+        self.runner.save_temp();
 
         println!(
             "{} Adjusted {}({}) ✓",
