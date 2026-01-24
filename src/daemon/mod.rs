@@ -66,7 +66,19 @@ extern "C" fn handle_termination_signal(_: libc::c_int) {
                 }
             }
         }
-        runner.save();
+        // Write final state to permanent dump file
+        opm::process::dump::write(&runner);
+        
+        // Clean up temporary dump file
+        let temp_dump_path = global_placeholders::global!("opm.dump.temp");
+        if let Err(err) = std::fs::remove_file(&temp_dump_path) {
+            // Ignore "file not found" errors (temp file might not exist)
+            if err.kind() != std::io::ErrorKind::NotFound {
+                log!("[daemon] failed to remove temp dump on shutdown", "error" => format!("{}", err));
+            }
+        } else {
+            log!("[daemon] cleaned up temporary dump file", "action" => "shutdown");
+        }
     });
     
     // If save failed, log a warning (but still proceed with cleanup)

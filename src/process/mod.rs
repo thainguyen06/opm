@@ -347,7 +347,7 @@ pub fn is_pid_alive(pid: i64) -> bool {
 
 impl Runner {
     pub fn new() -> Self {
-        dump::read()
+        dump::read_merged()
     }
 
     pub fn refresh(&self) -> Self {
@@ -921,7 +921,7 @@ impl Runner {
 
     pub fn save(&self) {
         if self.remote.is_none() {
-            dump::write(&self);
+            dump::write_temp(&self);
         }
     }
 
