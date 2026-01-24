@@ -130,14 +130,14 @@ fn download_then_build(node_bin_dir: PathBuf) {
     };
 
     /* install deps */
-    if npm.extension().and_then(|s| s.to_str()) == Some("js") {
+    let npm_status = if npm.extension().and_then(|s| s.to_str()) == Some("js") {
         // Downloaded npm - run as script
         Command::new(node)
             .args([npm.to_str().unwrap(), "ci"])
             .current_dir(project_dir)
             .env("PATH", &path)
             .status()
-            .expect("Failed to install dependencies");
+            .expect("Failed to start npm ci command")
     } else {
         // System npm - run as binary
         Command::new(&npm)
@@ -145,16 +145,24 @@ fn download_then_build(node_bin_dir: PathBuf) {
             .current_dir(project_dir)
             .env("PATH", &path)
             .status()
-            .expect("Failed to install dependencies");
+            .expect("Failed to start npm ci command")
+    };
+
+    if !npm_status.success() {
+        panic!("npm ci command failed with exit code: {:?}", npm_status.code());
     }
 
     /* build frontend */
-    Command::new(node)
+    let build_status = Command::new(node)
         .args(["node_modules/astro/astro.js", "build"])
         .current_dir(project_dir)
         .env("PATH", &path)
         .status()
-        .expect("Failed to build frontend");
+        .expect("Failed to start astro build command");
+
+    if !build_status.success() {
+        panic!("Astro build command failed with exit code: {:?}", build_status.code());
+    }
 }
 
 fn main() {
@@ -198,12 +206,16 @@ fn main() {
         "release" => {
             println!("cargo:rustc-env=PROFILE=release");
 
-            /* cleanup */
-            fs::remove_dir_all(format!("src/webui/dist")).ok();
+            // Only build webui if the feature is enabled
+            #[cfg(feature = "webui")]
+            {
+                /* cleanup */
+                fs::remove_dir_all(format!("src/webui/dist")).ok();
 
-            /* pre-build */
-            let node_bin_dir = use_system_node_or_download();
-            download_then_build(node_bin_dir);
+                /* pre-build */
+                let node_bin_dir = use_system_node_or_download();
+                download_then_build(node_bin_dir);
+            }
         }
         _ => println!("cargo:rustc-env=PROFILE=none"),
     }
