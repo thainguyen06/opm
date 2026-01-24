@@ -30,7 +30,7 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 	const API_ENDPOINT_FIX = (
 		<>
 			<strong>To fix:</strong> Restart the agent with:{' '}
-			<code className="bg-zinc-800 px-1 py-0.5 rounded">
+			<code className="bg-gray-100 dark:bg-zinc-800 px-1 py-0.5 rounded">
 				opm agent connect {'<'}server-url{'>'} --api-address {'<'}agent-ip-or-hostname{'>'}
 			</code>
 		</>
@@ -129,17 +129,17 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 						<button
 							type="button"
 							onClick={handleRetry}
-							className="transition inline-flex items-center justify-center space-x-1.5 border focus:outline-none focus:ring-0 focus:ring-offset-0 focus:z-10 shrink-0 border-zinc-900 hover:border-zinc-800 bg-zinc-950 text-zinc-50 hover:bg-zinc-900 px-4 py-2 text-sm font-semibold rounded-lg">
+							className="transition inline-flex items-center justify-center space-x-1.5 border focus:outline-none focus:ring-0 focus:ring-offset-0 focus:z-10 shrink-0 border-zinc-900 hover:border-gray-200 dark:border-zinc-800 bg-zinc-950 text-gray-900 dark:text-zinc-50 hover:bg-white dark:bg-zinc-900 px-4 py-2 text-sm font-semibold rounded-lg">
 							Retry
 						</button>
 						<a
 							href={`${props.base}/servers`}
-							className="transition inline-flex items-center justify-center space-x-1.5 border focus:outline-none focus:ring-0 focus:ring-offset-0 focus:z-10 shrink-0 border-zinc-700 hover:border-zinc-600 bg-zinc-800 text-zinc-50 hover:bg-zinc-700 px-4 py-2 text-sm font-semibold rounded-lg">
+							className="transition inline-flex items-center justify-center space-x-1.5 border focus:outline-none focus:ring-0 focus:ring-offset-0 focus:z-10 shrink-0 border-gray-300 dark:border-zinc-700 hover:border-zinc-600 bg-gray-100 dark:bg-zinc-800 text-gray-900 dark:text-zinc-50 hover:bg-gray-200 dark:bg-zinc-700 px-4 py-2 text-sm font-semibold rounded-lg">
 							Back to Agents
 						</a>
 					</div>
 				</Header>
-				<div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6">
+				<div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-lg p-6">
 					<div className="text-center py-12 px-4">
 						<div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-500/10 mb-4">
 							<svg className="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -147,11 +147,11 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 							</svg>
 						</div>
 						<div className="text-red-400 text-xl font-semibold mb-3">Failed to Load Agent Details</div>
-						<div className="text-zinc-300 text-base mb-6 max-w-md mx-auto">
+						<div className="text-gray-600 dark:text-zinc-300 text-base mb-6 max-w-md mx-auto">
 							{error || 'Agent not found or connection failed'}
 						</div>
-						<div className="text-zinc-500 text-sm">
-							<p className="mb-2">Agent ID: <code className="bg-zinc-800 px-2 py-1 rounded text-zinc-300">{props.agentId}</code></p>
+						<div className="text-gray-900 dark:text-gray-400 dark:text-zinc-500 text-sm">
+							<p className="mb-2">Agent ID: <code className="bg-gray-100 dark:bg-zinc-800 px-2 py-1 rounded text-gray-600 dark:text-zinc-300">{props.agentId}</code></p>
 							<p>Make sure the agent is connected and running.</p>
 						</div>
 					</div>
@@ -192,20 +192,20 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 					<button
 						type="button"
 						onClick={handleRetry}
-						className="transition inline-flex items-center justify-center space-x-1.5 border focus:outline-none focus:ring-0 focus:ring-offset-0 focus:z-10 shrink-0 border-zinc-900 hover:border-zinc-800 bg-zinc-950 text-zinc-50 hover:bg-zinc-900 px-4 py-2 text-sm font-semibold rounded-lg">
+						className="transition inline-flex items-center justify-center space-x-1.5 border focus:outline-none focus:ring-0 focus:ring-offset-0 focus:z-10 shrink-0 border-zinc-900 hover:border-gray-200 dark:border-zinc-800 bg-zinc-950 text-gray-900 dark:text-zinc-50 hover:bg-white dark:bg-zinc-900 px-4 py-2 text-sm font-semibold rounded-lg">
 						Refresh
 					</button>
 					<a
 						href={`${props.base}/servers`}
-						className="transition inline-flex items-center justify-center space-x-1.5 border focus:outline-none focus:ring-0 focus:ring-offset-0 focus:z-10 shrink-0 border-zinc-700 hover:border-zinc-600 bg-zinc-800 text-zinc-50 hover:bg-zinc-700 px-4 py-2 text-sm font-semibold rounded-lg">
+						className="transition inline-flex items-center justify-center space-x-1.5 border focus:outline-none focus:ring-0 focus:ring-offset-0 focus:z-10 shrink-0 border-gray-300 dark:border-zinc-700 hover:border-zinc-600 bg-gray-100 dark:bg-zinc-800 text-gray-900 dark:text-zinc-50 hover:bg-gray-200 dark:bg-zinc-700 px-4 py-2 text-sm font-semibold rounded-lg">
 						Back to Agents
 					</a>
 				</div>
 			</Header>
 
 			{/* Agent Information Card */}
-			<div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 mb-6">
-				<h2 className="text-lg font-semibold text-zinc-200 mb-4">Agent Information</h2>
+			<div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-lg p-6 mb-6">
+				<h2 className="text-lg font-semibold text-gray-700 dark:text-zinc-200 mb-4">Agent Information</h2>
 				
 				{/* Warning if agent doesn't have API endpoint */}
 				{!agent.api_endpoint && !isLocalAgent(agent) && (
@@ -216,10 +216,10 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 							</svg>
 							<div>
 								<div className="text-amber-400 font-medium text-sm">Limited Functionality - No API Endpoint</div>
-								<div className="text-zinc-300 text-sm mt-1">
+								<div className="text-gray-600 dark:text-zinc-300 text-sm mt-1">
 									This agent doesn't have an accessible API endpoint configured. Process management actions (start, stop, restart) will not be available.
 								</div>
-								<div className="text-zinc-400 text-xs mt-2">
+								<div className="text-gray-500 dark:text-zinc-400 text-xs mt-2">
 									{API_ENDPOINT_FIX}
 								</div>
 							</div>
@@ -240,10 +240,10 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 							</svg>
 							<div>
 								<div className="text-red-400 font-medium text-sm">Unreachable API Endpoint</div>
-								<div className="text-zinc-300 text-sm mt-1">
+								<div className="text-gray-600 dark:text-zinc-300 text-sm mt-1">
 									This agent's API endpoint uses "localhost" which is not accessible from the server. Process management actions will fail.
 								</div>
-								<div className="text-zinc-400 text-xs mt-2">
+								<div className="text-gray-500 dark:text-zinc-400 text-xs mt-2">
 									{API_ENDPOINT_FIX}
 								</div>
 							</div>
@@ -253,7 +253,7 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 
 				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 					<div>
-						<div className="text-sm text-zinc-400 mb-1">Status</div>
+						<div className="text-sm text-gray-500 dark:text-zinc-400 mb-1">Status</div>
 						<div className="flex items-center gap-2">
 							<div className={classNames(
 								badge[isOnline ? 'online' : 'offline'], 
@@ -261,34 +261,34 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 							)}>
 								<div className="h-1.5 w-1.5 rounded-full bg-current" />
 							</div>
-							<span className="text-zinc-200 font-medium">
+							<span className="text-gray-700 dark:text-zinc-200 font-medium">
 								{isOnline ? 'Online' : 'Offline'}
 							</span>
 						</div>
 					</div>
 					<div>
-						<div className="text-sm text-zinc-400 mb-1">Agent ID</div>
-						<div className="text-zinc-200 font-mono text-sm">{agent.id}</div>
+						<div className="text-sm text-gray-500 dark:text-zinc-400 mb-1">Agent ID</div>
+						<div className="text-gray-700 dark:text-zinc-200 font-mono text-sm">{agent.id}</div>
 					</div>
 					<div>
-						<div className="text-sm text-zinc-400 mb-1">Hostname</div>
-						<div className="text-zinc-200">{agent.hostname || 'N/A'}</div>
+						<div className="text-sm text-gray-500 dark:text-zinc-400 mb-1">Hostname</div>
+						<div className="text-gray-700 dark:text-zinc-200">{agent.hostname || 'N/A'}</div>
 					</div>
 					<div>
-						<div className="text-sm text-zinc-400 mb-1">Connection Type</div>
-						<div className="text-zinc-200">{agent.connection_type || 'In'}</div>
+						<div className="text-sm text-gray-500 dark:text-zinc-400 mb-1">Connection Type</div>
+						<div className="text-gray-700 dark:text-zinc-200">{agent.connection_type || 'In'}</div>
 					</div>
 					<div>
-						<div className="text-sm text-zinc-400 mb-1">Last Heartbeat</div>
-						<div className="text-zinc-200">
+						<div className="text-sm text-gray-500 dark:text-zinc-400 mb-1">Last Heartbeat</div>
+						<div className="text-gray-700 dark:text-zinc-200">
 							{agent.last_seen 
 								? new Date(agent.last_seen * 1000).toLocaleString()
 								: 'Never'}
 						</div>
 					</div>
 					<div>
-						<div className="text-sm text-zinc-400 mb-1">Connected Since</div>
-						<div className="text-zinc-200">
+						<div className="text-sm text-gray-500 dark:text-zinc-400 mb-1">Connected Since</div>
+						<div className="text-gray-700 dark:text-zinc-200">
 							{agent.connected_at 
 								? new Date(agent.connected_at * 1000).toLocaleString()
 								: 'N/A'}
@@ -296,8 +296,8 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 					</div>
 					{agent.api_endpoint && (
 						<div>
-							<div className="text-sm text-zinc-400 mb-1">API Endpoint</div>
-							<div className="text-zinc-200 font-mono text-xs break-all">{agent.api_endpoint}</div>
+							<div className="text-sm text-gray-500 dark:text-zinc-400 mb-1">API Endpoint</div>
+							<div className="text-gray-700 dark:text-zinc-200 font-mono text-xs break-all">{agent.api_endpoint}</div>
 						</div>
 					)}
 				</div>
@@ -305,29 +305,29 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 
 			{/* System Information Card */}
 			{agent.system_info && (
-				<div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 mb-6">
-					<h2 className="text-lg font-semibold text-zinc-200 mb-4">System Information</h2>
+				<div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-lg p-6 mb-6">
+					<h2 className="text-lg font-semibold text-gray-700 dark:text-zinc-200 mb-4">System Information</h2>
 					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 						<div>
-							<div className="text-sm text-zinc-400 mb-1">Operating System</div>
-							<div className="text-zinc-200">{agent.system_info.os_name || 'N/A'}</div>
+							<div className="text-sm text-gray-500 dark:text-zinc-400 mb-1">Operating System</div>
+							<div className="text-gray-700 dark:text-zinc-200">{agent.system_info.os_name || 'N/A'}</div>
 						</div>
 						<div>
-							<div className="text-sm text-zinc-400 mb-1">OS Version</div>
-							<div className="text-zinc-200">{agent.system_info.os_version || 'N/A'}</div>
+							<div className="text-sm text-gray-500 dark:text-zinc-400 mb-1">OS Version</div>
+							<div className="text-gray-700 dark:text-zinc-200">{agent.system_info.os_version || 'N/A'}</div>
 						</div>
 						<div>
-							<div className="text-sm text-zinc-400 mb-1">Architecture</div>
-							<div className="text-zinc-200">{agent.system_info.arch || 'N/A'}</div>
+							<div className="text-sm text-gray-500 dark:text-zinc-400 mb-1">Architecture</div>
+							<div className="text-gray-700 dark:text-zinc-200">{agent.system_info.arch || 'N/A'}</div>
 						</div>
 						<div>
-							<div className="text-sm text-zinc-400 mb-1">CPU Cores</div>
-							<div className="text-zinc-200">{agent.system_info.cpu_count || 'N/A'}</div>
+							<div className="text-sm text-gray-500 dark:text-zinc-400 mb-1">CPU Cores</div>
+							<div className="text-gray-700 dark:text-zinc-200">{agent.system_info.cpu_count || 'N/A'}</div>
 						</div>
 						{agent.system_info.total_memory && (
 							<div>
-								<div className="text-sm text-zinc-400 mb-1">Total Memory</div>
-								<div className="text-zinc-200">
+								<div className="text-sm text-gray-500 dark:text-zinc-400 mb-1">Total Memory</div>
+								<div className="text-gray-700 dark:text-zinc-200">
 									{/* sys-info returns memory in KB, formatMemory expects bytes */}
 									{(() => {
 										const [value, unit] = formatMemory(agent.system_info.total_memory * 1024);
@@ -342,18 +342,18 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 
 			{/* Resource Usage Card */}
 			{hasResourceMetrics && (
-				<div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 mb-6">
-					<h2 className="text-lg font-semibold text-zinc-200 mb-4">Resource Usage</h2>
+				<div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-lg p-6 mb-6">
+					<h2 className="text-lg font-semibold text-gray-700 dark:text-zinc-200 mb-4">Resource Usage</h2>
 					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 						{/* CPU Usage */}
 						{agent.system_info.resource_usage.cpu_usage != null && (
 							<div>
-								<div className="text-sm text-zinc-400 mb-1">CPU Usage</div>
+								<div className="text-sm text-gray-500 dark:text-zinc-400 mb-1">CPU Usage</div>
 								<div className="flex items-center gap-2">
-									<div className="text-zinc-200 font-semibold">
+									<div className="text-gray-700 dark:text-zinc-200 font-semibold">
 										{agent.system_info.resource_usage.cpu_usage.toFixed(1)}%
 									</div>
-									<div className="flex-1 bg-zinc-800 rounded-full h-2">
+									<div className="flex-1 bg-gray-100 dark:bg-zinc-800 rounded-full h-2">
 										<div 
 											className={classNames(
 												"h-2 rounded-full transition-all",
@@ -373,12 +373,12 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 						{/* Memory Usage */}
 						{agent.system_info.resource_usage.memory_percent != null && (
 							<div>
-								<div className="text-sm text-zinc-400 mb-1">Memory Usage</div>
+								<div className="text-sm text-gray-500 dark:text-zinc-400 mb-1">Memory Usage</div>
 								<div className="flex items-center gap-2">
-									<div className="text-zinc-200 font-semibold">
+									<div className="text-gray-700 dark:text-zinc-200 font-semibold">
 										{agent.system_info.resource_usage.memory_percent.toFixed(1)}%
 									</div>
-									<div className="flex-1 bg-zinc-800 rounded-full h-2">
+									<div className="flex-1 bg-gray-100 dark:bg-zinc-800 rounded-full h-2">
 										<div 
 											className={classNames(
 												"h-2 rounded-full transition-all",
@@ -393,7 +393,7 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 									</div>
 								</div>
 								{agent.system_info.resource_usage.memory_used && (
-									<div className="text-xs text-zinc-500 mt-1">
+									<div className="text-xs text-gray-900 dark:text-gray-400 dark:text-zinc-500 mt-1">
 										{(() => {
 											const [value, unit] = formatMemory(agent.system_info.resource_usage.memory_used * 1024);
 											return `${value} ${unit.toUpperCase()} used`;
@@ -406,12 +406,12 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 						{/* Disk Usage */}
 						{agent.system_info.resource_usage.disk_percent != null && (
 							<div>
-								<div className="text-sm text-zinc-400 mb-1">Disk Usage</div>
+								<div className="text-sm text-gray-500 dark:text-zinc-400 mb-1">Disk Usage</div>
 								<div className="flex items-center gap-2">
-									<div className="text-zinc-200 font-semibold">
+									<div className="text-gray-700 dark:text-zinc-200 font-semibold">
 										{agent.system_info.resource_usage.disk_percent.toFixed(1)}%
 									</div>
-									<div className="flex-1 bg-zinc-800 rounded-full h-2">
+									<div className="flex-1 bg-gray-100 dark:bg-zinc-800 rounded-full h-2">
 										<div 
 											className={classNames(
 												"h-2 rounded-full transition-all",
@@ -426,7 +426,7 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 									</div>
 								</div>
 								{agent.system_info.resource_usage.disk_free && agent.system_info.resource_usage.disk_total && (
-									<div className="text-xs text-zinc-500 mt-1">
+									<div className="text-xs text-gray-900 dark:text-gray-400 dark:text-zinc-500 mt-1">
 										{(() => {
 											const [freeValue, freeUnit] = formatMemory(agent.system_info.resource_usage.disk_free * 1024);
 											const [totalValue, totalUnit] = formatMemory(agent.system_info.resource_usage.disk_total * 1024);
@@ -442,15 +442,15 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 						  agent.system_info.resource_usage.load_avg_5 != null || 
 						  agent.system_info.resource_usage.load_avg_15 != null) && (
 							<div>
-								<div className="text-sm text-zinc-400 mb-1">Load Average</div>
-								<div className="text-zinc-200">
+								<div className="text-sm text-gray-500 dark:text-zinc-400 mb-1">Load Average</div>
+								<div className="text-gray-700 dark:text-zinc-200">
 									<span className="font-semibold">{agent.system_info.resource_usage.load_avg_1?.toFixed(2) ?? '?'}</span>
 									{' / '}
 									<span>{agent.system_info.resource_usage.load_avg_5?.toFixed(2) ?? '?'}</span>
 									{' / '}
 									<span>{agent.system_info.resource_usage.load_avg_15?.toFixed(2) ?? '?'}</span>
 								</div>
-								<div className="text-xs text-zinc-500 mt-1">1 / 5 / 15 min</div>
+								<div className="text-xs text-gray-900 dark:text-gray-400 dark:text-zinc-500 mt-1">1 / 5 / 15 min</div>
 							</div>
 						)}
 					</div>
@@ -458,21 +458,21 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 			)}
 
 			{/* Processes Section */}
-			<div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6">
-				<h2 className="text-lg font-semibold text-zinc-200 mb-4">
+			<div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-lg p-6">
+				<h2 className="text-lg font-semibold text-gray-700 dark:text-zinc-200 mb-4">
 					Processes ({processes.length})
 				</h2>
 				
 				{processes.length === 0 ? (
 					<div className="text-center py-8">
-						<div className="text-zinc-400">No processes running on this agent</div>
-						<div className="text-zinc-500 text-sm mt-2">
+						<div className="text-gray-500 dark:text-zinc-400">No processes running on this agent</div>
+						<div className="text-gray-900 dark:text-gray-400 dark:text-zinc-500 text-sm mt-2">
 							Processes started via this agent will appear here
 						</div>
 					</div>
 				) : (
 					<table className="w-full whitespace-nowrap text-left">
-						<thead className="border-b border-zinc-800 text-sm leading-6 text-zinc-400">
+						<thead className="border-b border-gray-200 dark:border-zinc-800 text-sm leading-6 text-gray-500 dark:text-zinc-400">
 							<tr>
 								<th scope="col" className="py-2 pl-4 pr-8 font-semibold">
 									Name
@@ -496,12 +496,12 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 						</thead>
 						<tbody className="divide-y divide-zinc-800">
 							{processes.map((process: any) => (
-								<tr key={process.id} className="hover:bg-zinc-800/30 transition">
+								<tr key={process.id} className="hover:bg-gray-100 dark:bg-zinc-800/30 transition">
 									<td className="py-3 pl-4 pr-8">
 										<div className="text-sm font-medium text-white">{process.name}</div>
 									</td>
 									<td className="hidden py-3 pl-0 pr-8 sm:table-cell">
-										<div className="text-sm text-zinc-400 font-mono">{process.pid || 'N/A'}</div>
+										<div className="text-sm text-gray-500 dark:text-zinc-400 font-mono">{process.pid || 'N/A'}</div>
 									</td>
 									<td className="hidden py-3 pl-0 pr-8 sm:table-cell">
 										<div className={classNames(
@@ -512,17 +512,17 @@ const AgentDetail = (props: { agentId: string; base: string }) => {
 										</div>
 									</td>
 									<td className="hidden py-3 pl-0 pr-8 md:table-cell">
-										<div className="text-sm text-zinc-400">
+										<div className="text-sm text-gray-500 dark:text-zinc-400">
 											{process.cpu || 'N/A'}
 										</div>
 									</td>
 									<td className="hidden py-3 pl-0 pr-8 md:table-cell">
-										<div className="text-sm text-zinc-400">
+										<div className="text-sm text-gray-500 dark:text-zinc-400">
 											{process.memory ? process.memory.toUpperCase() : 'N/A'}
 										</div>
 									</td>
 									<td className="py-3 pl-0 pr-4 text-right">
-										<div className="text-sm text-zinc-400">
+										<div className="text-sm text-gray-500 dark:text-zinc-400">
 											{process.uptime ? startDuration(process.uptime, false) : 'N/A'}
 										</div>
 									</td>

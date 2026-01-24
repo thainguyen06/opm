@@ -183,29 +183,29 @@ const Status = (props: { name: string; base: string }) => {
 					</span>
 				</div>
 				<dl className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 px-5">
-					<div className="overflow-hidden rounded-lg bg-zinc-900/20 border border-zinc-800 shadow">
-						<dt className="truncate text-sm font-bold text-zinc-400 pt-4 px-4">CPU Usage</dt>
-						<dt className="truncate text-xl font-bold text-zinc-100 p-1 px-4">
+					<div className="overflow-hidden rounded-lg bg-white dark:bg-zinc-900/20 border border-gray-200 dark:border-zinc-800 shadow">
+						<dt className="truncate text-sm font-bold text-gray-500 dark:text-zinc-400 pt-4 px-4">CPU Usage</dt>
+						<dt className="truncate text-xl font-bold text-gray-800 dark:text-zinc-100 p-1 px-4">
 							{cpuPercentage.value.slice(-1)[0].toFixed(2)}
-							<span className="text-base text-zinc-400">%</span>
+							<span className="text-base text-gray-500 dark:text-zinc-400">%</span>
 						</dt>
-						<dd className="mt-2 text-3xl font-semibold tracking-tight text-zinc-100 h-96" style={chartContainerStyle}>
+						<dd className="mt-2 text-3xl font-semibold tracking-tight text-gray-800 dark:text-zinc-100 h-96" style={chartContainerStyle}>
 							<Line data={cpuChart} options={options} />
 						</dd>
 					</div>
-					<div className="overflow-hidden rounded-lg bg-zinc-900/20 border border-zinc-800 shadow">
-						<dt className="truncate text-sm font-bold text-zinc-400 pt-4 px-4">Memory Usage</dt>
-						<dt className="truncate text-xl font-bold text-zinc-100 p-1 px-4">{bytesToSize(memoryUsage.value.slice(-1)[0], 2)}</dt>
-						<dd className="mt-2 text-3xl font-semibold tracking-tight text-zinc-100 h-96" style={chartContainerStyle}>
+					<div className="overflow-hidden rounded-lg bg-white dark:bg-zinc-900/20 border border-gray-200 dark:border-zinc-800 shadow">
+						<dt className="truncate text-sm font-bold text-gray-500 dark:text-zinc-400 pt-4 px-4">Memory Usage</dt>
+						<dt className="truncate text-xl font-bold text-gray-800 dark:text-zinc-100 p-1 px-4">{bytesToSize(memoryUsage.value.slice(-1)[0], 2)}</dt>
+						<dd className="mt-2 text-3xl font-semibold tracking-tight text-gray-800 dark:text-zinc-100 h-96" style={chartContainerStyle}>
 							<Line data={memoryChart} options={options} />
 						</dd>
 					</div>
 				</dl>
 				<dl className="mt-5 pb-5 grid grid-cols-2 gap-5 lg:grid-cols-4 px-5 h-3/10">
 					{stats.map((item: any) => (
-						<div key={item.name} className="overflow-hidden rounded-lg bg-zinc-900/20 border border-zinc-800 px-4 py-5 shadow sm:p-6">
-							<dt className="truncate text-sm font-medium text-zinc-400">{item.name}</dt>
-							<dd className="mt-1 text-2xl font-semibold tracking-tight text-zinc-100">{item.stat}</dd>
+						<div key={item.name} className="overflow-hidden rounded-lg bg-white dark:bg-zinc-900/20 border border-gray-200 dark:border-zinc-800 px-4 py-5 shadow sm:p-6">
+							<dt className="truncate text-sm font-medium text-gray-500 dark:text-zinc-400">{item.name}</dt>
+							<dd className="mt-1 text-2xl font-semibold tracking-tight text-gray-800 dark:text-zinc-100">{item.stat}</dd>
 						</div>
 					))}
 				</dl>

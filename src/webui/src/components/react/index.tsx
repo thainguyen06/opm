@@ -75,25 +75,25 @@ const Index = (props: { base: string }) => {
 	const ProcessDetails = ({ item, isClickable = true }: { item: ProcessItem; isClickable?: boolean }) => {
 		const detailsContent = (
 			<dl className="-my-3 divide-y divide-zinc-800/30 px-6 py-4 text-sm leading-6">
-				<div className={`flex justify-between gap-x-2 py-2 ${isClickable ? 'transition-colors hover:text-zinc-300' : ''}`}>
+				<div className={`flex justify-between gap-x-2 py-2 ${isClickable ? 'transition-colors hover:text-gray-600 dark:text-zinc-300' : ''}`}>
 					<dt className="text-zinc-600 font-medium">cpu usage</dt>
-					<dd className="text-zinc-400 font-mono">{isRunning(item.status) ? item.cpu : 'offline'}</dd>
+					<dd className="text-gray-500 dark:text-zinc-400 font-mono">{isRunning(item.status) ? item.cpu : 'offline'}</dd>
 				</div>
-				<div className={`flex justify-between gap-x-2 py-2 ${isClickable ? 'transition-colors hover:text-zinc-300' : ''}`}>
+				<div className={`flex justify-between gap-x-2 py-2 ${isClickable ? 'transition-colors hover:text-gray-600 dark:text-zinc-300' : ''}`}>
 					<dt className="text-zinc-600 font-medium">memory</dt>
-					<dd className="text-zinc-400 font-mono">{isRunning(item.status) ? item.mem : 'offline'}</dd>
+					<dd className="text-gray-500 dark:text-zinc-400 font-mono">{isRunning(item.status) ? item.mem : 'offline'}</dd>
 				</div>
-				<div className={`flex justify-between gap-x-2 py-2 ${isClickable ? 'transition-colors hover:text-zinc-300' : ''}`}>
+				<div className={`flex justify-between gap-x-2 py-2 ${isClickable ? 'transition-colors hover:text-gray-600 dark:text-zinc-300' : ''}`}>
 					<dt className="text-zinc-600 font-medium">pid</dt>
-					<dd className="text-zinc-400 font-mono">{isRunning(item.status) ? item.pid : 'none'}</dd>
+					<dd className="text-gray-500 dark:text-zinc-400 font-mono">{isRunning(item.status) ? item.pid : 'none'}</dd>
 				</div>
-				<div className={`flex justify-between gap-x-2 py-2 ${isClickable ? 'transition-colors hover:text-zinc-300' : ''}`}>
+				<div className={`flex justify-between gap-x-2 py-2 ${isClickable ? 'transition-colors hover:text-gray-600 dark:text-zinc-300' : ''}`}>
 					<dt className="text-zinc-600 font-medium">uptime</dt>
-					<dd className="text-zinc-400 font-mono">{isRunning(item.status) ? item.uptime : 'none'}</dd>
+					<dd className="text-gray-500 dark:text-zinc-400 font-mono">{isRunning(item.status) ? item.uptime : 'none'}</dd>
 				</div>
-				<div className={`flex justify-between gap-x-2 py-2 ${isClickable ? 'transition-colors hover:text-zinc-300' : ''}`}>
+				<div className={`flex justify-between gap-x-2 py-2 ${isClickable ? 'transition-colors hover:text-gray-600 dark:text-zinc-300' : ''}`}>
 					<dt className="text-zinc-600 font-medium">restarts</dt>
-					<dd className="text-zinc-400 font-mono">{item.restarts == 0 ? 'none' : item.restarts}</dd>
+					<dd className="text-gray-500 dark:text-zinc-400 font-mono">{item.restarts == 0 ? 'none' : item.restarts}</dd>
 				</div>
 			</dl>
 		);
@@ -102,7 +102,7 @@ const Index = (props: { base: string }) => {
 			<>
 				{detailsContent}
 				{!isClickable && (
-					<div className="text-center text-xs text-zinc-500 pb-2">
+					<div className="text-center text-xs text-gray-900 dark:text-gray-400 dark:text-zinc-500 pb-2">
 						Agent-managed process (view not available)
 					</div>
 				)}
@@ -281,19 +281,19 @@ const Index = (props: { base: string }) => {
 					<button
 						type="button"
 						onClick={fetch}
-						className="transition inline-flex items-center justify-center space-x-1.5 border focus:outline-none focus:ring-0 focus:ring-offset-0 focus:z-10 shrink-0 border-zinc-900 hover:border-zinc-800 bg-zinc-950 text-zinc-50 hover:bg-zinc-900 px-4 py-2 text-sm font-semibold rounded-lg">
+						className="transition inline-flex items-center justify-center space-x-1.5 border focus:outline-none focus:ring-0 focus:ring-offset-0 focus:z-10 shrink-0 border-zinc-900 hover:border-gray-200 dark:border-zinc-800 bg-zinc-950 text-gray-900 dark:text-zinc-50 hover:bg-white dark:bg-zinc-900 px-4 py-2 text-sm font-semibold rounded-lg">
 						Refresh
 					</button>
 				</Header>
 				<div className="text-center py-12 px-4">
-					<div className="text-zinc-400 text-lg mb-4">No processes are currently running</div>
-					<div className="text-zinc-500 text-sm space-y-2 max-w-2xl mx-auto">
+					<div className="text-gray-500 dark:text-zinc-400 text-lg mb-4">No processes are currently running</div>
+					<div className="text-gray-900 dark:text-gray-400 dark:text-zinc-500 text-sm space-y-2 max-w-2xl mx-auto">
 						<p>Start a new process using the OPM CLI:</p>
-						<code className="block bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3 text-left text-zinc-300 font-mono text-sm mt-4">
+						<code className="block bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-lg px-4 py-3 text-left text-gray-600 dark:text-zinc-300 font-mono text-sm mt-4">
 							opm start &lt;script&gt; --name &lt;name&gt;
 						</code>
-						<p className="mt-4 text-xs text-zinc-400">
-							For more commands, run: <code className="bg-zinc-800 px-2 py-1 rounded">opm --help</code>
+						<p className="mt-4 text-xs text-gray-500 dark:text-zinc-400">
+							For more commands, run: <code className="bg-gray-100 dark:bg-zinc-800 px-2 py-1 rounded">opm --help</code>
 						</p>
 					</div>
 				</div>
@@ -307,7 +307,7 @@ const Index = (props: { base: string }) => {
 					<div className="flex gap-2 flex-wrap">
 						{showBulkActions && (
 							<>
-								<span className="inline-flex items-center px-3 py-2 text-sm font-semibold text-zinc-300 bg-zinc-800 rounded-lg border border-zinc-700">
+								<span className="inline-flex items-center px-3 py-2 text-sm font-semibold text-gray-600 dark:text-zinc-300 bg-gray-100 dark:bg-zinc-800 rounded-lg border border-gray-300 dark:border-zinc-700">
 									{selectedIds.size} selected
 								</span>
 								<button
@@ -331,7 +331,7 @@ const Index = (props: { base: string }) => {
 								<button
 									type="button"
 									onClick={clearSelection}
-									className="transition inline-flex items-center justify-center space-x-1.5 border focus:outline-none focus:ring-0 focus:ring-offset-0 focus:z-10 shrink-0 border-zinc-700 hover:border-zinc-600 bg-zinc-800 text-zinc-50 hover:bg-zinc-700 px-3 py-2 text-sm font-semibold rounded-lg">
+									className="transition inline-flex items-center justify-center space-x-1.5 border focus:outline-none focus:ring-0 focus:ring-offset-0 focus:z-10 shrink-0 border-gray-300 dark:border-zinc-700 hover:border-zinc-600 bg-gray-100 dark:bg-zinc-800 text-gray-900 dark:text-zinc-50 hover:bg-gray-200 dark:bg-zinc-700 px-3 py-2 text-sm font-semibold rounded-lg">
 									Clear
 								</button>
 							</>
@@ -341,19 +341,19 @@ const Index = (props: { base: string }) => {
 								<button
 									type="button"
 									onClick={selectAll}
-									className="transition inline-flex items-center justify-center space-x-1.5 border focus:outline-none focus:ring-0 focus:ring-offset-0 focus:z-10 shrink-0 border-zinc-700 hover:border-zinc-600 bg-zinc-800 text-zinc-50 hover:bg-zinc-700 px-3 py-2 text-sm font-semibold rounded-lg">
+									className="transition inline-flex items-center justify-center space-x-1.5 border focus:outline-none focus:ring-0 focus:ring-offset-0 focus:z-10 shrink-0 border-gray-300 dark:border-zinc-700 hover:border-zinc-600 bg-gray-100 dark:bg-zinc-800 text-gray-900 dark:text-zinc-50 hover:bg-gray-200 dark:bg-zinc-700 px-3 py-2 text-sm font-semibold rounded-lg">
 									Select All
 								</button>
 								<button
 									type="button"
 									onClick={saveAll}
-									className="transition inline-flex items-center justify-center space-x-1.5 border focus:outline-none focus:ring-0 focus:ring-offset-0 focus:z-10 shrink-0 border-zinc-700 hover:border-zinc-600 bg-zinc-800 text-zinc-50 hover:bg-zinc-700 px-3 py-2 text-sm font-semibold rounded-lg">
+									className="transition inline-flex items-center justify-center space-x-1.5 border focus:outline-none focus:ring-0 focus:ring-offset-0 focus:z-10 shrink-0 border-gray-300 dark:border-zinc-700 hover:border-zinc-600 bg-gray-100 dark:bg-zinc-800 text-gray-900 dark:text-zinc-50 hover:bg-gray-200 dark:bg-zinc-700 px-3 py-2 text-sm font-semibold rounded-lg">
 									Save All
 								</button>
 								<button
 									type="button"
 									onClick={restoreAll}
-									className="transition inline-flex items-center justify-center space-x-1.5 border focus:outline-none focus:ring-0 focus:ring-offset-0 focus:z-10 shrink-0 border-zinc-700 hover:border-zinc-600 bg-zinc-800 text-zinc-50 hover:bg-zinc-700 px-3 py-2 text-sm font-semibold rounded-lg">
+									className="transition inline-flex items-center justify-center space-x-1.5 border focus:outline-none focus:ring-0 focus:ring-offset-0 focus:z-10 shrink-0 border-gray-300 dark:border-zinc-700 hover:border-zinc-600 bg-gray-100 dark:bg-zinc-800 text-gray-900 dark:text-zinc-50 hover:bg-gray-200 dark:bg-zinc-700 px-3 py-2 text-sm font-semibold rounded-lg">
 									Restore All
 								</button>
 							</>
@@ -361,7 +361,7 @@ const Index = (props: { base: string }) => {
 						<button
 							type="button"
 							onClick={fetch}
-							className="transition inline-flex items-center justify-center space-x-1.5 border focus:outline-none focus:ring-0 focus:ring-offset-0 focus:z-10 shrink-0 border-zinc-900 hover:border-zinc-800 bg-zinc-950 text-zinc-50 hover:bg-zinc-900 px-4 py-2 text-sm font-semibold rounded-lg">
+							className="transition inline-flex items-center justify-center space-x-1.5 border focus:outline-none focus:ring-0 focus:ring-offset-0 focus:z-10 shrink-0 border-zinc-900 hover:border-gray-200 dark:border-zinc-800 bg-zinc-950 text-gray-900 dark:text-zinc-50 hover:bg-white dark:bg-zinc-900 px-4 py-2 text-sm font-semibold rounded-lg">
 							Refresh
 						</button>
 					</div>
@@ -377,7 +377,7 @@ const Index = (props: { base: string }) => {
 							value={searchTerm}
 							onChange={(e) => setSearchTerm(e.target.value)}
 							aria-label="Search processes by name, server, or agent"
-							className="w-full px-4 py-2.5 bg-zinc-900/50 border border-zinc-700/50 rounded-lg text-zinc-200 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+							className="w-full px-4 py-2.5 bg-white dark:bg-zinc-900/50 border border-gray-300 dark:border-zinc-700/50 rounded-lg text-gray-700 dark:text-zinc-200 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
 						/>
 					</div>
 					<div className="sm:w-auto w-full">
@@ -386,7 +386,7 @@ const Index = (props: { base: string }) => {
 							value={statusFilter}
 							onChange={(e) => setStatusFilter(e.target.value)}
 							aria-label="Filter processes by status"
-							className="w-full sm:w-auto px-4 py-2.5 bg-zinc-900/50 border border-zinc-700/50 rounded-lg text-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all">
+							className="w-full sm:w-auto px-4 py-2.5 bg-white dark:bg-zinc-900/50 border border-gray-300 dark:border-zinc-700/50 rounded-lg text-gray-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all">
 							<option value="all">All Status</option>
 							<option value="online">Online</option>
 							<option value="stopped">Stopped</option>
@@ -399,7 +399,7 @@ const Index = (props: { base: string }) => {
 							value={agentFilter}
 							onChange={(e) => setAgentFilter(e.target.value)}
 							aria-label="Filter processes by agent"
-							className="w-full sm:w-auto px-4 py-2.5 bg-zinc-900/50 border border-zinc-700/50 rounded-lg text-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all">
+							className="w-full sm:w-auto px-4 py-2.5 bg-white dark:bg-zinc-900/50 border border-gray-300 dark:border-zinc-700/50 rounded-lg text-gray-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all">
 							<option value="all">All Agents</option>
 							<option value="local">Local</option>
 							{agents.map((agent) => (
@@ -413,7 +413,7 @@ const Index = (props: { base: string }) => {
 
 				<ul role="list" className="px-4 sm:px-6 lg:px-8 pb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 xl:gap-8 fade-in">
 					{filteredItems.map((item) => (
-						<li key={item.id + item.name} className="group rounded-xl border border-zinc-700/50 bg-zinc-900/10 hover:bg-zinc-900/40 hover:border-zinc-600 relative transition-all duration-300 card-hover shadow-lg hover:shadow-2xl overflow-hidden">
+						<li key={item.id + item.name} className="group rounded-xl border border-gray-300 dark:border-zinc-700/50 bg-white dark:bg-zinc-900/10 hover:bg-white dark:bg-zinc-900/40 hover:border-zinc-600 relative transition-all duration-300 card-hover shadow-lg hover:shadow-2xl overflow-hidden">
 							{/* Selection checkbox */}
 							<div className="absolute top-3 left-3 z-10">
 								<input
@@ -424,10 +424,10 @@ const Index = (props: { base: string }) => {
 										e.stopPropagation();
 										toggleSelect(item.id);
 									}}
-									className="h-4 w-4 rounded border-zinc-600 bg-zinc-800 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 focus:ring-offset-zinc-900 cursor-pointer transition-all"
+									className="h-4 w-4 rounded border-zinc-600 bg-gray-100 dark:bg-zinc-800 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 focus:ring-offset-zinc-900 cursor-pointer transition-all"
 								/>
 							</div>
-							<div className="flex items-center gap-x-4 border-b border-zinc-800/80 bg-zinc-900/30 px-4 py-3.5 pl-12 rounded-t-xl backdrop-blur-sm">
+							<div className="flex items-center gap-x-4 border-b border-gray-200 dark:border-zinc-800/80 bg-white dark:bg-zinc-900/30 px-4 py-3.5 pl-12 rounded-t-xl backdrop-blur-sm">
 								<div className="flex-1 min-w-0">
 									<InlineRename 
 										ref={(el) => {
@@ -460,8 +460,8 @@ const Index = (props: { base: string }) => {
 									<span className={`${badge[item.status]} relative inline-flex rounded-full h-2.5 w-2.5 shadow-lg`}></span>
 								</span>
 								<Menu as="div" className="relative">
-									<MenuButton className="transition border focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-0 z-50 shrink-0 border-zinc-700/50 bg-transparent hover:bg-zinc-800 hover:border-zinc-600 p-2 text-sm font-semibold rounded-lg">
-										<EllipsisVerticalIcon className="h-5 w-5 text-zinc-300 hover:text-zinc-50 transition-colors" aria-hidden="true" />
+									<MenuButton className="transition border focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-0 z-50 shrink-0 border-gray-300 dark:border-zinc-700/50 bg-transparent hover:bg-gray-100 dark:bg-zinc-800 hover:border-zinc-600 p-2 text-sm font-semibold rounded-lg">
+										<EllipsisVerticalIcon className="h-5 w-5 text-gray-600 dark:text-zinc-300 hover:text-gray-900 dark:text-zinc-50 transition-colors" aria-hidden="true" />
 									</MenuButton>
 									<Transition
 										as={Fragment}
@@ -473,7 +473,7 @@ const Index = (props: { base: string }) => {
 										leaveTo="transform opacity-0 scale-95">
 										<MenuItems
 											anchor={{ to: 'bottom end', gap: '8px', padding: '16px' }}
-											className="z-10 w-48 origin-top-right rounded-lg bg-zinc-900 border border-zinc-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none text-base divide-y divide-zinc-800/50">
+											className="z-10 w-48 origin-top-right rounded-lg bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none text-base divide-y divide-zinc-800/50">
 												<div className="p-1.5">
 													{!isRunning(item.status) && (
 														<MenuItem>
@@ -481,7 +481,7 @@ const Index = (props: { base: string }) => {
 																<a
 																	onClick={() => action(item, 'start')}
 																	className={classNames(
-																		focus ? 'bg-emerald-700/10 text-emerald-500' : 'text-zinc-200',
+																		focus ? 'bg-emerald-700/10 text-emerald-500' : 'text-gray-700 dark:text-zinc-200',
 																		'rounded-md block px-2 py-2 w-full text-left cursor-pointer'
 																	)}>
 																	Start
@@ -494,7 +494,7 @@ const Index = (props: { base: string }) => {
 															<a
 																onClick={() => action(item, 'restart')}
 																className={classNames(
-																	focus ? 'bg-green-700/10 text-green-500' : 'text-zinc-200',
+																	focus ? 'bg-green-700/10 text-green-500' : 'text-gray-700 dark:text-zinc-200',
 																	'rounded-md block px-2 py-2 w-full text-left cursor-pointer'
 																)}>
 																Restart
@@ -506,7 +506,7 @@ const Index = (props: { base: string }) => {
 															<a
 																onClick={() => action(item, 'reload')}
 																className={classNames(
-																	focus ? 'bg-blue-700/10 text-blue-500' : 'text-zinc-200',
+																	focus ? 'bg-blue-700/10 text-blue-500' : 'text-gray-700 dark:text-zinc-200',
 																	'rounded-md block px-2 py-2 w-full text-left cursor-pointer'
 																)}>
 																Reload
@@ -518,7 +518,7 @@ const Index = (props: { base: string }) => {
 															<a
 																onClick={() => action(item, 'stop')}
 																className={classNames(
-																	focus ? 'bg-yellow-400/10 text-amber-500' : 'text-zinc-200',
+																	focus ? 'bg-yellow-400/10 text-amber-500' : 'text-gray-700 dark:text-zinc-200',
 																	'rounded-md block p-2 w-full text-left cursor-pointer'
 																)}>
 																Terminate
@@ -531,7 +531,7 @@ const Index = (props: { base: string }) => {
 														{({ _ }) => (
 															<a
 																onClick={() => action(item, 'flush')}
-																className="text-zinc-200 rounded-md block p-2 w-full text-left cursor-pointer hover:bg-zinc-800/80 hover:text-zinc-50">
+																className="text-gray-700 dark:text-zinc-200 rounded-md block p-2 w-full text-left cursor-pointer hover:bg-gray-100 dark:bg-zinc-800/80 hover:text-gray-900 dark:text-zinc-50">
 																Clean Logs
 															</a>
 														)}
@@ -551,7 +551,7 @@ const Index = (props: { base: string }) => {
 																	close();
 																}}
 																className={classNames(
-																	focus ? 'bg-zinc-800/80 text-zinc-50' : 'text-zinc-200',
+																	focus ? 'bg-gray-100 dark:bg-zinc-800/80 text-gray-900 dark:text-zinc-50' : 'text-gray-700 dark:text-zinc-200',
 																	'rounded-md block p-2 w-full text-left cursor-pointer'
 																)}>
 																Rename
@@ -578,11 +578,11 @@ const Index = (props: { base: string }) => {
 								</Menu>
 							</div>
 							{item.agent_api_endpoint ? (
-								<div className="block transition-colors duration-200 bg-zinc-900/10 cursor-not-allowed opacity-50">
+								<div className="block transition-colors duration-200 bg-white dark:bg-zinc-900/10 cursor-not-allowed opacity-50">
 									<ProcessDetails item={item} isClickable={false} />
 								</div>
 							) : (
-								<a href={isRemote(item) ? `./view/${item.id}?server=${item.server}` : `./view/${item.id}`} className="block transition-colors duration-200 hover:bg-zinc-900/20">
+								<a href={isRemote(item) ? `./view/${item.id}?server=${item.server}` : `./view/${item.id}`} className="block transition-colors duration-200 hover:bg-white dark:bg-zinc-900/20">
 									<ProcessDetails item={item} isClickable={true} />
 								</a>
 							)}

@@ -120,7 +120,7 @@ const EventsPage = (props: { base: string }) => {
 					<button
 						type="button"
 						onClick={handleRefresh}
-						className="transition inline-flex items-center justify-center space-x-1.5 border focus:outline-none focus:ring-0 focus:ring-offset-0 focus:z-10 shrink-0 border-zinc-900 hover:border-zinc-800 bg-zinc-950 text-zinc-50 hover:bg-zinc-900 px-4 py-2 text-sm font-semibold rounded-lg">
+						className="transition inline-flex items-center justify-center space-x-1.5 border focus:outline-none focus:ring-0 focus:ring-offset-0 focus:z-10 shrink-0 border-zinc-900 hover:border-gray-200 dark:border-zinc-800 bg-zinc-950 text-gray-900 dark:text-zinc-50 hover:bg-white dark:bg-zinc-900 px-4 py-2 text-sm font-semibold rounded-lg">
 						Refresh
 					</button>
 				</div>
@@ -129,8 +129,8 @@ const EventsPage = (props: { base: string }) => {
 			<div className="space-y-4 px-4 sm:px-6 lg:px-8">
 				{events.length === 0 ? (
 					<div className="text-center py-12">
-						<div className="text-zinc-400 text-lg mb-2">No events yet</div>
-						<div className="text-zinc-500 text-sm">
+						<div className="text-gray-500 dark:text-zinc-400 text-lg mb-2">No events yet</div>
+						<div className="text-gray-900 dark:text-gray-400 dark:text-zinc-500 text-sm">
 							Events will appear here when processes start, stop, crash, or agents connect/disconnect.
 						</div>
 					</div>
@@ -156,11 +156,11 @@ const EventsPage = (props: { base: string }) => {
 											</div>
 											<div className="text-sm mb-2">{event.message}</div>
 											<div className="flex flex-wrap gap-2 text-xs opacity-80">
-												<span className="bg-zinc-800/50 px-2 py-1 rounded">
+												<span className="bg-gray-100 dark:bg-zinc-800/50 px-2 py-1 rounded">
 													Agent: {event.agent_name}
 												</span>
 												{event.process_name && (
-													<span className="bg-zinc-800/50 px-2 py-1 rounded">
+													<span className="bg-gray-100 dark:bg-zinc-800/50 px-2 py-1 rounded">
 														Process: {event.process_name}
 													</span>
 												)}

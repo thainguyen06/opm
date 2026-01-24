@@ -37,8 +37,8 @@ const AgentDetailPage = (props: { base: string }) => {
 	if (!agentId) {
 		return (
 			<div className="px-4 sm:px-6 lg:px-8 text-center py-12">
-				<div className="text-zinc-200 text-xl font-semibold mb-4">No Agent Selected</div>
-				<div className="text-zinc-300 text-base mb-6">
+				<div className="text-gray-700 dark:text-zinc-200 text-xl font-semibold mb-4">No Agent Selected</div>
+				<div className="text-gray-600 dark:text-zinc-300 text-base mb-6">
 					Please select an agent from the agents list to view details.
 				</div>
 				<a 

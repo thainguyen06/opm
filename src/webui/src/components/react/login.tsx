@@ -66,17 +66,17 @@ const Login = (props: { base: string }) => {
 				</div>
 			)}
 			<div className="h-screen flex min-h-full flex-1 flex-col justify-center px-6 py-12 lg:px-8 -mt-12">
-				<div className="mt-10 sm:mx-auto sm:w-full sm:max-w-sm bg-zinc-900/70 backdrop-blur-md px-5 py-6 rounded-lg border border-zinc-800 transition-all shadow-xl">
+				<div className="mt-10 sm:mx-auto sm:w-full sm:max-w-sm bg-white dark:bg-zinc-900/70 backdrop-blur-md px-5 py-6 rounded-lg border border-gray-200 dark:border-zinc-800 transition-all shadow-xl">
 					<div className="flex min-h-full flex-1 flex-col justify-center">
 						<div className="mb-5">
 							<img className="h-10 w-auto" src={`${props.base}/assets/favicon.svg`} alt="PMC" />
 							<h2 className="mt-6 text-2xl font-bold leading-9 tracking-tight text-white">Welcome back</h2>
-							<p className="mt-1.5 text-sm leading-6 text-zinc-300">Sign in to your account</p>
+							<p className="mt-1.5 text-sm leading-6 text-gray-600 dark:text-zinc-300">Sign in to your account</p>
 						</div>
 						<form className="space-y-6" onSubmit={handleSubmit}>
 							<div>
 								<div>
-									<label htmlFor="password" className="block text-sm font-medium leading-6 text-zinc-300 mb-1">
+									<label htmlFor="password" className="block text-sm font-medium leading-6 text-gray-600 dark:text-zinc-300 mb-1">
 										Password
 									</label>
 									<input
@@ -96,7 +96,7 @@ const Login = (props: { base: string }) => {
 							<div>
 								<button
 									type="submit"
-									className="-mb-1 transition flex w-full justify-center rounded-md px-3 py-1.5 text-sm font-semibold leading-6 text-white shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 border focus:outline-none focus:ring-0 focus:ring-offset-0 focus:z-10 shrink-0 saturate-[110%] border-zinc-700 hover:border-zinc-600 bg-zinc-800/60 text-zinc-50 hover:bg-zinc-700/60">
+									className="-mb-1 transition flex w-full justify-center rounded-md px-3 py-1.5 text-sm font-semibold leading-6 text-white shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 border focus:outline-none focus:ring-0 focus:ring-offset-0 focus:z-10 shrink-0 saturate-[110%] border-gray-300 dark:border-zinc-700 hover:border-zinc-600 bg-gray-100 dark:bg-zinc-800/60 text-gray-900 dark:text-zinc-50 hover:bg-gray-200 dark:bg-zinc-700/60">
 									Continue
 								</button>
 							</div>
