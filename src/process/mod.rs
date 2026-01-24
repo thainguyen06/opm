@@ -920,10 +920,10 @@ impl Runner {
         self.list.keys().copied()
     }
 
-    /// Save runner state to memory cache (used for normal operations)
+    /// Save runner state to permanent dump (auto-save on every operation like original pmc)
     pub fn save(&self) {
         if self.remote.is_none() {
-            dump::write_memory(&self);
+            dump::write(&self);
         }
     }
 
@@ -935,6 +935,7 @@ impl Runner {
         }
     }
 
+    #[deprecated(note = "Use save() instead - it now writes directly to permanent storage")]
     pub fn save_temp(&self) {
         // Deprecated: now save directly to memory cache
         self.save();
