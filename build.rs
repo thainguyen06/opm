@@ -149,7 +149,16 @@ fn download_then_build(node_bin_dir: PathBuf) {
     };
 
     if !npm_status.success() {
-        panic!("npm ci command failed with exit code: {:?}", npm_status.code());
+        panic!(
+            "npm ci command failed with exit code: {:?}\n\
+             \n\
+             This error occurs when building with the 'webui' feature.\n\
+             Possible solutions:\n\
+             - Check that Node.js and npm are properly installed\n\
+             - Try running 'npm install' manually in the src/webui directory\n\
+             - Build without the webui feature: cargo build --release",
+            npm_status.code()
+        );
     }
 
     /* build frontend */
@@ -161,7 +170,16 @@ fn download_then_build(node_bin_dir: PathBuf) {
         .expect("Failed to start astro build command");
 
     if !build_status.success() {
-        panic!("Astro build command failed with exit code: {:?}", build_status.code());
+        panic!(
+            "Astro build command failed with exit code: {:?}\n\
+             \n\
+             This error occurs when building the web UI frontend.\n\
+             Possible solutions:\n\
+             - Check the error messages above for specific build failures\n\
+             - Try running 'npm run build' manually in the src/webui directory\n\
+             - Build without the webui feature: cargo build --release",
+            build_status.code()
+        );
     }
 }
 
