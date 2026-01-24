@@ -347,7 +347,8 @@ pub fn is_pid_alive(pid: i64) -> bool {
 
 impl Runner {
     pub fn new() -> Self {
-        dump::read()
+        // Read merged state (permanent + temporary)
+        dump::read_merged()
     }
 
     pub fn refresh(&self) -> Self {
@@ -919,14 +920,23 @@ impl Runner {
         self.list.keys().copied()
     }
 
+    /// Save runner state to temporary dump file (used for normal operations)
     pub fn save(&self) {
         if self.remote.is_none() {
-            dump::write(&self);
+            dump::write_temp(&self);
+        }
+    }
+
+    /// Save runner state to permanent dump file (used only by explicit 'opm save' command)
+    pub fn save_permanent(&self) {
+        if self.remote.is_none() {
+            // Merge temp into permanent and clear temp
+            dump::commit_temp();
         }
     }
 
     pub fn save_temp(&self) {
-        // Deprecated: now save directly to permanent dump for simplicity
+        // Deprecated: now save directly to temp dump
         self.save();
     }
 
