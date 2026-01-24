@@ -1,3 +1,36 @@
+//! Process dump management module
+//!
+//! This module manages process state persistence using a hybrid approach:
+//! - **RAM-based cache (MEMORY_CACHE)**: Fast, in-memory storage for transient process state during normal operations
+//! - **Permanent file (process.dump)**: Disk-based storage for persistent state across daemon restarts
+//!
+//! ## Architecture
+//!
+//! The system maintains two layers of storage:
+//!
+//! 1. **Memory Cache**: An in-memory cache that stores all process state changes during daemon operation.
+//!    This eliminates the need for frequent disk I/O and provides better performance.
+//!
+//! 2. **Permanent Storage**: A disk-based dump file that persists process state across daemon restarts.
+//!    This is only written when explicitly requested (e.g., via `opm save` command or daemon shutdown).
+//!
+//! ## Key Functions
+//!
+//! - `read_memory()`: Read current state from RAM cache
+//! - `write_memory()`: Write current state to RAM cache  
+//! - `clear_memory()`: Clear the RAM cache
+//! - `commit_memory()`: Merge RAM cache into permanent storage and clear cache
+//! - `read_merged()`: Read combined state from permanent storage + RAM cache
+//! - `init_on_startup()`: Initialize daemon state on startup, handling migration from old temp files
+//!
+//! ## Migration from Temporary Files
+//!
+//! Previous versions used a temporary file (`process.temp.dump`) for transient state.
+//! The new RAM-based approach provides:
+//! - **Better performance**: No disk I/O on every operation
+//! - **Simplified architecture**: Single in-memory cache instead of file-based temp storage
+//! - **Backward compatibility**: `init_on_startup()` migrates old temp files automatically
+
 use crate::{
     file::{self, Exists},
     helpers, log,
