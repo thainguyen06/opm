@@ -573,8 +573,8 @@ pub fn start(verbose: bool) {
                 let wait_ms = 300 + (retry_count * 200);
                 std::thread::sleep(std::time::Duration::from_millis(wait_ms));
 
-                // Try to connect to the API server
-                if rt.block_on(async { tokio::net::TcpStream::connect(&addr).await.is_ok() }) {
+                // Try to connect to the API server using synchronous TCP connection
+                if std::net::TcpStream::connect(&addr).is_ok() {
                     is_listening = true;
                     break;
                 }
