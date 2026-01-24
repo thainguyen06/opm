@@ -521,8 +521,20 @@ pub fn start(verbose: bool) {
     }
 
     #[inline]
-    #[tokio::main]
-    async extern "C" fn init() {
+    extern "C" fn init() {
+        // Create a tokio runtime for async operations
+        let rt = match tokio::runtime::Runtime::new() {
+            Ok(runtime) => runtime,
+            Err(err) => {
+                log!("[daemon] Failed to create tokio runtime", "error" => format!("{:?}", err));
+                eprintln!("[daemon] Fatal error: Failed to create tokio runtime: {:?}", err);
+                panic!("Failed to create tokio runtime: {:?}", err);
+            }
+        };
+        
+        // Enter the runtime context so all async operations work correctly
+        let _guard = rt.enter();
+        
         pid::name("OPM Restart Handler Daemon");
 
         let config = config::read().daemon;
@@ -546,7 +558,7 @@ pub fn start(verbose: bool) {
                 "webui" => ui_enabled
             );
 
-            // Spawn API server in a separate task
+            // Spawn API server in a separate task using tokio::spawn now that we're in the runtime context
             let api_handle = tokio::spawn(async move { api::start(ui_enabled).await });
 
             // Wait for the API server to start and bind to the port
@@ -559,10 +571,10 @@ pub fn start(verbose: bool) {
             while retry_count < max_retries {
                 // Wait before checking - start with 300ms and increase
                 let wait_ms = 300 + (retry_count * 200);
-                tokio::time::sleep(tokio::time::Duration::from_millis(wait_ms)).await;
+                std::thread::sleep(std::time::Duration::from_millis(wait_ms));
 
-                // Try to connect to the API server
-                if tokio::net::TcpStream::connect(&addr).await.is_ok() {
+                // Try to connect to the API server using synchronous TCP connection
+                if std::net::TcpStream::connect(&addr).is_ok() {
                     is_listening = true;
                     break;
                 }
