@@ -16,6 +16,7 @@ pub fn create_templates() -> (Tera, String) {
             ("events", include_str!("dist/events.html")),
             ("system", include_str!("dist/system.html")),
             ("agent-detail", include_str!("dist/agent-detail.html")),
+            ("settings", include_str!("dist/settings.html")),
         ])
         .unwrap();
     }
@@ -54,6 +55,10 @@ pub fn create_templates() -> (Tera, String) {
             ),
             (
                 "agent-detail",
+                "<html><body><h1>WebUI not available</h1><p>Build with --features webui to enable the web interface</p></body></html>",
+            ),
+            (
+                "settings",
                 "<html><body><h1>WebUI not available</h1><p>Build with --features webui to enable the web interface</p></body></html>",
             ),
         ])
