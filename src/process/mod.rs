@@ -920,10 +920,10 @@ impl Runner {
         self.list.keys().copied()
     }
 
-    /// Save runner state to memory cache (used for normal operations)
+    /// Save runner state to permanent dump (ensures persistence across CLI invocations)
     pub fn save(&self) {
         if self.remote.is_none() {
-            dump::write_memory(&self);
+            dump::write(&self);
         }
     }
 
