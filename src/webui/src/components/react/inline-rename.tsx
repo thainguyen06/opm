@@ -69,7 +69,7 @@ const InlineRename = forwardRef((props: InlineRenameProps, ref) => {
 	if (!isEditing) {
 		return (
 			<span 
-				className={`text-md truncate ${props.className || 'font-bold text-zinc-200'}`}>
+				className={`text-md truncate ${props.className || 'font-bold text-gray-700 dark:text-zinc-200'}`}>
 				{props.old}
 			</span>
 		);
@@ -85,7 +85,7 @@ const InlineRename = forwardRef((props: InlineRenameProps, ref) => {
 				onChange={handleChange}
 				onKeyDown={handleKeyDown}
 				onClick={(e) => e.stopPropagation()}
-				className="flex-1 px-2 py-1 bg-zinc-800 border border-zinc-600 rounded text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+				className="flex-1 px-2 py-1 bg-gray-100 dark:bg-zinc-800 border border-zinc-600 rounded text-gray-800 dark:text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
 			/>
 			<button
 				onClick={(e) => {

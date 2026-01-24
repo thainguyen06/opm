@@ -1,5 +1,5 @@
 use crate::config::structs::Notifications;
-use notify_rust::{Notification, Urgency};
+use notify_rust::{Notification, Urgency, Hint};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -66,6 +66,8 @@ impl NotificationManager {
             .body(message)
             .urgency(event.urgency())
             .appname("OPM")
+            .icon("application-x-executable")
+            .hint(Hint::Category("network".to_string()))
             .timeout(5000)
             .show()?;
 

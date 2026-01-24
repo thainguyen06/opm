@@ -58,7 +58,7 @@ const Rename = (props: { base: string; server: string; process_id: number; callb
 					e.stopPropagation();
 					setIsEditing(true);
 				}}
-				className="text-zinc-200 rounded-md block p-2 w-full text-left cursor-pointer hover:bg-zinc-800/80 hover:text-zinc-50">
+				className="text-gray-700 dark:text-zinc-200 rounded-md block p-2 w-full text-left cursor-pointer hover:bg-gray-100 dark:bg-zinc-800/80 hover:text-gray-900 dark:text-zinc-50">
 				Rename
 			</button>
 		);
@@ -74,7 +74,7 @@ const Rename = (props: { base: string; server: string; process_id: number; callb
 				onChange={handleChange}
 				onKeyDown={handleKeyDown}
 				onClick={(e) => e.stopPropagation()}
-				className="flex-1 px-2 py-1 bg-zinc-800 border border-zinc-600 rounded text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+				className="flex-1 px-2 py-1 bg-gray-100 dark:bg-zinc-800 border border-zinc-600 rounded text-gray-800 dark:text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
 			/>
 			<button
 				onClick={(e) => {

@@ -9,7 +9,7 @@ body {
 
 html {
 	@apply h-full;
-	@apply bg-zinc-950;
+	@apply bg-white dark:bg-zinc-950;
 	touch-action: manipulation;
 }
 
@@ -172,8 +172,13 @@ button, a, input, select {
 }
 .skeleton {
 	animation: shimmer 2s infinite linear;
-	background: linear-gradient(to right, #18181b 4%, #27272a 25%, #18181b 36%);
 	background-size: 1000px 100%;
+}
+.dark .skeleton {
+	background: linear-gradient(to right, #18181b 4%, #27272a 25%, #18181b 36%);
+}
+.skeleton {
+	background: linear-gradient(to right, #f4f4f5 4%, #e4e4e7 25%, #f4f4f5 36%);
 }
 
 @keyframes fadeIn {
@@ -196,9 +201,9 @@ button, a, input, select {
 }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: #18181b; }
-::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #52525b; }
+::-webkit-scrollbar-track { @apply bg-gray-100 dark:bg-zinc-900; }
+::-webkit-scrollbar-thumb { @apply bg-gray-300 dark:bg-zinc-700 rounded; }
+::-webkit-scrollbar-thumb:hover { @apply bg-gray-400 dark:bg-zinc-600; }
 *:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
 
 /* Nav Fade In */

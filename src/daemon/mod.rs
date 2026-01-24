@@ -3,7 +3,7 @@ mod log;
 mod api;
 mod fork;
 
-use api::{DAEMON_CPU_PERCENTAGE, DAEMON_MEM_USAGE, DAEMON_START_TIME};
+use api::{DAEMON_CPU_PERCENTAGE, DAEMON_MEM_USAGE, DAEMON_START_TIME, GLOBAL_EVENT_MANAGER, GLOBAL_NOTIFICATION_MANAGER};
 use chrono::{DateTime, Utc};
 use colored::Colorize;
 use fork::{Fork, daemon};
@@ -83,6 +83,31 @@ extern "C" fn handle_termination_signal(_: libc::c_int) {
 extern "C" fn handle_sigpipe(_: libc::c_int) {
     // Ignore SIGPIPE - this prevents the daemon from crashing when writing to closed stdout/stderr
     // This can happen when the daemon tries to use println!() after being daemonized
+}
+
+// Helper function to emit crash event and notification
+async fn emit_crash_event_and_notification(id: usize, name: String) {
+    // Emit event if EventManager is available
+    if let Some(event_manager) = GLOBAL_EVENT_MANAGER.get() {
+        let event = opm::events::Event::new(
+            opm::events::EventType::ProcessCrash,
+            "local".to_string(),
+            "Local".to_string(),
+            Some(id.to_string()),
+            Some(name.clone()),
+            format!("Process '{}' crashed", name),
+        );
+        event_manager.add_event(event).await;
+    }
+    
+    // Send notification if NotificationManager is available
+    if let Some(notification_manager) = GLOBAL_NOTIFICATION_MANAGER.get() {
+        notification_manager.send(
+            opm::notifications::NotificationEvent::ProcessCrash,
+            "Process Crashed",
+            &format!("Process '{}' has crashed", name),
+        ).await;
+    }
 }
 
 fn restart_process() {
@@ -224,6 +249,15 @@ fn restart_process() {
 
                 // Only handle restart logic if process was supposed to be running
                 if item.running {
+                    // Emit crash event and notification for newly detected crashes
+                    let process_name = item.name.clone();
+                    if let Some(handle) = tokio::runtime::Handle::try_current().ok() {
+                        handle.spawn(emit_crash_event_and_notification(id, process_name));
+                    } else {
+                        log!("[daemon] warning: crash event not emitted (no tokio runtime)", 
+                             "name" => item.name, "id" => id);
+                    }
+                    
                     // Check if we've reached or exceeded the maximum crash limit
                     // Using >= to stop when counter reaches the limit:
                     // - crash_count < 10 with max_restarts=10: allow restart (crash counter 1-9)

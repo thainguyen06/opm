@@ -1625,7 +1625,11 @@ pub async fn info_handler(id: usize, _t: Token) -> Result<Json<ItemSingle>, NotF
         )
     )
 )]
-pub async fn create_handler(body: Json<CreateBody>, _t: Token) -> Result<Json<ActionResponse>, ()> {
+pub async fn create_handler(
+    body: Json<CreateBody>, 
+    event_manager: &State<std::sync::Arc<opm::events::EventManager>>,
+    _t: Token
+) -> Result<Json<ActionResponse>, ()> {
     let timer = HTTP_REQ_HISTOGRAM
         .with_label_values(&["create"])
         .start_timer();
@@ -1639,8 +1643,29 @@ pub async fn create_handler(body: Json<CreateBody>, _t: Token) -> Result<Json<Ac
     };
 
     runner
-        .start(&name, &body.script, body.path.clone(), &body.watch, 0)
-        .save();
+        .start(&name, &body.script, body.path.clone(), &body.watch, 0);
+    
+    // Find the just-created process by name to get its ID
+    // Since we just created it and this is a fresh Runner instance, it should be the only one with this name
+    if let Some(process_info) = runner.list.iter().find(|(_, p)| p.name == name).map(|(id, p)| (*id, p.name.clone())) {
+        let (id, process_name) = process_info;
+        runner.save();
+        
+        // Emit process start event
+        let event = opm::events::Event::new(
+            opm::events::EventType::ProcessStart,
+            "local".to_string(),
+            "Local".to_string(),
+            Some(id.to_string()),
+            Some(process_name),
+            format!("Process '{}' created", name),
+        );
+        event_manager.add_event(event).await;
+    } else {
+        // Process not found, just save without event
+        runner.save();
+    }
+    
     timer.observe_duration();
 
     Ok(Json(attempt(true, "create")))

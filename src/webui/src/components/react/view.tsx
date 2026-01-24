@@ -23,7 +23,7 @@ const LogRow = ({ match, children }: any) => {
 						{chunk}
 					</span>
 				) : (
-					<span key={index} className=" text-zinc-200">
+					<span key={index} className=" text-gray-700 dark:text-zinc-200">
 						{chunk}
 					</span>
 				)
@@ -137,7 +137,7 @@ const LogViewer = (props: { liveReload; setLiveReload; server: string | null; ba
 		return (
 			<div>
 				{searchOpen && (
-					<div className="z-50 fixed top-[16.5rem] right-5 w-96 flex bg-zinc-800/50 backdrop-blur-md px-3 py-1 rounded-lg border border-zinc-700 shadow">
+					<div className="z-50 fixed top-[16.5rem] right-5 w-96 flex bg-gray-100 dark:bg-zinc-800/50 backdrop-blur-md px-3 py-1 rounded-lg border border-gray-300 dark:border-zinc-700 shadow">
 						<input
 							id="log-filter-input"
 							className="grow bg-transparent p-2 border-0 text-white focus:ring-0 sm:text-sm placeholder-zinc-accent-fuchsia-500"
@@ -146,7 +146,7 @@ const LogViewer = (props: { liveReload; setLiveReload; server: string | null; ba
 							value={searchQuery}
 							onChange={(e) => setSearchQuery(e.target.value)}
 						/>
-						<span className="grow-0 text-zinc-400 font-medium mt-1.5">{searchQuery && filtered.length + ' matches'}</span>
+						<span className="grow-0 text-gray-500 dark:text-zinc-400 font-medium mt-1.5">{searchQuery && filtered.length + ' matches'}</span>
 					</div>
 				)}
 				<div className="p-5 pb-0 break-words overflow-y-scroll font-mono" style={componentStyle}>
@@ -161,13 +161,13 @@ const LogViewer = (props: { liveReload; setLiveReload; server: string | null; ba
 					<Switch
 						checked={props.liveReload}
 						onChange={props.setLiveReload}
-						className="group relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer items-center justify-start rounded-full border-2 border-transparent bg-zinc-800 transition-colors duration-200 ease-in-out focus:outline-none data-[checked]:bg-sky-500">
+						className="group relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer items-center justify-start rounded-full border-2 border-transparent bg-gray-100 dark:bg-zinc-800 transition-colors duration-200 ease-in-out focus:outline-none data-[checked]:bg-sky-500">
 						<span className="sr-only">Set live reload</span>
 						<span className="pointer-events-none relative inline-block h-3.5 w-3.5 transform rounded-full bg-zinc-500 group-data-[checked]:bg-white shadow ring-0 transition duration-200 ease-in-out translate-x-0 group-data-[checked]:translate-x-3.5">
 							<span
 								aria-hidden="true"
 								className="absolute inset-0 flex h-full w-full items-center justify-center transition-opacity duration-200 ease-in group-data-[checked]:opacity-0 group-data-[checked]:duration-100 group-data-[checked]:ease-out">
-								<svg viewBox="0 0 16 16" fill="currentColor" className="h-2.5 w-2.5 text-zinc-100">
+								<svg viewBox="0 0 16 16" fill="currentColor" className="h-2.5 w-2.5 text-gray-800 dark:text-zinc-100">
 									<path
 										fill-rule="evenodd"
 										d="M4 2a1.5 1.5 0 0 0-1.5 1.5v9A1.5 1.5 0 0 0 4 14h8a1.5 1.5 0 0 0 1.5-1.5V6.621a1.5 1.5 0 0 0-.44-1.06L9.94 2.439A1.5 1.5 0 0 0 8.878 2H4Zm1 5.75A.75.75 0 0 1 5.75 7h4.5a.75.75 0 0 1 0 1.5h-4.5A.75.75 0 0 1 5 7.75Zm0 3a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1-.75-.75Z"
@@ -192,22 +192,22 @@ const LogViewer = (props: { liveReload; setLiveReload; server: string | null; ba
 				<Listbox className="absolute bottom-3 right-3" value={logType} onChange={setLogType}>
 					{() => (
 						<div>
-							<ListboxButton className="relative w-full cursor-pointer rounded-lg py-1.5 pl-3 pr-10 text-left saturate-[50%] border border-zinc-700/50 hover:border-zinc-600/50 bg-zinc-800/50 text-zinc-50 hover:bg-zinc-700/50 shadow-sm focus:outline-none sm:text-sm sm:leading-6">
+							<ListboxButton className="relative w-full cursor-pointer rounded-lg py-1.5 pl-3 pr-10 text-left saturate-[50%] border border-gray-300 dark:border-zinc-700/50 hover:border-zinc-600/50 bg-gray-100 dark:bg-zinc-800/50 text-gray-900 dark:text-zinc-50 hover:bg-gray-200 dark:bg-zinc-700/50 shadow-sm focus:outline-none sm:text-sm sm:leading-6">
 								<span className="block truncate">{logType.name}</span>
 								<span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-									<ChevronUpDownIcon className="h-5 w-5 text-zinc-500" aria-hidden="true" />
+									<ChevronUpDownIcon className="h-5 w-5 text-gray-900 dark:text-gray-400 dark:text-zinc-500" aria-hidden="true" />
 								</span>
 							</ListboxButton>
 							<ListboxOptions
 								transition
-								className="absolute z-10 -mt-2 max-h-60 w-full overflow-auto rounded-lg bg-zinc-900/80 backdrop-blur-md border border-zinc-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none text-base p-1 text-base shadow-lg focus:outline-none data-[closed]:data-[leave]:opacity-0 data-[leave]:transition data-[leave]:duration-100 data-[leave]:ease-in sm:text-sm -translate-y-full transform">
+								className="absolute z-10 -mt-2 max-h-60 w-full overflow-auto rounded-lg bg-white dark:bg-zinc-900/80 backdrop-blur-md border border-gray-200 dark:border-zinc-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none text-base p-1 text-base shadow-lg focus:outline-none data-[closed]:data-[leave]:opacity-0 data-[leave]:transition data-[leave]:duration-100 data-[leave]:ease-in sm:text-sm -translate-y-full transform">
 								{logTypes.map((item) => (
 									<ListboxOption
 										key={item.id}
 										className={({ focus }) =>
 											classNames(
-												focus ? 'bg-zinc-800/80 text-zinc-50' : '',
-												!focus ? 'text-zinc-200' : '',
+												focus ? 'bg-gray-100 dark:bg-zinc-800/80 text-gray-900 dark:text-zinc-50' : '',
+												!focus ? 'text-gray-700 dark:text-zinc-200' : '',
 												'relative rounded-md block p-2 w-full text-left cursor-pointer select-none'
 											)
 										}
@@ -326,7 +326,7 @@ const View = (props: { id: string; base: string }) => {
 			<Fragment>
 				<ToastContainer toasts={toasts} onClose={closeToast} />
 				<div className="absolute top-2 right-3 z-[200]">
-					<span className="text-xs text-zinc-500 mr-2">{liveReload ? 'Fetching logs live' : 'Live logs paused'}</span>
+					<span className="text-xs text-gray-900 dark:text-gray-400 dark:text-zinc-500 mr-2">{liveReload ? 'Fetching logs live' : 'Live logs paused'}</span>
 					<span className={`inline-flex items-center gap-x-1.5 rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${
 						server === 'local' 
 							? 'bg-blue-500/10 text-blue-400 ring-blue-500/20' 
@@ -340,7 +340,7 @@ const View = (props: { id: string; base: string }) => {
 						{server}
 					</span>
 				</div>
-				<div className="flex items-start justify-between gap-x-8 gap-y-4 bg-zinc-700/10 px-4 py-4 flex-row items-center sm:px-6 lg:px-8">
+				<div className="flex items-start justify-between gap-x-8 gap-y-4 bg-gray-200 dark:bg-zinc-700/10 px-4 py-4 flex-row items-center sm:px-6 lg:px-8">
 					<div>
 						<div className="flex items-center gap-x-3">
 							<h1 className="flex gap-x-1 text-base leading-7">
@@ -365,7 +365,7 @@ const View = (props: { id: string; base: string }) => {
 								</div>
 							)}
 						</div>
-						<p className="text-xs leading-6 text-zinc-400">{item.info.command}</p>
+						<p className="text-xs leading-6 text-gray-500 dark:text-zinc-400">{item.info.command}</p>
 					</div>
 					<div className="flex lg:ml-4 mt-0">
 						<span>
@@ -373,7 +373,7 @@ const View = (props: { id: string; base: string }) => {
 								type="button"
 								disabled={disabled}
 								onClick={() => action(props.id, online ? 'restart' : 'start')}
-								className="disabled:opacity-50 disabled:pointer-events-none transition inline-flex items-center justify-center space-x-1.5 border focus:outline-none focus:ring-0 focus:ring-offset-0 focus:z-10 shrink-0 saturate-[110%] border-zinc-700 hover:border-zinc-600 bg-zinc-800 text-zinc-50 hover:bg-zinc-700 px-4 py-2 text-sm font-semibold rounded-lg">
+								className="disabled:opacity-50 disabled:pointer-events-none transition inline-flex items-center justify-center space-x-1.5 border focus:outline-none focus:ring-0 focus:ring-offset-0 focus:z-10 shrink-0 saturate-[110%] border-gray-300 dark:border-zinc-700 hover:border-zinc-600 bg-gray-100 dark:bg-zinc-800 text-gray-900 dark:text-zinc-50 hover:bg-gray-200 dark:bg-zinc-700 px-4 py-2 text-sm font-semibold rounded-lg">
 								{disabled ? (
 									<svg className="w-5 h-5 text-zinc-800 animate-spin fill-zinc-50" viewBox="0 0 100 101" fill="none">
 										<path
@@ -395,8 +395,8 @@ const View = (props: { id: string; base: string }) => {
 						<span className="ml-3">
 							<Menu as="div" className="relative inline-block text-left">
 								<div>
-									<MenuButton className="transition inline-flex items-center justify-center space-x-1.5 border focus:outline-none focus:ring-0 focus:ring-offset-0 focus:z-10 shrink-0 border-zinc-700 bg-transparent hover:bg-zinc-800 p-2 text-sm font-semibold rounded-lg">
-										<EllipsisVerticalIcon className="h-5 w-5 text-zinc-50" aria-hidden="true" />
+									<MenuButton className="transition inline-flex items-center justify-center space-x-1.5 border focus:outline-none focus:ring-0 focus:ring-offset-0 focus:z-10 shrink-0 border-gray-300 dark:border-zinc-700 bg-transparent hover:bg-gray-100 dark:bg-zinc-800 p-2 text-sm font-semibold rounded-lg">
+										<EllipsisVerticalIcon className="h-5 w-5 text-gray-900 dark:text-zinc-50" aria-hidden="true" />
 									</MenuButton>
 								</div>
 
@@ -410,7 +410,7 @@ const View = (props: { id: string; base: string }) => {
 									leaveTo="transform opacity-0 scale-95">
 									<MenuItems
 										anchor={{ to: 'bottom end', gap: '8px', padding: '16px' }}
-										className="z-10 w-48 origin-top-right rounded-lg bg-zinc-900/80 backdrop-blur-md border border-zinc-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none text-base divide-y divide-zinc-800/50">
+										className="z-10 w-48 origin-top-right rounded-lg bg-white dark:bg-zinc-900/80 backdrop-blur-md border border-gray-200 dark:border-zinc-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none text-base divide-y divide-zinc-800/50">
 										<div className="p-1.5">
 											{!online && (
 												<MenuItem>
@@ -418,7 +418,7 @@ const View = (props: { id: string; base: string }) => {
 														<a
 															onClick={() => action(props.id, 'start')}
 															className={classNames(
-																focus ? 'bg-emerald-700/10 text-emerald-500' : 'text-zinc-200',
+																focus ? 'bg-emerald-700/10 text-emerald-500' : 'text-gray-700 dark:text-zinc-200',
 																'rounded-md block p-2 w-full text-left cursor-pointer'
 															)}>
 															Start
@@ -431,7 +431,7 @@ const View = (props: { id: string; base: string }) => {
 													<a
 														onClick={() => action(props.id, 'stop')}
 														className={classNames(
-															focus ? 'bg-yellow-400/10 text-amber-500' : 'text-zinc-200',
+															focus ? 'bg-yellow-400/10 text-amber-500' : 'text-gray-700 dark:text-zinc-200',
 															'rounded-md block p-2 w-full text-left cursor-pointer'
 														)}>
 														Terminate
@@ -448,7 +448,7 @@ const View = (props: { id: string; base: string }) => {
 															close();
 														}}
 														className={classNames(
-															focus ? 'bg-zinc-800/80 text-zinc-50' : 'text-zinc-200',
+															focus ? 'bg-gray-100 dark:bg-zinc-800/80 text-gray-900 dark:text-zinc-50' : 'text-gray-700 dark:text-zinc-200',
 															'rounded-md block p-2 w-full text-left cursor-pointer'
 														)}>
 														Rename
@@ -462,7 +462,7 @@ const View = (props: { id: string; base: string }) => {
 															action(props.id, 'flush');
 															window.location.reload();
 														}}
-														className="text-zinc-200 rounded-md block p-2 w-full text-left cursor-pointer hover:bg-zinc-800/80 hover:text-zinc-50">
+														className="text-gray-700 dark:text-zinc-200 rounded-md block p-2 w-full text-left cursor-pointer hover:bg-gray-100 dark:bg-zinc-800/80 hover:text-gray-900 dark:text-zinc-50">
 														Clean Logs
 													</a>
 												)}
@@ -489,7 +489,7 @@ const View = (props: { id: string; base: string }) => {
 					</div>
 				</div>
 
-				<div className="grid bg-zinc-700/10 grid-cols-4 border-b border-white/[.03] shadow-lg">
+				<div className="grid bg-gray-200 dark:bg-zinc-700/10 grid-cols-4 border-b border-white/[.03] shadow-lg">
 					{stats.map((stat: any, index: number) => (
 						<div
 							key={stat.name}
@@ -497,10 +497,10 @@ const View = (props: { id: string; base: string }) => {
 								index % 2 === 1 ? 'border-l' : index === 2 ? 'border-l' : '',
 								'border-t border-white/5 py-6 px-4 sm:px-6 lg:px-8'
 							)}>
-							<p className="text-sm font-medium leading-6 text-zinc-400">{stat.name}</p>
+							<p className="text-sm font-medium leading-6 text-gray-500 dark:text-zinc-400">{stat.name}</p>
 							<p className="mt-2 flex items-baseline gap-x-2">
 								<span className="text-xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-white">{stat.value}</span>
-								{stat.unit ? <span className="text-sm text-zinc-400">{stat.unit}</span> : null}
+								{stat.unit ? <span className="text-sm text-gray-500 dark:text-zinc-400">{stat.unit}</span> : null}
 							</p>
 						</div>
 					))}

@@ -12,7 +12,7 @@ const { title, description } = Astro.props;
 ---
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -25,6 +25,16 @@ const { title, description } = Astro.props;
 	
 		<title>{title}</title>
 		<link rel="icon" type="image/svg+xml" href="{{base_path | safe}}/assets/favicon.svg" />
+		
+		<!-- Theme initialization script - must run before body renders to prevent flash -->
+		<script is:inline>
+			// Initialize theme immediately to prevent flash
+			(function() {
+				const settings = localStorage.getItem('settings:');
+				const theme = settings ? JSON.parse(settings).theme || 'dark' : 'dark';
+				document.documentElement.classList.toggle('dark', theme === 'dark');
+			})();
+		</script>
 		
 		<!-- Critical CSS inlined to prevent FOUC -->
 		<style is:inline>

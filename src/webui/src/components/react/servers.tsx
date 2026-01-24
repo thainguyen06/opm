@@ -88,7 +88,7 @@ const Index = (props: { base: string }) => {
 					<button
 						type="button"
 						onClick={handleRefresh}
-						className="transition inline-flex items-center justify-center space-x-1.5 border focus:outline-none focus:ring-0 focus:ring-offset-0 focus:z-10 shrink-0 border-zinc-900 hover:border-zinc-800 bg-zinc-950 text-zinc-50 hover:bg-zinc-900 px-4 py-2 text-sm font-semibold rounded-lg">
+						className="transition inline-flex items-center justify-center space-x-1.5 border focus:outline-none focus:ring-0 focus:ring-offset-0 focus:z-10 shrink-0 border-zinc-900 hover:border-gray-200 dark:border-zinc-800 bg-zinc-950 text-gray-900 dark:text-zinc-50 hover:bg-white dark:bg-zinc-900 px-4 py-2 text-sm font-semibold rounded-lg">
 						Refresh
 					</button>
 				</div>
@@ -96,13 +96,13 @@ const Index = (props: { base: string }) => {
 
 			{agents.isEmpty() ? (
 				<div className="text-center py-12">
-					<div className="text-zinc-400 text-lg mb-4">No agents connected</div>
-					<div className="text-zinc-500 text-sm space-y-2 max-w-2xl mx-auto">
+					<div className="text-gray-500 dark:text-zinc-400 text-lg mb-4">No agents connected</div>
+					<div className="text-gray-900 dark:text-gray-400 dark:text-zinc-500 text-sm space-y-2 max-w-2xl mx-auto">
 						<p>To connect an agent to this server, run the following command on a remote machine:</p>
-						<code className="block bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3 text-left text-zinc-300 font-mono text-sm mt-4">
+						<code className="block bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-lg px-4 py-3 text-left text-gray-600 dark:text-zinc-300 font-mono text-sm mt-4">
 							opm agent connect http://{serverHost} --name my-agent
 						</code>
-						<p className="mt-4 text-xs text-zinc-400">
+						<p className="mt-4 text-xs text-gray-500 dark:text-zinc-400">
 							Replace the hostname if needed. The command is automatically generated based on your current connection.
 						</p>
 					</div>
@@ -153,7 +153,7 @@ const Index = (props: { base: string }) => {
 							return (
 								<tr 
 									key={agent.id} 
-									className="hover:bg-zinc-800/30 transition cursor-pointer"
+									className="hover:bg-gray-100 dark:bg-zinc-800/30 transition cursor-pointer"
 									onClick={() => window.location.href = `${props.base}/agent-detail#${agent.id}`}
 								>
 									<td className="py-4 pl-4 pr-8 sm:pl-6 lg:pl-8">
