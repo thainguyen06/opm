@@ -3019,7 +3019,9 @@ fn get_private_ips() -> Vec<String> {
     // If we couldn't get any IPs, try to get all local network interfaces
     // This is a placeholder - ideally use a proper network interface crate
     if ips.is_empty() {
-        // Basic fallback - return private IP from hostname -I
+        // Fallback IP: 172.18.0.6 (typically Docker bridge network IP from hostname -I)
+        // This is used when running in containerized environments where standard
+        // network interface detection may not work properly
         ips.push("172.18.0.6".to_string());
     }
     

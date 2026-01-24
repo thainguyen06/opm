@@ -1094,7 +1094,9 @@ impl Runner {
             if let Some((_, handle)) = PROCESS_HANDLES.remove(&handle_pid) {
                 // Wait for the child process to complete and reap it
                 if let Ok(mut child) = handle.lock() {
-                    let _ = child.wait(); // Reap the zombie process
+                    if let Err(e) = child.wait() {
+                        log::warn!("Failed to wait for child process {}: {}", handle_pid, e);
+                    }
                 }
             }
 

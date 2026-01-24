@@ -141,13 +141,20 @@ const SettingsPage = (props: { base: string }) => {
 	};
 
 	const generateToken = () => {
-		// Generate a random secure token
-		const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-		let token = '';
-		for (let i = 0; i < 32; i++) {
-			token += chars.charAt(Math.floor(Math.random() * chars.length));
+		// Generate a cryptographically secure random token
+		const array = new Uint8Array(32);
+		if (typeof window !== 'undefined' && window.crypto) {
+			window.crypto.getRandomValues(array);
+			// Convert to base64-like string
+			const token = Array.from(array)
+				.map(b => b.toString(36).padStart(2, '0'))
+				.join('')
+				.slice(0, 32);
+			setSecurityConfig({ ...securityConfig, token });
+		} else {
+			// Fallback for older browsers
+			error('Secure random generation not available. Please enter token manually.');
 		}
-		setSecurityConfig({ ...securityConfig, token });
 	};
 
 	if (loading) {
