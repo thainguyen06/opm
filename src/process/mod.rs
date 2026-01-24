@@ -935,6 +935,7 @@ impl Runner {
         }
     }
 
+    #[deprecated(note = "Use save() instead - it now writes directly to permanent storage")]
     pub fn save_temp(&self) {
         // Deprecated: now save directly to memory cache
         self.save();

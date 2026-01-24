@@ -44,6 +44,7 @@ use macros_rs::{crashln, fmtstr, string};
 use reqwest::blocking::Client;
 use reqwest::header::{HeaderMap, HeaderValue};
 use std::{collections::BTreeMap, fs, sync::Mutex};
+use std::sync::atomic::Ordering;
 use once_cell::sync::Lazy;
 
 /// Global in-memory cache for process state (replaces temporary file)
@@ -218,7 +219,6 @@ pub fn commit_memory() {
     }
     
     // Update ID counter to maximum
-    use std::sync::atomic::Ordering;
     let mem_counter = memory.id.counter.load(Ordering::SeqCst);
     let perm_counter = permanent.id.counter.load(Ordering::SeqCst);
     if mem_counter > perm_counter {
@@ -247,7 +247,6 @@ pub fn read_merged() -> Runner {
     }
     
     // Use maximum ID counter
-    use std::sync::atomic::Ordering;
     let mem_counter = memory.id.counter.load(Ordering::SeqCst);
     let perm_counter = permanent.id.counter.load(Ordering::SeqCst);
     if mem_counter > perm_counter {
@@ -276,7 +275,6 @@ pub fn init_on_startup() -> Runner {
                 }
                 
                 // Update ID counter to maximum
-                use std::sync::atomic::Ordering;
                 let temp_counter = temporary.id.counter.load(Ordering::SeqCst);
                 let perm_counter = permanent.id.counter.load(Ordering::SeqCst);
                 if temp_counter > perm_counter {
