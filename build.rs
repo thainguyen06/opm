@@ -93,7 +93,7 @@ fn download_node() -> PathBuf {
     }
 
     /* download node */
-    let node_archive = download_dir.join(format!("node-v{}-{}.tar.gz", NODE_VERSION, target_os));
+    let node_archive = download_dir.join(format!("node-v{NODE_VERSION}-{target_os}-{target_arch}.tar.gz"));
     download_file(download_url, &node_archive, &download_dir);
 
     /* extract node */
@@ -239,7 +239,7 @@ fn main() {
             #[cfg(feature = "webui")]
             {
                 /* cleanup */
-                fs::remove_dir_all(format!("src/webui/dist")).ok();
+                fs::remove_dir_all("src/webui/dist").ok();
 
                 /* pre-build */
                 let node_bin_dir = use_system_node_or_download();
