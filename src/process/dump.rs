@@ -228,6 +228,18 @@ pub fn raw() -> Vec<u8> {
 }
 
 pub fn write(dump: &Runner) {
+    let dump_path = global!("opm.dump");
+    
+    // Create backup of existing dump file before writing new one
+    if Exists::check(&dump_path).file() {
+        let backup_path = format!("{}.bak", dump_path);
+        if let Err(e) = fs::copy(&dump_path, &backup_path) {
+            log!("[dump::write] Failed to create backup: {}", e);
+        } else {
+            log!("[dump::write] Created backup at {}", backup_path);
+        }
+    }
+    
     let encoded = match ron::ser::to_string(&dump) {
         Ok(contents) => contents,
         Err(err) => crashln!(
@@ -237,7 +249,7 @@ pub fn write(dump: &Runner) {
         ),
     };
 
-    if let Err(err) = fs::write(global!("opm.dump"), encoded) {
+    if let Err(err) = fs::write(&dump_path, encoded) {
         crashln!(
             "{} Error writing dumpfile.\n{}",
             *helpers::FAIL,
@@ -409,4 +421,34 @@ pub fn init_on_startup() -> Runner {
     // but we keep crash.crashed=true so users can restore them with 'opm restore'
 
     permanent
+}
+
+/// Restore dump from backup file
+pub fn restore_from_backup() -> Result<(), String> {
+    let dump_path = global!("opm.dump");
+    let backup_path = format!("{}.bak", dump_path);
+    
+    // Check if backup exists
+    if !Exists::check(&backup_path).file() {
+        return Err("No backup file found. Create a backup first by saving processes.".to_string());
+    }
+    
+    // Try to read the backup file to validate it
+    match file::try_read_object::<Runner>(backup_path.clone()) {
+        Ok(backup_runner) => {
+            // Backup is valid, restore it
+            write(&backup_runner);
+            log!("[dump::restore_from_backup] Restored from backup: {}", backup_path);
+            Ok(())
+        }
+        Err(e) => {
+            Err(format!("Backup file is corrupted or invalid: {}", e))
+        }
+    }
+}
+
+/// Check if backup file exists
+pub fn has_backup() -> bool {
+    let backup_path = format!("{}.bak", global!("opm.dump"));
+    Exists::check(&backup_path).file()
 }

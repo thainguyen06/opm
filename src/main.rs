@@ -5,8 +5,10 @@ mod webui;
 
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::{LogLevel, Verbosity};
-use macros_rs::{str, string};
+use macros_rs::{str, string, crashln};
 use update_informer::{registry, Check};
+use std::fs;
+use global_placeholders::global;
 
 use crate::{
     cli::{internal::Internal, Args, Item, Items},
@@ -252,12 +254,29 @@ enum Commands {
         server: Option<String>,
     },
 
+    /// Backup management
+    #[command(visible_alias = "bkp")]
+    Backup {
+        #[command(subcommand)]
+        command: BackupCommand,
+    },
+
     /// Agent management (client-side daemon for server connection)
     #[command(visible_alias = "server", visible_alias = "remote")]
     Agent {
         #[command(subcommand)]
         command: AgentCommand,
     },
+}
+
+#[derive(Subcommand)]
+enum BackupCommand {
+    /// Restore process dump from backup file
+    #[command(visible_alias = "recover")]
+    Restore,
+    /// Show backup file information
+    #[command(visible_alias = "info")]
+    Status,
 }
 
 #[derive(Subcommand)]
@@ -978,6 +997,43 @@ fn main() {
             name,
             server,
         } => cli::adjust(item, command, name, &defaults(server)),
+
+        Commands::Backup { command } => match command {
+            BackupCommand::Restore => {
+                use opm::{process::dump, helpers};
+                match dump::restore_from_backup() {
+                    Ok(()) => {
+                        println!("{} Successfully restored from backup file", *helpers::SUCCESS);
+                        println!("{} Restart the daemon to apply changes: opm daemon restore", *helpers::WARN);
+                    }
+                    Err(e) => {
+                        crashln!("{} {}", *helpers::FAIL, e);
+                    }
+                }
+            }
+            BackupCommand::Status => {
+                use opm::{process::dump, helpers};
+                let backup_path = format!("{}.bak", global!("opm.dump"));
+                if dump::has_backup() {
+                    match fs::metadata(&backup_path) {
+                        Ok(metadata) => {
+                            println!("{} Backup file information:", *helpers::SUCCESS);
+                            println!("  Path: {}", backup_path);
+                            println!("  Size: {} bytes", metadata.len());
+                            if let Ok(modified) = metadata.modified() {
+                                let datetime: chrono::DateTime<chrono::Utc> = modified.into();
+                                println!("  Last modified: {}", datetime.format("%Y-%m-%d %H:%M:%S UTC"));
+                            }
+                        }
+                        Err(e) => {
+                            crashln!("{} Failed to read backup file metadata: {}", *helpers::FAIL, e);
+                        }
+                    }
+                } else {
+                    crashln!("{} No backup file found at {}", *helpers::FAIL, backup_path);
+                }
+            }
+        },
 
         Commands::Agent { command } => match command {
             AgentCommand::Connect {
