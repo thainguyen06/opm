@@ -1101,6 +1101,30 @@ impl<'i> Internal<'i> {
 
         println!("{} Starting restore process...", *helpers::SUCCESS);
 
+        // Auto-start daemon if not running (Issue #3)
+        // Check if daemon is already running using PID file
+        let daemon_running = {
+            use crate::daemon::pid;
+            pid::exists() && pid::read().map(|p| pid::running(p.get())).unwrap_or(false)
+        };
+        
+        if !daemon_running {
+            println!("{} Starting OPM daemon...", *helpers::SUCCESS);
+            // Read config to check if API/WebUI should be enabled
+            let config = config::read();
+            let api_enabled = config.daemon.web.api;
+            let webui_enabled = config.daemon.web.ui;
+            
+            // Start the daemon with appropriate flags
+            crate::daemon::restart(&api_enabled, &webui_enabled, false);
+            
+            // Give daemon a moment to initialize
+            std::thread::sleep(std::time::Duration::from_millis(500));
+            println!("{} OPM daemon started", *helpers::SUCCESS);
+        } else {
+            println!("{} OPM daemon already running", *helpers::SUCCESS);
+        }
+
         // Get restore cleanup configuration
         let config = config::read();
         let restore_cleanup = config.daemon.restore_cleanup.as_ref();
@@ -1268,6 +1292,27 @@ impl<'i> Internal<'i> {
                 // Don't auto-save here - save will happen at the end of restore
             }
         }
+
+        // Issue #1: Move all processes from permanent dump to RAM
+        // After restore completes, ensure all processes exist only in memory cache
+        // This way, deleted processes disappear immediately without needing a save
+        
+        // Get the current state (which includes all restored processes)
+        let current_runner = Runner::new();
+        
+        // Write to memory cache (this will update the daemon's in-memory state via socket)
+        opm::process::dump::write_memory(&current_runner);
+        
+        // Clear the permanent dump by saving an empty runner
+        // Keep the ID counter to ensure new processes get correct IDs
+        let empty_runner = opm::process::Runner {
+            id: opm::process::id::Id::new(current_runner.id.counter.load(std::sync::atomic::Ordering::SeqCst)),
+            list: std::collections::BTreeMap::new(),
+            remote: None,
+        };
+        opm::process::dump::write(&empty_runner);
+        
+        println!("{} All processes moved to RAM (permanent dump cleared)", *helpers::SUCCESS);
 
         Internal::list(&string!("default"), &list_name);
     }
