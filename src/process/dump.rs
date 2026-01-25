@@ -339,10 +339,7 @@ pub fn commit_memory() {
 
     // Fallback: Local commit
     let permanent = read_permanent_dump();
-    let memory = {
-        let cache = MEMORY_CACHE.lock().unwrap();
-        cache.clone()
-    };
+    let memory = read_memory_direct_option();
 
     // Merge memory processes into permanent
     let merged = merge_runners(permanent, memory);
@@ -382,10 +379,7 @@ pub fn read_merged() -> Runner {
     let permanent = read_permanent_dump();
 
     // Read memory cache if it exists
-    let memory = {
-        let cache = MEMORY_CACHE.lock().unwrap();
-        cache.clone()
-    };
+    let memory = read_memory_direct_option();
 
     // Merge and return
     merge_runners(permanent, memory)
