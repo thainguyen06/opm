@@ -306,12 +306,19 @@ fn restart_process() {
                     runner.save();
                 } else {
                     // Still within limit - attempt restart now
-                    log!("[daemon] restarting crashed process", 
-                         "name" => item.name, "id" => id, "crash_count" => item.crash.value, "max_restarts" => daemon_config.restarts);
-                    runner.restart(id, true, true);
-                    runner.save();
-                    log!("[daemon] restart complete", 
-                         "name" => item.name, "id" => id, "new_pid" => runner.info(id).map(|p| p.pid).unwrap_or(0));
+                    // Reload runner to check if process was deleted by CLI
+                    runner = Runner::new();
+                    if runner.exists(id) {
+                        log!("[daemon] restarting crashed process", 
+                             "name" => item.name, "id" => id, "crash_count" => item.crash.value, "max_restarts" => daemon_config.restarts);
+                        runner.restart(id, true, true);
+                        runner.save();
+                        log!("[daemon] restart complete", 
+                             "name" => item.name, "id" => id, "new_pid" => runner.info(id).map(|p| p.pid).unwrap_or(0));
+                    } else {
+                        log!("[daemon] process was deleted, skipping restart",
+                             "name" => item.name, "id" => id);
+                    }
                 }
             } else {
                 // Process was already stopped and marked as crashed
