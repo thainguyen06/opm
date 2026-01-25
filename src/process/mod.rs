@@ -938,6 +938,7 @@ impl Runner {
         // If list is empty, reset ID counter to 0
         if self.list.is_empty() {
             self.id = id::Id::new(0);
+            log::debug!("[compact] Empty list, reset ID counter to 0");
             return;
         }
 
@@ -947,8 +948,11 @@ impl Runner {
         if keys == expected_keys {
             // Already compact, just ensure ID counter is correct
             self.id = id::Id::new(keys.len());
+            log::debug!("[compact] Already compact, IDs: {:?}, next ID: {}", keys, keys.len());
             return;
         }
+
+        log::debug!("[compact] Compacting IDs from {:?} to 0..{}", keys, keys.len());
 
         // BTreeMap is already sorted, so we can use into_iter() directly
         // Extract all processes by replacing the list with an empty one
@@ -956,14 +960,16 @@ impl Runner {
 
         // Re-insert with new sequential IDs starting from 0
         // BTreeMap::into_iter() yields items in sorted key order
-        for (new_id, (_old_id, mut process)) in old_list.into_iter().enumerate() {
+        for (new_id, (old_id, mut process)) in old_list.into_iter().enumerate() {
             // Update the process ID to match the new ID
             process.id = new_id;
             self.list.insert(new_id, process);
+            log::debug!("[compact] Remapped process ID {} -> {}", old_id, new_id);
         }
 
         // Reset the ID counter to the next available ID
         self.id = id::Id::new(self.list.len());
+        log::debug!("[compact] Compaction complete, next ID: {}", self.list.len());
     }
 
     pub fn set_id(&mut self, id: id::Id) {

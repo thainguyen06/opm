@@ -764,38 +764,17 @@ pub fn restart(api: &bool, webui: &bool, verbose: bool) {
 pub fn reset() {
     let mut runner = Runner::new();
 
-    // Check if ID 0 exists but ID 1 exists
-    if !runner.exists(0) && runner.exists(1) {
-        // Get the process at ID 1
-        if let Some(process_at_1) = runner.info(1).cloned() {
-            // Remove it from ID 1
-            runner.list.remove(&1);
-
-            // Insert it at ID 0
-            let mut new_process = process_at_1;
-            new_process.id = 0;
-            runner.list.insert(0, new_process);
-
-            // Save the changes
-            runner.save();
-
-            println!("{} Rearranged ID 1 to ID 0", *helpers::SUCCESS);
-            log!("[daemon] rearranged ID 1 to ID 0", "id" => "0");
-        }
-    }
-
-    let largest = runner.size();
-
-    match largest {
-        Some(id) => runner.set_id(Id::from(str!(id.to_string()))),
-        None => runner.set_id(Id::new(0)),
-    }
+    // Use the compact() function to compress all IDs and fill gaps
+    // This ensures IDs are sequential: 0, 1, 2, etc.
+    runner.compact();
+    runner.save();
 
     println!(
-        "{} Successfully reset (index={})",
+        "{} Successfully reset and compressed IDs (next ID={})",
         *helpers::SUCCESS,
         runner.id
     );
+    log!("[daemon] reset and compressed IDs", "next_id" => runner.id.to_string());
 }
 
 pub fn setup() {
