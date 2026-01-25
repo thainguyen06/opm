@@ -41,6 +41,8 @@ pub enum SocketRequest {
     StartProcess(usize),
     /// Restart a process by ID
     RestartProcess(usize),
+    /// Edit a process (name and/or command)
+    EditProcess { id: usize, name: Option<String>, command: Option<String> },
     /// Ping to check if daemon is responsive
     Ping,
 }
@@ -296,6 +298,31 @@ fn handle_client(mut stream: UnixStream) -> Result<()> {
                 runner.process(id).running = true;
                 runner.process(id).crash.crashed = false;
                 runner.process(id).restarts += 1;
+                
+                // Write to memory cache only
+                dump::write_memory_direct(&runner);
+                
+                SocketResponse::Success
+            } else {
+                SocketResponse::Error(format!("Process {} not found", id))
+            }
+        }
+        SocketRequest::EditProcess { id, name, command } => {
+            // Edit a process's name and/or command in RAM
+            let permanent = dump::read_permanent_direct();
+            let memory = dump::read_memory_direct();
+            let mut runner = dump::merge_runners_public(permanent, memory);
+            
+            if runner.exists(id) {
+                // Update name if provided
+                if let Some(new_name) = name {
+                    runner.process(id).name = new_name;
+                }
+                
+                // Update command/script if provided
+                if let Some(new_command) = command {
+                    runner.process(id).script = new_command;
+                }
                 
                 // Write to memory cache only
                 dump::write_memory_direct(&runner);
