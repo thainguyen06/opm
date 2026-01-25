@@ -867,6 +867,8 @@ impl Runner {
             // This prevents confusion where users think deleted processes are being recreated
             // when other processes shift to lower IDs (e.g., deleting process 1 causes 
             // process 2 to become the new process 1, making it look like process 1 was recreated)
+            // Trade-off: This will leave gaps in the ID sequence (e.g., 0, 2, 5) over time,
+            // and new processes will use higher ID numbers, but this is acceptable for clarity
             self.save();
         }
     }
