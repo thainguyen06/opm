@@ -1203,7 +1203,8 @@ impl<'i> Internal<'i> {
         for (id, name, was_running, was_crashed) in &processes_to_restore {
             // For crashed processes, set them to stopped instead of restarting
             // This prevents pointless auto-restart loops for processes that were crashing
-            if *was_crashed && !*was_running {
+            // Reset ALL crashed processes to stopped, regardless of running flag
+            if *was_crashed {
                 runner.process(*id).running = false;
                 runner.process(*id).crash.crashed = false;
                 runner.save();
@@ -1218,11 +1219,9 @@ impl<'i> Internal<'i> {
                 continue;
             }
 
-            // For processes that were running normally, restart them
+            // For processes that were running normally (not crashed), restart them
             // status_str is currently unused but kept for potential future logging
-            let _status_str = if *was_crashed {
-                "crashed"
-            } else if *was_running {
+            let _status_str = if *was_running {
                 "running"
             } else {
                 "stopped"
@@ -1253,12 +1252,6 @@ impl<'i> Internal<'i> {
                     restored_ids.push(*id);
                 } else {
                     failed_ids.push((*id, name.clone()));
-                    println!(
-                        "{} Failed to restore process '{}' (id={}) - process is not running",
-                        *helpers::FAIL,
-                        name,
-                        id
-                    );
                     // Mark process as crashed so daemon can pick it up for auto-restart
                     // Keep running=true (set_crashed doesn't change it) so daemon will attempt restart
                     // Don't increment crash counter here - let the daemon do it when it detects the crash
