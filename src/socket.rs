@@ -97,18 +97,34 @@ fn handle_client(mut stream: UnixStream) -> Result<()> {
     // Process request
     let response = match request {
         SocketRequest::GetState => {
-            // Read merged state (permanent + memory cache)
-            let runner = dump::read_merged();
-            SocketResponse::State(runner)
+            // Read merged state directly without recursion
+            // Read permanent dump
+            let mut permanent = dump::read_permanent_direct();
+            let memory = dump::read_memory_direct();
+            
+            // Merge memory processes into permanent
+            for (id, process) in memory.list {
+                permanent.list.insert(id, process);
+            }
+            
+            // Use maximum ID counter
+            use std::sync::atomic::Ordering;
+            let mem_counter = memory.id.counter.load(Ordering::SeqCst);
+            let perm_counter = permanent.id.counter.load(Ordering::SeqCst);
+            if mem_counter > perm_counter {
+                permanent.id.counter.store(mem_counter, Ordering::SeqCst);
+            }
+            
+            SocketResponse::State(permanent)
         }
         SocketRequest::SetState(runner) => {
-            // Write to memory cache
-            dump::write_memory(&runner);
+            // Write to memory cache directly
+            dump::write_memory_direct(&runner);
             SocketResponse::Success
         }
         SocketRequest::SavePermanent => {
-            // Commit memory cache to permanent storage
-            dump::commit_memory();
+            // Commit memory cache to permanent storage directly
+            dump::commit_memory_direct();
             SocketResponse::Success
         }
         SocketRequest::Ping => {

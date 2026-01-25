@@ -80,6 +80,53 @@ fn read_permanent_dump() -> Runner {
     }
 }
 
+/// Public version for socket server to avoid recursion
+pub fn read_permanent_direct() -> Runner {
+    read_permanent_dump()
+}
+
+/// Public version for socket server to avoid recursion
+pub fn read_memory_direct() -> Runner {
+    let cache = MEMORY_CACHE.lock().unwrap();
+    match &*cache {
+        Some(runner) => runner.clone(),
+        None => empty_runner(),
+    }
+}
+
+/// Public version for socket server to avoid recursion
+pub fn write_memory_direct(dump: &Runner) {
+    let mut cache = MEMORY_CACHE.lock().unwrap();
+    *cache = Some(dump.clone());
+    log!("[dump::write_memory_direct] Updated in-memory process cache");
+}
+
+/// Public version for socket server to avoid recursion
+pub fn commit_memory_direct() {
+    // Read permanent dump directly
+    let mut permanent = read_permanent_dump();
+    let memory = read_memory_direct();
+    
+    // Merge memory processes into permanent
+    for (id, process) in memory.list {
+        permanent.list.insert(id, process);
+    }
+    
+    // Update ID counter to maximum
+    let mem_counter = memory.id.counter.load(Ordering::SeqCst);
+    let perm_counter = permanent.id.counter.load(Ordering::SeqCst);
+    if mem_counter > perm_counter {
+        permanent.id.counter.store(mem_counter, Ordering::SeqCst);
+    }
+    
+    // Write merged state to permanent
+    write(&permanent);
+    
+    // Clear memory cache
+    clear_memory();
+    log!("[dump::commit_memory_direct] Committed memory cache to permanent storage");
+}
+
 pub fn from(address: &str, token: Option<&str>) -> Result<Runner, anyhow::Error> {
     let client = Client::new();
     let mut headers = HeaderMap::new();
