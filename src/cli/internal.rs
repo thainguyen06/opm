@@ -1212,9 +1212,9 @@ impl<'i> Internal<'i> {
             }
         }
 
-        // Reset restart and crash counters only for non-crashed processes
+        // Reset restart and crash counters (numeric values) only for non-crashed processes
         // This gives successfully running processes a fresh start after system restore/reboot
-        // Crashed processes keep their crash history and counters to show they failed
+        // Crashed processes keep their crash history (crash.value and crash.crashed) to show they failed
         // Do this BEFORE checking if there are processes to restore
         let all_process_ids: Vec<usize> = runner.items().keys().copied().collect();
         for id in all_process_ids {
@@ -1305,8 +1305,9 @@ impl<'i> Internal<'i> {
             }
         }
 
-        // Save final state after restore attempts to persist any crashed process states
-        // This ensures processes that failed to restore are properly marked as crashed
+        // Save final state after restore attempts to persist crashed process states
+        // This ensures processes that failed to restore (via set_crashed() calls) are properly
+        // marked as crashed in permanent storage for daemon monitoring
         runner.save_permanent();
 
         Internal::list(&string!("default"), &list_name);
