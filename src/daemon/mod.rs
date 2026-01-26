@@ -310,12 +310,21 @@ fn restart_process() {
                     // Reload runner to check if process was deleted by CLI
                     runner = Runner::new();
                     if runner.exists(id) {
-                        log!("[daemon] restarting crashed process", 
-                             "name" => item.name, "id" => id, "crash_count" => item.crash.value, "max_restarts" => daemon_config.restarts);
-                        runner.restart(id, true, true);
-                        log!("[daemon] restart complete", 
-                             "name" => item.name, "id" => id, "new_pid" => runner.info(id).map(|p| p.pid).unwrap_or(0));
-                        // Note: restart() now calls save() internally, so we don't need to save here
+                        // Check if process is still marked as running after reload
+                        // This prevents restarting processes that were stopped/removed during reload
+                        if let Some(proc) = runner.info(id) {
+                            if proc.running {
+                                log!("[daemon] restarting crashed process", 
+                                     "name" => item.name, "id" => id, "crash_count" => item.crash.value, "max_restarts" => daemon_config.restarts);
+                                runner.restart(id, true, true);
+                                log!("[daemon] restart complete", 
+                                     "name" => item.name, "id" => id, "new_pid" => runner.info(id).map(|p| p.pid).unwrap_or(0));
+                                // Note: restart() now calls save() internally, so we don't need to save here
+                            } else {
+                                log!("[daemon] process was marked as stopped during reload, skipping restart",
+                                     "name" => item.name, "id" => id);
+                            }
+                        }
                     } else {
                         log!("[daemon] process was deleted, skipping restart",
                              "name" => item.name, "id" => id);
