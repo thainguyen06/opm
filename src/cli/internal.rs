@@ -1212,19 +1212,15 @@ impl<'i> Internal<'i> {
             }
         }
 
-        // Reset restart and crash counters (numeric values) only for non-crashed processes
-        // This gives successfully running processes a fresh start after system restore/reboot
-        // Crashed processes keep their crash history (crash.value and crash.crashed) to show they failed
-        // Do this BEFORE checking if there are processes to restore
+        // Reset restart and crash counters after restore for ALL processes in the system
+        // This gives each process a fresh start after system restore/reboot
+        // Both running and stopped processes get their counters reset so they have
+        // full restart attempts available
+        // Do this BEFORE checking if there are processes to restore, so counters are reset
+        // even when all processes are stopped
         let all_process_ids: Vec<usize> = runner.items().keys().copied().collect();
         for id in all_process_ids {
-            // Only reset counters for processes that aren't crashed
-            // Crashed processes need to keep their state for proper tracking
-            if let Some(process_info) = runner.info(id) {
-                if !process_info.crash.crashed {
-                    runner.reset_counters(id);
-                }
-            }
+            runner.reset_counters(id);
         }
         // Use save_permanent() to persist counter reset to permanent dump file
         // This ensures subsequent commands (like 'opm ls') see the reset counters
