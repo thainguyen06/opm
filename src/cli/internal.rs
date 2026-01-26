@@ -1109,10 +1109,10 @@ impl<'i> Internal<'i> {
             let mut modified = false;
             
             // Mark all crashed processes as stopped in the dump file
+            // Keep crash.crashed flag so users can identify which processes crashed
             for (_id, process) in dump_runner.list.iter_mut() {
-                if process.crash.crashed {
+                if process.crash.crashed && process.running {
                     process.running = false;
-                    process.crash.crashed = false;
                     modified = true;
                 }
             }

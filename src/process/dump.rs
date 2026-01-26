@@ -303,10 +303,22 @@ pub fn write_memory(dump: &Runner) {
         }
     }
 
-    // Fallback: Write to local memory cache
-    let mut cache = MEMORY_CACHE.lock().unwrap();
-    *cache = Some(dump.clone());
-    log!("[dump::write_memory] Updated in-memory process cache");
+    // Fallback: When daemon is not running, write to temp file for persistence
+    // This ensures changes persist across CLI invocations until `opm save` is called
+    let temp_dump_path = global!("opm.dump.temp");
+    let encoded = match ron::ser::to_string(&dump) {
+        Ok(contents) => contents,
+        Err(err) => {
+            log!("[dump::write_memory] Failed to encode temp dump: {}", err);
+            return;
+        }
+    };
+    
+    if let Err(err) = fs::write(&temp_dump_path, encoded) {
+        log!("[dump::write_memory] Failed to write temp dump file: {}", err);
+    } else {
+        log!("[dump::write_memory] Wrote changes to temp dump file (daemon not running)");
+    }
 }
 
 /// Clear memory cache
@@ -339,17 +351,39 @@ pub fn commit_memory() {
 
     // Fallback: Local commit
     let permanent = read_permanent_dump();
-    let memory = read_memory_direct_option();
+    
+    // When daemon is not running, read from temp file instead of memory cache
+    let temp_dump_path = global!("opm.dump.temp");
+    let temp_runner = if Exists::check(&temp_dump_path).file() {
+        match file::try_read_object::<Runner>(temp_dump_path.clone()) {
+            Ok(runner) => {
+                log!("[dump::commit_memory] Read temp dump file for commit");
+                Some(runner)
+            }
+            Err(err) => {
+                log!("[dump::commit_memory] Failed to read temp dump: {err}");
+                None
+            }
+        }
+    } else {
+        None
+    };
 
-    // Merge memory processes into permanent
-    let merged = merge_runners(permanent, memory);
+    // Merge temp into permanent
+    let merged = merge_runners(permanent, temp_runner);
 
     // Write merged state to permanent
     write(&merged);
+    
+    // Delete temp file after successful commit
+    if Exists::check(&temp_dump_path).file() {
+        let _ = fs::remove_file(&temp_dump_path);
+        log!("[dump::commit_memory] Deleted temp dump file after commit");
+    }
 
-    // Clear memory cache
+    // Clear memory cache (for daemon case)
     clear_memory();
-    log!("[dump::commit_memory] Committed memory cache to permanent storage");
+    log!("[dump::commit_memory] Committed changes to permanent storage");
 }
 
 /// Read merged state (permanent + memory) - replaces read_merged
@@ -378,55 +412,61 @@ pub fn read_merged() -> Runner {
     // Fallback: Read permanent dump directly without triggering recursive operations
     let permanent = read_permanent_dump();
 
-    // Read memory cache if it exists
-    let memory = read_memory_direct_option();
+    // When daemon is not running, check for temp file (used by write_memory)
+    let temp_dump_path = global!("opm.dump.temp");
+    let temp_runner = if Exists::check(&temp_dump_path).file() {
+        match file::try_read_object::<Runner>(temp_dump_path.clone()) {
+            Ok(runner) => {
+                log!("[dump::read_merged] Read temp dump file (daemon not running)");
+                Some(runner)
+            }
+            Err(err) => {
+                log!("[dump::read_merged] Failed to read temp dump: {err}");
+                None
+            }
+        }
+    } else {
+        None
+    };
 
-    // Merge and return
-    merge_runners(permanent, memory)
+    // Merge temp into permanent and return
+    merge_runners(permanent, temp_runner)
 }
 
-/// Initialize on daemon startup: merge any old temp file into permanent, clean temp, clear memory
+/// Initialize on daemon startup: load temp file into memory cache, then delete it
 pub fn init_on_startup() -> Runner {
     // Read permanent dump
-    let mut permanent = read_permanent_dump();
+    let permanent = read_permanent_dump();
 
-    // Check if old temp dump file exists from previous version (for migration)
+    // Check if temp dump file exists (from CLI operations when daemon was not running)
     let temp_dump_path = global!("opm.dump.temp");
     if Exists::check(&temp_dump_path).file() {
         log!(
-            "[dump::init_on_startup] Found old temp dump file from previous version, migrating..."
+            "[dump::init_on_startup] Found temp dump file from CLI operations, loading into memory..."
         );
 
-        // Read old temp file
+        // Read temp file
         match file::try_read_object::<Runner>(temp_dump_path.clone()) {
             Ok(temporary) => {
-                // Merge temporary processes into permanent
-                for (id, process) in temporary.list {
-                    permanent.list.insert(id, process);
-                }
-
-                // Update ID counter to maximum
-                let temp_counter = temporary.id.counter.load(Ordering::SeqCst);
-                let perm_counter = permanent.id.counter.load(Ordering::SeqCst);
-                if temp_counter > perm_counter {
-                    permanent.id.counter.store(temp_counter, Ordering::SeqCst);
-                }
-
-                log!("[dump::init_on_startup] Merged old temp dump file");
+                // Write temp state to daemon's memory cache
+                // This ensures unsaved changes are preserved in daemon's RAM
+                write_memory_direct(&temporary);
+                log!("[dump::init_on_startup] Loaded temp dump into daemon memory cache");
             }
             Err(err) => {
-                log!("[dump::init_on_startup] Failed to read old temp dump: {err}");
+                log!("[dump::init_on_startup] Failed to read temp dump: {err}");
             }
         }
 
-        // Delete old temp file after migration
+        // Delete temp file after loading into memory
+        // From now on, daemon will manage state in RAM
         let _ = fs::remove_file(&temp_dump_path);
-        log!("[dump::init_on_startup] Cleaned up old temp dump file");
+        log!("[dump::init_on_startup] Deleted temp dump file after loading into memory");
+    } else {
+        // No temp file, start with clean memory cache
+        clear_memory();
+        log!("[dump::init_on_startup] No temp file found, cleared memory cache for fresh start");
     }
-
-    // Clear memory cache to start fresh
-    clear_memory();
-    log!("[dump::init_on_startup] Cleared memory cache for fresh daemon start");
 
     // Note: We preserve crash.crashed flag so restore command can identify crashed processes
     // The daemon will mark crashed processes as stopped (running=false) when it detects they're dead
