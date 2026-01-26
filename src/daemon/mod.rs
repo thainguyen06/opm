@@ -71,10 +71,8 @@ extern "C" fn handle_termination_signal(_: libc::c_int) {
         }
         runner.save();
 
-        // Commit memory cache to permanent storage on shutdown
-        use opm::process::dump;
-        dump::commit_memory();
-        log!("[daemon] committed memory cache to permanent storage", "action" => "shutdown");
+        // Auto-save removed: memory cache is not committed to permanent storage during restart/reset
+        log!("[daemon] shutdown complete (auto-save disabled)", "action" => "shutdown");
     });
 
     // If save failed, log a warning (but still proceed with cleanup)
@@ -768,8 +766,7 @@ pub fn reset() {
     // This ensures IDs are sequential: 0, 1, 2, etc.
     runner.compact();
     
-    // Save to permanent storage to ensure counter is persisted
-    dump::commit_memory();
+    // Write to permanent storage without auto-save (commit_memory removed)
     dump::write(&runner);
 
     log!("[daemon] reset and compressed IDs", "next_id" => runner.id.to_string());
