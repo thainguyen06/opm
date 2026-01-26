@@ -319,7 +319,11 @@ pub fn remove(items: &Items, server_name: &String) {
             *helpers::SUCCESS
         );
 
-        let process_ids: Vec<usize> = runner.items().keys().copied().collect();
+        // Sort IDs in descending order to avoid ID shift issues during removal
+        // When removing multiple processes, compaction happens after each removal
+        // By removing from highest to lowest ID, we prevent lower IDs from shifting
+        let mut process_ids: Vec<usize> = runner.items().keys().copied().collect();
+        process_ids.sort_by(|a, b| b.cmp(a)); // Sort descending
 
         if process_ids.is_empty() {
             println!("{} Cannot remove all, no processes found", *helpers::FAIL);
@@ -335,26 +339,38 @@ pub fn remove(items: &Items, server_name: &String) {
             }
         }
     } else {
+        // Resolve all items to IDs first, then sort in descending order
+        // This prevents ID shift issues when removing multiple processes
+        let mut ids_to_remove: Vec<usize> = Vec::new();
+        
         for item in &items.items {
             match item {
-                Item::Id(id) => Internal {
-                    id: *id,
-                    runner: runner.clone(),
-                    server_name,
-                    kind: kind.clone(),
-                }
-                .remove(),
-                Item::Name(name) => match runner.find(&name, server_name) {
-                    Some(id) => Internal {
-                        id,
-                        runner: runner.clone(),
-                        server_name,
-                        kind: kind.clone(),
+                Item::Id(id) => {
+                    if runner.exists(*id) {
+                        ids_to_remove.push(*id);
+                    } else {
+                        crashln!("{} Process (id={}) not found", *helpers::FAIL, id);
                     }
-                    .remove(),
+                },
+                Item::Name(name) => match runner.find(&name, server_name) {
+                    Some(id) => ids_to_remove.push(id),
                     None => crashln!("{} Process ({name}) not found", *helpers::FAIL),
                 },
             }
+        }
+        
+        // Sort IDs in descending order to avoid ID compaction issues
+        ids_to_remove.sort_by(|a, b| b.cmp(a));
+        
+        // Now remove all processes in descending ID order
+        for id in ids_to_remove {
+            Internal {
+                id,
+                runner: runner.clone(),
+                server_name,
+                kind: kind.clone(),
+            }
+            .remove();
         }
     }
 

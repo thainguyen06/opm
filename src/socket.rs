@@ -176,6 +176,18 @@ fn handle_client(mut stream: UnixStream) -> Result<()> {
                 let pid = runner.info(id).map(|p| p.pid).unwrap_or(0);
                 let children = runner.info(id).map(|p| p.children.clone()).unwrap_or_default();
                 
+                // IMPORTANT: Mark process as stopped BEFORE removing from list
+                // This prevents race condition where daemon's restart_process() loop
+                // detects the process is dead and tries to restart it during removal
+                runner.process(id).running = false;
+                
+                // Save state with running=false before removal
+                // This ensures daemon sees the stopped state and won't try to restart
+                dump::write_memory_direct(&runner);
+                
+                // Small delay to ensure daemon sees the updated state
+                std::thread::sleep(std::time::Duration::from_millis(100));
+                
                 // Remove from list
                 runner.list.remove(&id);
                 runner.compact();

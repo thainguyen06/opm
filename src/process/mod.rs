@@ -866,15 +866,19 @@ impl Runner {
         let shell_pid = self.info(id).and_then(|p| p.shell_pid);
         let children = self.info(id).map(|p| p.children.clone()).unwrap_or_default();
         
-        // Remove from list first, before stopping the process
-        // This prevents a race condition where the daemon sees a dead PID
-        // and marks it as crashed before the deletion is saved
+        // Mark as stopped first to prevent auto-restart during removal
+        // This is important if daemon is running and monitoring processes
+        if self.exists(id) {
+            self.process(id).running = false;
+            self.save();
+        }
+        
+        // Remove from list
         self.list.remove(&id);
         self.compact(); // Compact IDs after removal
         self.save();
         
         // Now kill the actual process using the saved PID info
-        // We do this after saving so the daemon never sees a dead process in the list
         if pid > 0 {
             kill_children(children);
             let _ = process_stop(pid);
