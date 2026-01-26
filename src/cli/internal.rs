@@ -1223,7 +1223,9 @@ impl<'i> Internal<'i> {
         for id in all_process_ids {
             runner.reset_counters(id);
         }
-        runner.save();
+        // Use save_permanent() to persist counter reset to permanent dump file
+        // This ensures subsequent commands (like 'opm ls') see the reset counters
+        runner.save_permanent();
 
         let mut restored_ids = Vec::new();
         let mut failed_ids = Vec::new();
