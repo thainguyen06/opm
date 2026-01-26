@@ -1110,6 +1110,8 @@ impl<'i> Internal<'i> {
             
             // Mark all crashed processes as stopped in the dump file
             // Keep crash.crashed flag so users can identify which processes crashed
+            // Note: Crashed processes should have running=true (set by daemon when crash detected)
+            // We only update if running=true to avoid redundant writes
             for (_id, process) in dump_runner.list.iter_mut() {
                 if process.crash.crashed && process.running {
                     process.running = false;
