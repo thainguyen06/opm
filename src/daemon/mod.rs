@@ -169,7 +169,7 @@ fn restart_process() {
 
         if !children.is_empty() && children != item.children {
             log!("[daemon] added", "children" => format!("{children:?}"));
-            runner.set_children(id, children.clone());
+            runner.set_children(id, children.clone()).save();
         }
 
         // Check memory limit if configured
