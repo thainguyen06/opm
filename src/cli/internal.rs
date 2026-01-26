@@ -1100,7 +1100,7 @@ impl<'i> Internal<'i> {
 
         println!("{} Starting restore process...", *helpers::SUCCESS);
 
-        // Before starting daemon, read dump file and mark crashed processes as stopped
+        // Before starting daemon, read dump file and reset counters, mark crashed processes as stopped
         // This ensures crashed processes are properly handled before loading into RAM
         let dump_path = global_placeholders::global!("opm.dump");
         if opm::file::Exists::check(&dump_path).file() {
@@ -1108,13 +1108,25 @@ impl<'i> Internal<'i> {
             let mut dump_runner = opm::process::dump::read();
             let mut modified = false;
             
-            // Mark all crashed processes as stopped in the dump file
+            // First, mark all crashed processes as stopped in the dump file
             // Always set running=false for crashed processes, regardless of current state
-            // Keep crash.crashed = true so users can identify which processes crashed
             for (_id, process) in dump_runner.list.iter_mut() {
                 if process.crash.crashed {
                     process.running = false;
-                    // Keep crashed flag set so users know which processes crashed
+                    modified = true;
+                }
+            }
+            
+            // Reset restart and crash counters for ALL processes after restore
+            // This gives each process a fresh start after system restore/reboot
+            // Both running and stopped processes get their counters reset so they have
+            // full restart attempts available
+            for (_id, process) in dump_runner.list.iter_mut() {
+                // Reset all counters
+                if process.restarts > 0 || process.crash.value > 0 || process.crash.crashed {
+                    process.restarts = 0;
+                    process.crash.value = 0;
+                    process.crash.crashed = false;
                     modified = true;
                 }
             }
@@ -1211,20 +1223,6 @@ impl<'i> Internal<'i> {
                 }
             }
         }
-
-        // Reset restart and crash counters after restore for ALL processes in the system
-        // This gives each process a fresh start after system restore/reboot
-        // Both running and stopped processes get their counters reset so they have
-        // full restart attempts available
-        // Do this BEFORE checking if there are processes to restore, so counters are reset
-        // even when all processes are stopped
-        let all_process_ids: Vec<usize> = runner.items().keys().copied().collect();
-        for id in all_process_ids {
-            runner.reset_counters(id);
-        }
-        // Use save_permanent() to persist counter reset to permanent dump file
-        // This ensures subsequent commands (like 'opm ls') see the reset counters
-        runner.save_permanent();
 
         let mut restored_ids = Vec::new();
         let mut failed_ids = Vec::new();
