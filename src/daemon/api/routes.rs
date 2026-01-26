@@ -903,7 +903,9 @@ pub async fn restore_handler(_t: Token) -> Json<ActionResponse> {
     for id in all_process_ids {
         runner.reset_counters(id);
     }
-    runner.save();
+    // Use save_permanent() to persist counter reset to permanent dump file
+    // This ensures subsequent commands see the reset counters even if daemon restarts
+    runner.save_permanent();
 
     timer.observe_duration();
     Json(attempt(true, "restore"))
