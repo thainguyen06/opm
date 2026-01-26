@@ -71,7 +71,9 @@ extern "C" fn handle_termination_signal(_: libc::c_int) {
         }
         runner.save();
 
-        // Auto-save removed: memory cache is not committed to permanent storage during restart/reset
+        // Note: Auto-save (dump::commit_memory) removed for restart/reset operations
+        // Memory cache is not automatically merged into permanent storage during daemon shutdown
+        // This prevents unwanted persistence during daemon restart and reset commands
         log!("[daemon] shutdown complete (auto-save disabled)", "action" => "shutdown");
     });
 
@@ -766,7 +768,9 @@ pub fn reset() {
     // This ensures IDs are sequential: 0, 1, 2, etc.
     runner.compact();
     
-    // Write to permanent storage without auto-save (commit_memory removed)
+    // Write directly to permanent storage without merging memory cache
+    // dump::write() updates the permanent dump file without auto-save behavior
+    // (dump::commit_memory() removed - it merges memory cache and clears it)
     dump::write(&runner);
 
     log!("[daemon] reset and compressed IDs", "next_id" => runner.id.to_string());
