@@ -1110,6 +1110,8 @@ impl<'i> Internal<'i> {
             
             // Mark all crashed processes as stopped in the dump file
             // Keep crash.crashed = true so users can identify which processes crashed
+            // Only process crashed processes that are still marked as running=true
+            // (already-stopped crashed processes don't need modification)
             for (_id, process) in dump_runner.list.iter_mut() {
                 if process.crash.crashed && process.running {
                     process.running = false;
