@@ -69,12 +69,10 @@ extern "C" fn handle_termination_signal(_: libc::c_int) {
                 }
             }
         }
-        runner.save();
-
-        // Commit memory cache to permanent storage on shutdown
-        use opm::process::dump;
-        dump::commit_memory();
-        log!("[daemon] committed memory cache to permanent storage", "action" => "shutdown");
+        runner.save(); // Save to memory cache on shutdown
+        
+        // Note: dump::commit_memory() removed - permanent storage commits only via manual 'opm save'
+        log!("[daemon] shutdown complete", "action" => "shutdown");
     });
 
     // If save failed, log a warning (but still proceed with cleanup)
@@ -192,7 +190,6 @@ fn restart_process() {
                     );
                     runner.stop(id);
                     // Don't mark as crashed since this is intentional enforcement
-                    runner.save();
                     continue;
                 }
             }
@@ -205,7 +202,6 @@ fn restart_process() {
             if hash != item.watch.hash {
                 log!("[daemon] watch triggered reload", "name" => item.name, "id" => id);
                 runner.restart(id, false, true); // Watch reload should increment counter
-                runner.save();
                 log!("[daemon] watch reload complete", "name" => item.name, "id" => id);
                 continue;
             }
@@ -227,7 +223,6 @@ fn restart_process() {
                     let process = runner.process(id);
                     // Clear crashed flag but keep crash.value to preserve history
                     process.crash.crashed = false;
-                    runner.save();
                 }
             }
         }
@@ -281,19 +276,16 @@ fn restart_process() {
                         process.running = false;
                         log!("[daemon] process reached max crash limit", 
                              "name" => item.name, "id" => id, "crash_count" => crash_count, "max_restarts" => daemon_config.restarts);
-                        runner.save();
                     } else {
-                        // Still within crash limit - mark as crashed and save
+                        // Still within crash limit - mark as crashed
                         log!("[daemon] process crashed", 
                              "name" => item.name, "id" => id, "crash_count" => crash_count, "max_restarts" => daemon_config.restarts);
-                        runner.save();
                     }
                 } else {
                     // Process was already stopped but crashed again (e.g., after manual restart)
                     // Counter has been incremented to track crash history even after limit
                     log!("[daemon] stopped process crashed again", 
                          "name" => item.name, "id" => id, "crash_count" => crash_count);
-                    runner.save();
                 }
             } else if item.running {
                 // Process is already marked as crashed - check limit before attempting restart
@@ -304,7 +296,6 @@ fn restart_process() {
                     process.running = false;
                     log!("[daemon] process already reached max crash limit, stopping restart attempts", 
                          "name" => item.name, "id" => id, "crash_count" => item.crash.value, "max_restarts" => daemon_config.restarts);
-                    runner.save();
                 } else {
                     // Still within limit - attempt restart now
                     // Reload runner to check if process was deleted by CLI
@@ -313,7 +304,6 @@ fn restart_process() {
                         log!("[daemon] restarting crashed process", 
                              "name" => item.name, "id" => id, "crash_count" => item.crash.value, "max_restarts" => daemon_config.restarts);
                         runner.restart(id, true, true);
-                        runner.save();
                         log!("[daemon] restart complete", 
                              "name" => item.name, "id" => id, "new_pid" => runner.info(id).map(|p| p.pid).unwrap_or(0));
                     } else {
@@ -324,7 +314,6 @@ fn restart_process() {
             } else {
                 // Process was already stopped and marked as crashed
                 // Don't log anything to avoid spam - user already knows it's stopped
-                runner.save();
             }
         }
     }
@@ -768,8 +757,9 @@ pub fn reset() {
     // This ensures IDs are sequential: 0, 1, 2, etc.
     runner.compact();
     
-    // Save to permanent storage to ensure counter is persisted
-    dump::commit_memory();
+    // Write directly to permanent storage without merging memory cache
+    // dump::write() updates the permanent dump file without auto-save behavior
+    // (dump::commit_memory() removed - it merges memory cache and clears it)
     dump::write(&runner);
 
     log!("[daemon] reset and compressed IDs", "next_id" => runner.id.to_string());
