@@ -212,6 +212,21 @@ button, a, input, select {
 		scrollbar-width: thin;  /* Firefox: make scrollbar visible */
 		overflow-x: scroll !important;  /* Force scrollbar to always show */
 		scrollbar-gutter: stable;  /* Reserve space for scrollbar */
+		position: relative;
+		padding-bottom: 10px;  /* Space for custom scrollbar */
+	}
+	
+	/* Create a visible custom scrollbar track at the bottom */
+	.mobile-navbar-scroll::after {
+		content: '';
+		position: absolute;
+		bottom: 2px;
+		left: 0;
+		right: 0;
+		height: 3px;
+		@apply bg-gray-200 dark:bg-zinc-800;
+		border-radius: 2px;
+		pointer-events: none;
 	}
 	
 	/* Ensure webkit scrollbar is always visible on mobile */
@@ -224,6 +239,7 @@ button, a, input, select {
 	.mobile-navbar-scroll::-webkit-scrollbar-thumb {
 		@apply bg-gray-400 dark:bg-zinc-500 rounded;
 		visibility: visible;
+		min-width: 40px;  /* Ensure thumb has minimum width */
 	}
 	
 	.mobile-navbar-scroll::-webkit-scrollbar-track {
