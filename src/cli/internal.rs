@@ -1263,7 +1263,7 @@ impl<'i> Internal<'i> {
             // Wait a short period to allow processes to start up before checking PID
             // This prevents false crash detection for processes that take time to initialize
             // Shell scripts in particular need time for the shell to spawn the actual process
-            std::thread::sleep(std::time::Duration::from_millis(150));
+            std::thread::sleep(std::time::Duration::from_millis(500));
 
             // Check if the restart was successful
             if let Some(process) = runner.info(*id) {
@@ -1271,7 +1271,18 @@ impl<'i> Internal<'i> {
                 // Use shell_pid if available (for shell scripts), otherwise use main pid
                 // This ensures consistent behavior between restore and daemon monitoring
                 let pid_to_check = process.shell_pid.unwrap_or(process.pid);
-                let process_alive = opm::process::is_pid_alive(pid_to_check);
+                // Enhanced health-check - First validate process log output
+                let process_alive = if opm::process::is_pid_alive(pid_to_check) {
+                    // Example health-check: Check if a log entry confirms successful startup
+                    let log_path = process.logs().out;
+                    if let Ok(log_contents) = std::fs::read_to_string(&log_path) {
+                        log_contents.contains("Startup successful") // Adjust this signal as needed
+                    } else {
+                        true // Ignore log check if log not accessible
+                    }
+                } else {
+                    false
+                };
 
                 if process.running && process_alive {
                     restored_ids.push(*id);
