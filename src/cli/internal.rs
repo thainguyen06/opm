@@ -589,8 +589,12 @@ impl<'i> Internal<'i> {
                 let item = runner.process(self.id);
 
                 // Check if process actually exists before reporting as online
-                // A process marked as running but with a non-existent PID should be shown as crashed
-                let process_actually_running = item.running && is_pid_alive(item.pid);
+                // Use PID-based health check only (ignore log-based signals).
+                // A process is considered running only if PID is valid and alive.
+                let pid_valid = item.pid > 0;
+                let pid_alive = pid_valid && is_pid_alive(item.pid as i64);
+                let process_actually_running = item.running && pid_alive;
+                let crashed_due_to_pid = item.running && pid_valid && !pid_alive;
 
                 let mut memory_usage: Option<MemoryInfo> = None;
                 let mut cpu_percent: Option<f64> = None;
@@ -631,16 +635,15 @@ impl<'i> Internal<'i> {
 
                 let status = if process_actually_running {
                     "online   ".green().bold()
-                } else if item.running {
-                    // Process is marked as running but PID doesn't exist - it crashed
+                } else if crashed_due_to_pid {
+                    // PID existed before but is no longer alive -> crash
                     "crashed   ".red().bold()
                 } else {
+                    // Fall back to previously stored crash state or stopped
                     match item.crash.crashed {
-                        true => "crashed   ",
-                        false => "stopped   ",
+                        true => "crashed   ".red().bold(),
+                        false => "stopped   ".red().bold(),
                     }
-                    .red()
-                    .bold()
                 };
 
                 let memory_limit = if item.max_memory > 0 {
@@ -1249,7 +1252,7 @@ impl<'i> Internal<'i> {
             return;
         }
 
-        for (id, name, _was_running, _was_crashed) in &processes_to_restore {
+            for (id, name, _was_running, _was_crashed) in &processes_to_restore {
             // All processes in this list are running processes that need to be restarted
             // Crashed processes have already been filtered out and marked as stopped
             runner = Internal {
@@ -1271,21 +1274,20 @@ impl<'i> Internal<'i> {
                 // Use shell_pid if available (for shell scripts), otherwise use main pid
                 // This ensures consistent behavior between restore and daemon monitoring
                 let pid_to_check = process.shell_pid.unwrap_or(process.pid);
-                // Enhanced health-check - First validate process log output
-                let process_alive = if opm::process::is_pid_alive(pid_to_check) {
-                    // Example health-check: Check if a log entry confirms successful startup
-                    let log_path = process.logs().out;
-                    if let Ok(log_contents) = std::fs::read_to_string(&log_path) {
-                        log_contents.contains("Startup successful") // Adjust this signal as needed
-                    } else {
-                        true // Ignore log check if log not accessible
-                    }
+                // Use a purely PID-based health check (no log signal dependency)
+                let process_alive = if pid_to_check > 0 {
+                    opm::process::is_pid_alive(pid_to_check as i64)
                 } else {
                     false
                 };
 
+                // Small startup grace period to avoid falsely reporting as crashed
+                let recently_started = (chrono::Utc::now() - process.started) < chrono::Duration::seconds(2);
+
                 if process.running && process_alive {
                     restored_ids.push(*id);
+                } else if process.running && recently_started {
+                    // Still starting up; do not mark as crashed yet
                 } else {
                     failed_ids.push((*id, name.clone()));
                     // Mark process as crashed so daemon can pick it up for auto-restart
