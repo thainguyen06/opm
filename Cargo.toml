@@ -35,6 +35,7 @@ features = [
 ]
 
 [dependencies]
+rustls-pemfile = "1.0.0"
 rustls = "0.20.0"
 ron = "0.8.1"
 log = "0.4.22"

@@ -907,12 +907,15 @@ fn main() {
         include_bytes!("../certs/origin_ca_rsa_root.pem"),
         include_bytes!("../certs/origin_ca_ecc_root.pem"),
     ];
-    use rustls_pemfile::{certs};
+    use rustls_pemfile::certs;
+    use rustls::{Certificate, RootCertStore};
     use std::io::Cursor;
     for cert in custom_certs {
         let pem_certs = certs(&mut Cursor::new(cert)).unwrap();
         for cert in pem_certs {
-            tls_config.root_store.add(&rustls::Certificate(cert)).unwrap();
+            let mut root_store = RootCertStore::empty();
+            root_store.add(&Certificate(cert)).unwrap();
+            tls_config = tls_config.with_root_certificates(root_store);
         }
         tls_config.root_store.add_pem_file(&mut BufReader::new(cert)).unwrap();
     }
