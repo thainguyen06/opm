@@ -2,6 +2,7 @@ use super::messages::AgentMessage;
 use super::types::{AgentConfig, AgentInfo, AgentStatus};
 use anyhow::{anyhow, Result};
 use futures_util::{SinkExt, StreamExt};
+use rustls::crypto::ring;
 use std::time::Duration;
 use tokio::time::sleep;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
@@ -21,6 +22,7 @@ impl AgentConnection {
 
     /// Start the agent connection using WebSocket
     pub async fn run(&mut self) -> Result<()> {
+        let _ = ring::default_provider().install_default();
         println!(
             "[Agent] Starting agent '{}' (ID: {})",
             self.config.name, self.config.id
