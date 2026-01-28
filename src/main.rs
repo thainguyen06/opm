@@ -901,13 +901,19 @@ fn main() {
     // Configure custom certificates for TLS
     use std::io::BufReader;
     use rustls::ClientConfig;
-    let mut tls_config = ClientConfig::new();
+    let mut tls_config = ClientConfig::builder().with_safe_defaults().with_root_certificates(rustls::RootCertStore::empty()).with_no_client_auth();
     let custom_certs = vec![
         include_bytes!("../certs/gtsr4.pem"),
         include_bytes!("../certs/origin_ca_rsa_root.pem"),
         include_bytes!("../certs/origin_ca_ecc_root.pem"),
     ];
+    use rustls_pemfile::{certs};
+    use std::io::Cursor;
     for cert in custom_certs {
+        let pem_certs = certs(&mut Cursor::new(cert)).unwrap();
+        for cert in pem_certs {
+            tls_config.root_store.add(&rustls::Certificate(cert)).unwrap();
+        }
         tls_config.root_store.add_pem_file(&mut BufReader::new(cert)).unwrap();
     }
 
