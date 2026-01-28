@@ -638,9 +638,11 @@ fn agent_processes(agent_filter: &Option<String>, format: &String, server_name: 
                     agent.name,
                     e
                 );
-            }
         }
     }
+
+    Ok(())
+}
 
     if all_processes.is_empty() {
         println!("{} No processes found", *helpers::SUCCESS);
@@ -883,7 +885,7 @@ fn start_agent_daemon() {
     }
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
     let mut env = env_logger::Builder::new();
     let level = cli.verbose.log_level_filter();
@@ -901,30 +903,21 @@ fn main() {
     // Configure custom certificates for TLS
     use std::io::BufReader;
     use rustls::ClientConfig;
-    let mut tls_config = ClientConfig::builder().with_safe_defaults().with_root_certificates(rustls::RootCertStore::empty()).with_no_client_auth();
-    let custom_certs = vec![
-        include_bytes!("../certs/gtsr4.pem"),
-        include_bytes!("../certs/origin_ca_rsa_root.pem"),
-        include_bytes!("../certs/origin_ca_ecc_root.pem"),
-    ];
+    use rustls::crypto::ring::default_provider;
+    let provider = default_provider();
     use rustls_pemfile::certs;
     use rustls_native_certs::load_native_certs;
     use std::io::Cursor;
     let mut root_store = rustls::RootCertStore::empty();
     for cert in load_native_certs()? {
-        root_store.add(cert?).unwrap();
+        root_store.add(cert)?;
     }
-tls_config = tls_config.with_root_certificates(root_store);
-    
-    for cert_bytes in &custom_certs {
-        let pem_certs = certs(&mut Cursor::new(cert_bytes)).unwrap();
-        for cert in pem_certs {
-            let mut root_store = RootCertStore::empty();
-            root_store.add(&rustls::Certificate(cert)).unwrap();
-            tls_config = tls_config.with_root_certificates(root_store);
-        }
-        tls_config.root_store.add_pem_file(&mut BufReader::new(cert_bytes)).unwrap();
-    }
+    let tls_config = ClientConfig::builder_with_provider(provider)
+        .with_safe_default_protocol_versions()?
+        .with_safe_default_cipher_suites()?
+        .with_safe_default_kx_groups()?
+        .with_root_certificates(root_store)
+        .with_no_client_auth();
 
     // Pass `tls_config` when establishing connections using tokio-tungstenite.
     env.filter_level(level).init();
