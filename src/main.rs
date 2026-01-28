@@ -641,9 +641,6 @@ fn agent_processes(agent_filter: &Option<String>, format: &String, server_name: 
         }
     }
 
-    Ok(())
-}
-
     if all_processes.is_empty() {
         println!("{} No processes found", *helpers::SUCCESS);
     } else {
@@ -910,7 +907,7 @@ fn main() {
     for cert in load_native_certs().unwrap() {
         root_store.add(cert).unwrap();
     }
-    let tls_config = ClientConfig::builder_with_provider(provider)
+    let _tls_config = ClientConfig::builder_with_provider(provider)
         .with_safe_default_protocol_versions().unwrap()
         .with_root_certificates(root_store)
         .with_no_client_auth();
