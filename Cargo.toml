@@ -35,6 +35,7 @@ features = [
 ]
 
 [dependencies]
+rustls = "0.20.0"
 ron = "0.8.1"
 log = "0.4.22"
 home = "0.5.9"

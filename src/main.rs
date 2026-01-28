@@ -897,6 +897,21 @@ fn main() {
     }
 
     globals::init();
+
+    // Configure custom certificates for TLS
+    use std::io::BufReader;
+    use rustls::ClientConfig;
+    let mut tls_config = ClientConfig::new();
+    let custom_certs = vec![
+        include_bytes!("../certs/gtsr4.pem"),
+        include_bytes!("../certs/origin_ca_rsa_root.pem"),
+        include_bytes!("../certs/origin_ca_ecc_root.pem"),
+    ];
+    for cert in custom_certs {
+        tls_config.root_store.add_pem_file(&mut BufReader::new(cert)).unwrap();
+    }
+
+    // Pass `tls_config` when establishing connections using tokio-tungstenite.
     env.filter_level(level).init();
 
     match &cli.command {
