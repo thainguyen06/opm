@@ -207,8 +207,8 @@ impl AgentConnection {
         // Start heartbeat and process update loop
         let mut heartbeat_interval =
             tokio::time::interval(Duration::from_secs(self.config.heartbeat_interval));
-        // Send process updates every 10 seconds (configurable)
-        let mut process_update_interval = tokio::time::interval(Duration::from_secs(10));
+        // Send process updates every 1 second (configurable)
+        let mut process_update_interval = tokio::time::interval(Duration::from_secs(1));
 
         loop {
             tokio::select! {

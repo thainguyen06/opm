@@ -3,6 +3,7 @@ use crate::process::ProcessItem;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc;
+use tokio::sync::oneshot;
 
 /// Registry for managing connected agents on the server side
 #[derive(Clone)]
@@ -11,6 +12,8 @@ pub struct AgentRegistry {
     agent_processes: Arc<RwLock<HashMap<String, Vec<ProcessItem>>>>,
     /// Channel senders for communicating with agent WebSocket connections
     agent_senders: Arc<RwLock<HashMap<String, mpsc::UnboundedSender<String>>>>,
+    /// Pending action responses keyed by request_id
+    pending_actions: Arc<RwLock<HashMap<String, oneshot::Sender<super::messages::ActionResponse>>>>,
 }
 
 impl AgentRegistry {
@@ -19,6 +22,7 @@ impl AgentRegistry {
             agents: Arc::new(RwLock::new(HashMap::new())),
             agent_processes: Arc::new(RwLock::new(HashMap::new())),
             agent_senders: Arc::new(RwLock::new(HashMap::new())),
+            pending_actions: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -105,6 +109,46 @@ impl AgentRegistry {
                 .map_err(|e| format!("Failed to send message: {}", e))
         } else {
             Err(format!("Agent {} not connected via WebSocket", agent_id))
+        }
+    }
+
+    /// Send an action request to an agent and return a receiver for the response
+    pub fn send_action_request(
+        &self,
+        agent_id: &str,
+        request_id: String,
+        process_id: usize,
+        method: String,
+    ) -> Result<oneshot::Receiver<super::messages::ActionResponse>, String> {
+        let action_request = super::messages::AgentMessage::ActionRequest {
+            request_id: request_id.clone(),
+            process_id,
+            method,
+        };
+
+        let action_json = serde_json::to_string(&action_request)
+            .map_err(|e| format!("Failed to serialize action request: {}", e))?;
+
+        // Create a channel for the response
+        let (tx, rx) = oneshot::channel();
+
+        // Store the sender in pending actions
+        {
+            let mut pending = self.pending_actions.write().unwrap();
+            pending.insert(request_id, tx);
+        }
+
+        // Send the request to the agent
+        self.send_to_agent(agent_id, action_json)?;
+
+        Ok(rx)
+    }
+
+    /// Handle an action response from an agent
+    pub fn handle_action_response(&self, response: super::messages::ActionResponse) {
+        let mut pending = self.pending_actions.write().unwrap();
+        if let Some(sender) = pending.remove(&response.request_id) {
+            let _ = sender.send(response);
         }
     }
 }

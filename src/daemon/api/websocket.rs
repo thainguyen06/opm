@@ -129,8 +129,14 @@ pub fn websocket_handler(ws: WebSocket, registry: &State<AgentRegistry>) -> Stre
                                 AgentMessage::ActionResponse { request_id, success, message } => {
                                     log::info!("[WebSocket] Action response: request_id={}, success={}, message={}",
                                         request_id, success, message);
-                                    // Action responses are logged
-                                    // In a full implementation, this would resolve a pending Future
+
+                                    // Handle the action response
+                                    let response = super::messages::ActionResponse {
+                                        request_id: request_id.clone(),
+                                        success,
+                                        message: message.clone(),
+                                    };
+                                    registry.handle_action_response(response);
                                 }
                                 AgentMessage::Pong => {
                                     log::debug!("[WebSocket] Pong received from agent");
