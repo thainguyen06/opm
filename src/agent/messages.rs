@@ -1,5 +1,13 @@
 use serde::{Deserialize, Serialize};
 
+/// Response to an action request
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ActionResponse {
+    pub request_id: String,
+    pub success: bool,
+    pub message: String,
+}
+
 /// Message protocol for agent-server WebSocket communication
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]

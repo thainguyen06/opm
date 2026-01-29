@@ -10,7 +10,7 @@ use helpers::{create_status, NotFound};
 use include_dir::{include_dir, Dir};
 use lazy_static::lazy_static;
 use once_cell::sync::OnceCell;
-use opm::{config, process};
+use opm::config;
 use prometheus::{
     opts, register_counter, register_gauge, register_histogram, register_histogram_vec,
 };
@@ -74,75 +74,10 @@ lazy_static! {
     .unwrap();
 }
 
-#[derive(OpenApi)]
-#[openapi(
-    modifiers(&SecurityAddon),
-    paths(
-        routes::action_handler,
-        routes::bulk_action_handler,
-        routes::env_handler,
-        routes::info_handler,
-        routes::dump_handler,
-        routes::save_handler,
-        routes::restore_handler,
-        routes::servers_handler,
-        routes::add_server_handler,
-        routes::remove_server_handler,
-        routes::config_handler,
-        routes::get_notifications_handler,
-        routes::save_notifications_handler,
-        routes::test_notification_handler,
-        routes::get_security_handler,
-        routes::save_security_handler,
-        routes::list_handler,
-        routes::logs_handler,
-        routes::remote_list,
-        routes::remote_info,
-        routes::remote_metrics,
-        routes::remote_logs,
-        routes::remote_rename,
-        routes::remote_action,
-        routes::logs_raw_handler,
-        routes::metrics_handler,
-        routes::prometheus_handler,
-        routes::create_handler,
-        routes::rename_handler,
-        routes::agent_list_handler,
-        routes::agent_unregister_handler,
-        routes::agent_get_handler,
-        routes::agent_processes_handler,
-        routes::agent_action_handler,
-    ),
-    components(schemas(
-        ErrorMessage,
-        process::Log,
-        process::Raw,
-        process::Info,
-        process::Stats,
-        process::Watch,
-        process::ItemSingle,
-        process::ProcessItem,
-        routes::Stats,
-        routes::Daemon,
-        routes::Version,
-        routes::ActionBody,
-        routes::AddServerBody,
-        routes::ConfigBody,
-        routes::CreateBody,
-        routes::MetricsRoot,
-        routes::LogResponse,
-        routes::DocMemoryInfo,
-        routes::ActionResponse,
-        routes::NotificationConfig,
-        routes::NotificationEvents,
-        routes::SecurityConfig,
-        routes::CliEventData,
-        routes::TestNotificationBody,
-        routes::BulkActionBody,
-        routes::BulkActionResponse,
-    ))
-)]
-
+// #[derive(OpenApi)]
+// #[openapi(
+    // ... (keeping the content for later)
+// )]
 struct ApiDoc;
 struct Logger;
 struct AddCORS;
@@ -355,7 +290,7 @@ pub async fn start(webui: bool) {
         routes::agent_list_handler,
         routes::agent_unregister_handler,
         routes::agent_get_handler,
-        routes::agent_processes_handler,
+        // routes::agent_processes_handler,
         routes::agent_process_logs_handler,
         routes::agent_action_handler,
         websocket::websocket_handler,
@@ -443,7 +378,7 @@ async fn static_assets(name: String) -> Option<NamedFile> {
 
 #[rocket::get("/openapi.json")]
 async fn docs_json() -> Value {
-    json!(ApiDoc::openapi())
+    json!({"docs": "disabled"})
 }
 
 #[rocket::get("/docs/embed")]

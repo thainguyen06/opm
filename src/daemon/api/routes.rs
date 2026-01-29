@@ -2577,24 +2577,31 @@ pub async fn agent_process_logs_handler(
     if agent_id == "local" {
         let runner = Runner::new();
         if runner.exists(process_id) {
-            let item = runner.get(process_id);
-            let log_file = match kind.as_str() {
-                "out" | "stdout" => item.logs().out,
-                "error" | "stderr" => item.logs().error,
-                _ => item.logs().out,
-            };
+            if let Some(process) = runner.info(process_id) {
+                let log_file = match kind.as_str() {
+                    "out" | "stdout" => process.logs().out,
+                    "error" | "stderr" => process.logs().error,
+                    _ => process.logs().out,
+                };
 
-            match File::open(log_file) {
-                Ok(data) => {
-                    let reader = BufReader::new(data);
-                    let logs: Vec<String> = reader.lines().collect::<io::Result<_>>().unwrap();
-                    timer.observe_duration();
-                    return Ok(Json(LogResponse { logs }));
+                match File::open(log_file) {
+                    Ok(data) => {
+                        let reader = BufReader::new(data);
+                        let logs: Vec<String> = reader.lines().collect::<io::Result<_>>().unwrap();
+                        timer.observe_duration();
+                        return Ok(Json(LogResponse { logs }));
+                    }
+                    Err(_) => {
+                        timer.observe_duration();
+                        return Ok(Json(LogResponse { logs: vec![] }));
+                    }
                 }
-                Err(_) => {
-                    timer.observe_duration();
-                    return Ok(Json(LogResponse { logs: vec![] }));
-                }
+            } else {
+                timer.observe_duration();
+                return Err(generic_error(
+                    Status::NotFound,
+                    string!("Process not found"),
+                ));
             }
         } else {
             timer.observe_duration();
@@ -2629,11 +2636,11 @@ pub async fn agent_process_logs_handler(
     // Make HTTP request to agent API
     let client = reqwest::Client::new();
     let url = format!("{}/process/{}/logs/{}", api_endpoint, process_id, kind);
-    let headers = client::("".to_string()).await.1; // Empty token for agent API
+    let headers = reqwest::header::HeaderMap::new();
 
-    match client.get(&url).headers(headers).send().await {
-        Ok(response) => {
-            if response.status() == Status::Ok {
+        match client.get(&url).headers(headers).send().await {
+            Ok(response) => {
+                if response.status().is_success() {
                 match response.json::<LogResponse>().await {
                     Ok(log_response) => {
                         timer.observe_duration();
@@ -2780,7 +2787,7 @@ pub async fn agent_action_handler(
         let request_id = uuid::Uuid::new_v4().to_string();
         let method = body.method.as_str();
 
-        match registry.send_action_request(agent_id.clone(), request_id, process_id, method.to_string()) {
+        match registry.send_action_request(&agent_id, request_id, process_id, method.to_string()) {
             Ok(rx) => {
                 // Wait for response with timeout
                 match tokio::time::timeout(std::time::Duration::from_secs(30), rx).await {

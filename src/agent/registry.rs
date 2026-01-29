@@ -1,5 +1,6 @@
 use super::types::AgentInfo;
 use crate::process::ProcessItem;
+use crate::agent::messages::ActionResponse;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc;
@@ -13,7 +14,7 @@ pub struct AgentRegistry {
     /// Channel senders for communicating with agent WebSocket connections
     agent_senders: Arc<RwLock<HashMap<String, mpsc::UnboundedSender<String>>>>,
     /// Pending action responses keyed by request_id
-    pending_actions: Arc<RwLock<HashMap<String, oneshot::Sender<super::messages::ActionResponse>>>>,
+    pending_actions: Arc<RwLock<HashMap<String, oneshot::Sender<ActionResponse>>>>,
 }
 
 impl AgentRegistry {
@@ -119,7 +120,7 @@ impl AgentRegistry {
         request_id: String,
         process_id: usize,
         method: String,
-    ) -> Result<oneshot::Receiver<super::messages::ActionResponse>, String> {
+    ) -> Result<oneshot::Receiver<ActionResponse>, String> {
         let action_request = super::messages::AgentMessage::ActionRequest {
             request_id: request_id.clone(),
             process_id,
@@ -145,7 +146,7 @@ impl AgentRegistry {
     }
 
     /// Handle an action response from an agent
-    pub fn handle_action_response(&self, response: super::messages::ActionResponse) {
+    pub fn handle_action_response(&self, response: ActionResponse) {
         let mut pending = self.pending_actions.write().unwrap();
         if let Some(sender) = pending.remove(&response.request_id) {
             let _ = sender.send(response);

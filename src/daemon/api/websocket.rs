@@ -1,4 +1,4 @@
-use opm::agent::messages::AgentMessage;
+use opm::agent::messages::{AgentMessage, ActionResponse};
 use opm::agent::registry::AgentRegistry;
 use opm::agent::types::{AgentInfo, AgentStatus, ConnectionType};
 use opm::process::ProcessItem;
@@ -131,7 +131,7 @@ pub fn websocket_handler(ws: WebSocket, registry: &State<AgentRegistry>) -> Stre
                                         request_id, success, message);
 
                                     // Handle the action response
-                                    let response = super::messages::ActionResponse {
+                                    let response = ActionResponse {
                                         request_id: request_id.clone(),
                                         success,
                                         message: message.clone(),
