@@ -105,27 +105,29 @@ pub fn websocket_handler(ws: WebSocket, registry: &State<AgentRegistry>) -> Stre
                                         log::warn!("[WebSocket] Failed to update system info for agent {}", id);
                                     }
                                 }
-                                AgentMessage::ProcessUpdate { id, processes } => {
-                                    log::debug!("[WebSocket] Process update from agent {}", id);
+                                 AgentMessage::ProcessUpdate { id, processes } => {
+                                     log::debug!("[WebSocket] Process update from agent {}", id);
 
-                                    // Parse processes from JSON values
-                                    let parsed_processes: Vec<ProcessItem> = processes
-                                        .into_iter()
-                                        .filter_map(|p| serde_json::from_value(p).ok())
-                                        .collect();
+                                     // Parse processes from JSON values
+                                     let parsed_processes: Vec<ProcessItem> = processes
+                                         .into_iter()
+                                         .filter_map(|p| serde_json::from_value(p).ok())
+                                         .collect();
 
-                                    registry.update_processes(&id, parsed_processes);
+                                     registry.update_processes(&id, parsed_processes);
 
-                                    // Send acknowledgment
-                                    let response = AgentMessage::Response {
-                                        success: true,
-                                        message: "Process update received".to_string(),
-                                    };
+                                     // Send acknowledgment
+                                     let response = AgentMessage::Response {
+                                         success: true,
+                                         message: "Process update received".to_string(),
+                                     };
 
-                                    if let Ok(response_json) = serde_json::to_string(&response) {
-                                        yield Message::Text(response_json);
-                                    }
-                                }
+                                     if let Ok(response_json) = serde_json::to_string(&response) {
+                                         yield Message::Text(response_json);
+                                     }
+                                     
+                                     log::info!("[WebSocket] Process update applied for agent {}", id);
+                                 }
                                 AgentMessage::ActionResponse { request_id, success, message } => {
                                     log::info!("[WebSocket] Action response: request_id={}, success={}, message={}",
                                         request_id, success, message);

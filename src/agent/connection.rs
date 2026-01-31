@@ -298,103 +298,104 @@ impl AgentConnection {
                                             let _ = ws_sender.send(Message::Text(pong_json)).await;
                                         }
                                     }
-                                    AgentMessage::ActionRequest { request_id, process_id, method } => {
-                                        log::info!("[Agent] Received action request: {} for process {}", method, process_id);
+                                     AgentMessage::ActionRequest { request_id, process_id, method } => {
+                                         log::info!("[Agent] Received action request: {} for process {}", method, process_id);
 
-                                        // Execute the action locally
-                                        use crate::process::Runner;
-                                        let mut runner = Runner::new();
+                                         // Execute the action locally
+                                         use crate::process::Runner;
+                                         let mut runner = Runner::new();
 
-                                        let (success, message) = if runner.exists(process_id) {
-                                            match method.as_str() {
-                                                "start" => {
-                                                    let mut item = runner.get(process_id);
-                                                    item.restart(false);
-                                                    item.get_runner().save();
-                                                    (true, format!("Process {} started", process_id))
-                                                }
-                                                "restart" => {
-                                                    let mut item = runner.get(process_id);
-                                                    item.restart(true);
-                                                    item.get_runner().save();
-                                                    (true, format!("Process {} restarted", process_id))
-                                                }
-                                                "reload" => {
-                                                    let mut item = runner.get(process_id);
-                                                    item.reload(true);
-                                                    item.get_runner().save();
-                                                    (true, format!("Process {} reloaded", process_id))
-                                                }
-                                                "stop" | "kill" => {
-                                                    let mut item = runner.get(process_id);
-                                                    item.stop();
-                                                    item.get_runner().save();
-                                                    (true, format!("Process {} stopped", process_id))
-                                                }
-                                                "reset_env" | "clear_env" => {
-                                                    let mut item = runner.get(process_id);
-                                                    item.clear_env();
-                                                    item.get_runner().save();
-                                                    (true, format!("Process {} environment cleared", process_id))
-                                                }
-                                                "remove" | "delete" => {
-                                                    runner.remove(process_id);
-                                                    (true, format!("Process {} removed", process_id))
-                                                }
-                                                "flush" | "clean" => {
-                                                    runner.flush(process_id);
-                                                    (true, format!("Process {} logs flushed", process_id))
-                                                }
-                                                _ => {
-                                                    (false, format!("Unknown action: {}", method))
-                                                }
-                                            }
-                                        } else {
-                                            (false, format!("Process {} not found", process_id))
-                                        };
+                                         let (success, message) = if runner.exists(process_id) {
+                                             match method.as_str() {
+                                                 "start" => {
+                                                     let mut item = runner.get(process_id);
+                                                     item.restart(false);
+                                                     item.get_runner().save();
+                                                     (true, format!("Process {} started", process_id))
+                                                 }
+                                                 "restart" => {
+                                                     let mut item = runner.get(process_id);
+                                                     item.restart(true);
+                                                     item.get_runner().save();
+                                                     (true, format!("Process {} restarted", process_id))
+                                                 }
+                                                 "reload" => {
+                                                     let mut item = runner.get(process_id);
+                                                     item.reload(true);
+                                                     item.get_runner().save();
+                                                     (true, format!("Process {} reloaded", process_id))
+                                                 }
+                                                 "stop" | "kill" => {
+                                                     let mut item = runner.get(process_id);
+                                                     item.stop();
+                                                     item.get_runner().save();
+                                                     (true, format!("Process {} stopped", process_id))
+                                                 }
+                                                 "reset_env" | "clear_env" => {
+                                                     let mut item = runner.get(process_id);
+                                                     item.clear_env();
+                                                     item.get_runner().save();
+                                                     (true, format!("Process {} environment cleared", process_id))
+                                                 }
+                                                 "remove" | "delete" => {
+                                                     runner.remove(process_id);
+                                                     (true, format!("Process {} removed", process_id))
+                                                 }
+                                                 "flush" | "clean" => {
+                                                     runner.flush(process_id);
+                                                     (true, format!("Process {} logs flushed", process_id))
+                                                 }
+                                                 _ => {
+                                                     (false, format!("Unknown action: {}", method))
+                                                 }
+                                             }
+                                         } else {
+                                             (false, format!("Process {} not found", process_id))
+                                         };
 
-                                        // Send response back to server
-                                        let response_msg = AgentMessage::ActionResponse {
-                                            request_id,
-                                            success,
-                                            message,
-                                        };
+                                         // Send response back to server
+                                         let response_msg = AgentMessage::ActionResponse {
+                                             request_id,
+                                             success,
+                                             message,
+                                         };
 
-                                        if let Ok(response_json) = serde_json::to_string(&response_msg) {
-                                            if let Err(e) = ws_sender.send(Message::Text(response_json)).await {
-                                                log::error!("[Agent] Failed to send action response: {}", e);
-                                            }
-                                        }
+                                         if let Ok(response_json) = serde_json::to_string(&response_msg) {
+                                             if let Err(e) = ws_sender.send(Message::Text(response_json)).await {
+                                                 log::error!("[Agent] Failed to send action response: {}", e);
+                                             }
+                                         }
 
-                                        // Immediately send process update after action to ensure UI reflects changes quickly
-                                        // Only send immediate updates for actions that modify process state
-                                        if success && matches!(method.as_str(), "start" | "restart" | "reload" | "stop" | "kill" | "remove" | "delete") {
-                                            let runner = Runner::new();
-                                            let processes = runner.fetch();
+                                         // Immediately send process update after action to ensure UI reflects changes quickly
+                                         // Only send immediate updates for actions that modify process state
+                                         if success && matches!(method.as_str(), "start" | "restart" | "reload" | "stop" | "kill" | "remove" | "delete") {
+                                             // Fetch current process list after action has been processed
+                                             let updated_runner = Runner::new();
+                                             let processes = updated_runner.fetch();
 
-                                            let process_values: Vec<serde_json::Value> = processes
-                                                .into_iter()
-                                                .filter_map(|p| {
-                                                    serde_json::to_value(p).map_err(|e| {
-                                                        log::warn!("[Agent] Failed to serialize process: {}", e);
-                                                        e
-                                                    }).ok()
-                                                })
-                                                .collect();
+                                             let process_values: Vec<serde_json::Value> = processes
+                                                 .into_iter()
+                                                 .filter_map(|p| {
+                                                     serde_json::to_value(p).map_err(|e| {
+                                                         log::warn!("[Agent] Failed to serialize process: {}", e);
+                                                         e
+                                                     }).ok()
+                                                 })
+                                                 .collect();
 
-                                            let process_update_msg = AgentMessage::ProcessUpdate {
-                                                id: self.config.id.clone(),
-                                                processes: process_values,
-                                            };
+                                             let process_update_msg = AgentMessage::ProcessUpdate {
+                                                 id: self.config.id.clone(),
+                                                 processes: process_values,
+                                             };
 
-                                            if let Ok(update_json) = serde_json::to_string(&process_update_msg) {
-                                                if let Err(e) = ws_sender.send(Message::Text(update_json)).await {
-                                                    log::error!("[Agent] Failed to send immediate process update: {}", e);
-                                                } else {
-                                                    log::debug!("[Agent] Immediate process update sent after action");
-                                                }
-                                            }
-                                        }
+                                             if let Ok(update_json) = serde_json::to_string(&process_update_msg) {
+                                                 if let Err(e) = ws_sender.send(Message::Text(update_json)).await {
+                                                     log::error!("[Agent] Failed to send immediate process update: {}", e);
+                                                 } else {
+                                                     log::info!("[Agent] Immediate process update sent to server after action");
+                                                 }
+                                             }
+                                         }
                                     }
                                     _ => {}
                                 }

@@ -82,10 +82,11 @@ impl AgentRegistry {
         }
     }
 
-    pub fn update_processes(&self, id: &str, processes: Vec<ProcessItem>) {
-        let mut agent_processes = self.agent_processes.write().unwrap();
-        agent_processes.insert(id.to_string(), processes);
-    }
+     pub fn update_processes(&self, id: &str, processes: Vec<ProcessItem>) {
+         let mut agent_processes = self.agent_processes.write().unwrap();
+         agent_processes.insert(id.to_string(), processes);
+         log::debug!("[Registry] Process list updated for agent {}", id);
+     }
 
     pub fn get_processes(&self, id: &str) -> Option<Vec<ProcessItem>> {
         let agent_processes = self.agent_processes.read().unwrap();
