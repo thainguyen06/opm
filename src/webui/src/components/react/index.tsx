@@ -77,7 +77,7 @@ const Index = (props: { base: string }) => {
 
 	// Component for displaying process details
 	const ProcessDetails = ({ item, isClickable = true }: { item: ProcessItem; isClickable?: boolean }) => {
-		const detailsContent = (
+		return (
 			<dl className="-my-3 divide-y divide-zinc-800/30 px-6 py-4 text-sm leading-6">
 				<div className={`flex justify-between gap-x-2 py-2 ${isClickable ? 'transition-colors hover:text-gray-600 dark:text-zinc-300' : ''}`}>
 					<dt className="text-zinc-600 font-medium">cpu usage</dt>
@@ -100,17 +100,6 @@ const Index = (props: { base: string }) => {
 					<dd className="text-gray-500 dark:text-zinc-400 font-mono">{item.restarts == 0 ? 'none' : item.restarts}</dd>
 				</div>
 			</dl>
-		);
-
-		return (
-			<>
-				{detailsContent}
-				{!isClickable && (
-					<div className="text-center text-xs text-gray-900 dark:text-gray-400 dark:text-zinc-500 pb-2">
-						Agent-managed process (view not available)
-					</div>
-				)}
-			</>
 		);
 	};
 
@@ -283,6 +272,16 @@ const Index = (props: { base: string }) => {
 
 	useEffect(() => {
 		fetch();
+	}, []);
+
+	// Auto-refresh every 5 seconds
+	// Note: Empty dependency array is correct - fetch doesn't depend on state/props that change
+	useEffect(() => {
+		const intervalId = setInterval(() => {
+			fetch();
+		}, 5000); // 5 seconds
+
+		return () => clearInterval(intervalId);
 	}, []);
 
 	if (loading) {
@@ -605,21 +604,15 @@ const Index = (props: { base: string }) => {
 										</Transition>
 								</Menu>
 							</div>
-							{item.agent_api_endpoint ? (
-								<div className="block transition-colors duration-200 bg-white dark:bg-zinc-900/10 cursor-not-allowed opacity-50">
-									<ProcessDetails item={item} isClickable={false} />
-								</div>
-							) : (
-								<a href={
-									item.agent_id 
-										? `./view/${item.id}?agent_id=${item.agent_id}&agent_name=${encodeURIComponent(item.agent_name || item.agent_id)}`
-										: isRemote(item) 
-											? `./view/${item.id}?server=${item.server}` 
-											: `./view/${item.id}`
-								} className="block transition-colors duration-200 hover:bg-white dark:bg-zinc-900/20">
-									<ProcessDetails item={item} isClickable={true} />
-								</a>
-							)}
+							<a href={
+								item.agent_id 
+									? `./view/${item.id}?agent_id=${item.agent_id}&agent_name=${encodeURIComponent(item.agent_name || item.agent_id)}`
+									: isRemote(item) 
+										? `./view/${item.id}?server=${item.server}` 
+										: `./view/${item.id}`
+							} className="block transition-colors duration-200 hover:bg-white dark:bg-zinc-900/20">
+								<ProcessDetails item={item} isClickable={true} />
+							</a>
 						</li>
 					))}
 				</ul>

@@ -93,23 +93,33 @@ const { active } = Astro.props;
       if (isOverflowing && window.innerWidth <= 640) { // Mobile breakpoint
         // Ensure scrollbar is visible by forcing overflow state
         scrollContainer.style.overflowX = 'scroll';
-        // Use double requestAnimationFrame to ensure browser renders the intermediate state
+        // Use triple requestAnimationFrame to ensure browser properly renders the scrollbar
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
-            scrollContainer.style.overflowX = 'auto';
+            requestAnimationFrame(() => {
+              scrollContainer.style.overflowX = 'auto';
+            });
           });
         });
       }
     }
   }
 
-  // Initialize on DOM load
+  // Initialize immediately on script load (for first page load)
+  initNavbarScroll();
+
+  // Initialize on DOM load as backup
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initNavbarScroll);
-  } else {
-    initNavbarScroll();
   }
 
   // Re-initialize after Astro view transitions
   document.addEventListener('astro:page-load', initNavbarScroll);
+
+  // Re-initialize on window resize to handle orientation changes
+  let resizeTimeout: ReturnType<typeof setTimeout>;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(initNavbarScroll, 100);
+  });
 </script>
