@@ -32,7 +32,7 @@ const LogRow = ({ match, children }: any) => {
 	);
 };
 
-const LogViewer = (props: { liveReload; setLiveReload; server: string | null; base: string; id: number }) => {
+const LogViewer = (props: { liveReload; setLiveReload; server: string | null; base: string; id: number; agentId?: string | null }) => {
 	const logTypes = [
 		{ id: 1, name: 'stdout' },
 		{ id: 2, name: 'stderr' }
@@ -99,8 +99,9 @@ const LogViewer = (props: { liveReload; setLiveReload; server: string | null; ba
 	}, [searchOpen]);
 
 	const fetchLogs = () => {
-		const url =
-			props.server != 'local'
+		const url = props.agentId
+			? `${props.base}/daemon/agents/${props.agentId}/process/${props.id}/logs/${logType.name}`
+			: props.server != 'local'
 				? `${props.base}/remote/${props.server}/logs/${props.id}/${logType.name}`
 				: `${props.base}/process/${props.id}/logs/${logType.name}`;
 
@@ -250,12 +251,19 @@ const View = (props: { id: string; base: string }) => {
 	};
 
 	const server = new URLSearchParams(window.location.search).get('server') ?? 'local';
+	const agentId = new URLSearchParams(window.location.search).get('agent_id');
+	const agentName = new URLSearchParams(window.location.search).get('agent_name');
 
 	const openConnection = () => {
 		let retryTimeout;
 		let hasRun = false;
 
-		const source = new SSE(`${props.base}/live/process/${server}/${props.id}`, { headers });
+		// Use agent endpoint if agent_id is present, otherwise use server endpoint
+		const endpoint = agentId 
+			? `${props.base}/live/agent/${agentId}`
+			: `${props.base}/live/process/${server}/${props.id}`;
+		
+		const source = new SSE(endpoint, { headers });
 
 		setLive(source);
 		setDisabled(true);
@@ -356,16 +364,18 @@ const View = (props: { id: string; base: string }) => {
 						<div className="flex items-center gap-2">
 							<span className="text-xs text-gray-900 dark:text-gray-400 dark:text-zinc-500">{liveReload ? 'Live' : 'Paused'}</span>
 							<span className={`inline-flex items-center gap-x-1.5 rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${
-								server === 'local' 
-									? 'bg-blue-500/10 text-blue-400 ring-blue-500/20' 
-									: 'bg-green-500/10 text-green-400 ring-green-500/20'
+								agentId
+									? 'bg-purple-500/10 text-purple-400 ring-purple-500/20'
+									: server === 'local' 
+										? 'bg-blue-500/10 text-blue-400 ring-blue-500/20' 
+										: 'bg-green-500/10 text-green-400 ring-green-500/20'
 							}`}>
 								<svg viewBox="0 0 6 6" aria-hidden="true" className={`h-1.5 w-1.5 ${
-									server === 'local' ? 'fill-blue-400' : 'fill-green-400'
+									agentId ? 'fill-purple-400' : server === 'local' ? 'fill-blue-400' : 'fill-green-400'
 								}`}>
 									<circle r={3} cx={3} cy={3} />
 								</svg>
-								{server}
+								{agentId ? (agentName || agentId) : server}
 							</span>
 						</div>
 						<span>
@@ -506,7 +516,7 @@ const View = (props: { id: string; base: string }) => {
 					))}
 				</div>
 
-				<LogViewer server={server} id={parseInt(props.id)} base={props.base} liveReload={liveReload} setLiveReload={setLiveReload} />
+				<LogViewer server={server} id={parseInt(props.id)} base={props.base} liveReload={liveReload} setLiveReload={setLiveReload} agentId={agentId} />
 			</Fragment>
 		);
 	}

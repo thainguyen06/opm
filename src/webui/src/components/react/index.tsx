@@ -10,6 +10,10 @@ import ToastContainer from '@/components/react/toast';
 import { useToast } from '@/components/react/useToast';
 import { ACTION_MESSAGES } from '@/constants';
 
+// Delay in milliseconds to wait for agent ProcessUpdate messages to arrive at server
+// before refreshing the UI. This ensures the UI shows the updated process state.
+const AGENT_PROCESS_UPDATE_DELAY_MS = 200;
+
 type ProcessItem = {
 	id: number;
 	name: string;
@@ -139,6 +143,11 @@ const Index = (props: { base: string }) => {
 		
 		try {
 			await api.post(endpoint, { json: { method: name } });
+			// For agent processes, add a small delay to allow the agent to send the ProcessUpdate
+			// before we refresh the UI. This ensures the UI shows the updated state.
+			if (item.agent_id) {
+				await new Promise(resolve => setTimeout(resolve, AGENT_PROCESS_UPDATE_DELAY_MS));
+			}
 			await fetch();
 			success(ACTION_MESSAGES[name] || `${name} action completed successfully`);
 		} catch (err) {
@@ -187,6 +196,9 @@ const Index = (props: { base: string }) => {
 				return acc;
 			}, {} as Record<string, number[]>);
 
+			// Check if any agent processes are involved
+			const hasAgentProcesses = selectedItems.some(item => item.agent_id);
+
 			// Execute actions for each server group
 			const promises = Object.entries(groupedByServer).map(([server, ids]) => {
 				if (server === 'local') {
@@ -207,6 +219,10 @@ const Index = (props: { base: string }) => {
 			});
 
 			await Promise.all(promises);
+			// For agent processes, add a delay to allow ProcessUpdate messages to arrive
+			if (hasAgentProcesses) {
+				await new Promise(resolve => setTimeout(resolve, AGENT_PROCESS_UPDATE_DELAY_MS));
+			}
 			await fetch();
 			success(`${method} action completed on ${selectedIds.size} processes`);
 		} catch (err) {
@@ -594,7 +610,13 @@ const Index = (props: { base: string }) => {
 									<ProcessDetails item={item} isClickable={false} />
 								</div>
 							) : (
-								<a href={isRemote(item) ? `./view/${item.id}?server=${item.server}` : `./view/${item.id}`} className="block transition-colors duration-200 hover:bg-white dark:bg-zinc-900/20">
+								<a href={
+									item.agent_id 
+										? `./view/${item.id}?agent_id=${item.agent_id}&agent_name=${encodeURIComponent(item.agent_name || item.agent_id)}`
+										: isRemote(item) 
+											? `./view/${item.id}?server=${item.server}` 
+											: `./view/${item.id}`
+								} className="block transition-colors duration-200 hover:bg-white dark:bg-zinc-900/20">
 									<ProcessDetails item={item} isClickable={true} />
 								</a>
 							)}
