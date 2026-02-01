@@ -85,29 +85,30 @@ const { active } = Astro.props;
     const scrollContainer = document.getElementById('navbar-scroll-container');
     if (!scrollContainer) return;
     
-    // Reset scroll position
+    // Reset scroll position to start
     scrollContainer.scrollLeft = 0;
     
-    // On mobile, force scrollbar to be visible if content overflows
-    const isOverflowing = scrollContainer.scrollWidth > scrollContainer.clientWidth;
-    if (isOverflowing && window.innerWidth <= 640) {
-      // Force scroll mode to ensure scrollbar appears
-      scrollContainer.style.overflowX = 'scroll';
-      
-      // Use single requestAnimationFrame for simplicity and reliability
-      requestAnimationFrame(() => {
-        scrollContainer.style.overflowX = 'auto';
-      });
+    // Force browser to recognize overflow state immediately
+    // This ensures the scrollbar appears on first render
+    if (window.innerWidth <= 640) {
+      const isOverflowing = scrollContainer.scrollWidth > scrollContainer.clientWidth;
+      if (isOverflowing) {
+        // Deliberately trigger a reflow to force browser to render scrollbar immediately
+        // Reading offsetHeight causes a synchronous layout calculation
+        void scrollContainer.offsetHeight;
+      }
     }
   }
 
-  // Initialize on various events to ensure it works on first load and after navigation
+  // Initialize immediately on script load
   initNavbarScroll();
   
+  // Also initialize on DOMContentLoaded if document is still loading
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initNavbarScroll);
   }
   
+  // Handle Astro page transitions
   document.addEventListener('astro:page-load', initNavbarScroll);
   
   // Handle window resize with debouncing
