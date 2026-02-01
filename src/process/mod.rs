@@ -1320,7 +1320,14 @@ impl Runner {
         let status = if process_actually_running {
             string!("online")
         } else if item.running {
-            string!("crashed")
+            // Process is marked as running but PID is not alive
+            // Special case: If PID is 0, this is a restored/new process waiting to be started
+            // Show as "online" instead of "crashed" since daemon hasn't started it yet
+            if item.pid == 0 {
+                string!("online")
+            } else {
+                string!("crashed")
+            }
         } else {
             match item.crash.crashed {
                 true => string!("crashed"),
@@ -2828,6 +2835,52 @@ mod tests {
         assert_eq!(
             process.crash.value, 0,
             "Restore should not increment crash counter - daemon will do it"
+        );
+    }
+
+    #[test]
+    fn test_restored_process_shows_as_online_not_crashed() {
+        // Test that restored processes (PID=0, running=true) show as "online" not "crashed"
+        // This prevents false "crashed" status after system restore/reboot
+        let mut runner = setup_test_runner();
+        let id = runner.id.next();
+
+        let process = Process {
+            id,
+            pid: 0, // Restored process has PID=0 before daemon starts it
+            shell_pid: None,
+            env: BTreeMap::new(),
+            name: "test_restored_process".to_string(),
+            path: PathBuf::from("/tmp"),
+            script: "echo 'hello'".to_string(),
+            restarts: 0,
+            running: true, // Marked as running by restore command
+            crash: Crash {
+                crashed: false, // Reset by restore command
+                value: 0,       // Reset by restore command
+            },
+            watch: Watch {
+                enabled: false,
+                path: String::new(),
+                hash: String::new(),
+            },
+            children: vec![],
+            started: Utc::now(),
+            max_memory: 0,
+            agent_id: None,
+        };
+
+        runner.list.insert(id, process);
+
+        // Fetch the process list and check status
+        let processes = runner.fetch();
+        assert_eq!(processes.len(), 1, "Should have one process");
+
+        // Restored process should show as "online" not "crashed"
+        // This prevents confusion when processes are waiting to be started by daemon
+        assert_eq!(
+            processes[0].status, "online",
+            "Restored process with PID=0 should show as online, not crashed"
         );
     }
 
