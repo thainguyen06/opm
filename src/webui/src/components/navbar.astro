@@ -14,7 +14,7 @@ const { active } = Astro.props;
       </div>
       
       <!-- Horizontal Menu Items -->
-      <div class="flex items-center gap-1 sm:gap-2 overflow-x-auto rounded-lg mobile-navbar-scroll flex-1 min-w-0">
+      <div id="navbar-scroll-container" class="flex items-center gap-1 sm:gap-2 overflow-x-auto rounded-lg mobile-navbar-scroll flex-1 min-w-0">
         <a 
           href="{{base_path | safe}}/" 
           aria-label="Process List"
@@ -78,3 +78,29 @@ const { active } = Astro.props;
     </div>
   </div>
 </nav>
+
+<script>
+  // Ensure navbar scroll is properly initialized on page load and after view transitions
+  function initNavbarScroll() {
+    const scrollContainer = document.getElementById('navbar-scroll-container');
+    if (scrollContainer) {
+      // Force a reflow to ensure scrollbar is calculated correctly
+      scrollContainer.style.display = 'none';
+      scrollContainer.offsetHeight; // Trigger reflow
+      scrollContainer.style.display = '';
+      
+      // Ensure overflow is set correctly
+      scrollContainer.style.overflowX = 'auto';
+    }
+  }
+
+  // Initialize on DOM load
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initNavbarScroll);
+  } else {
+    initNavbarScroll();
+  }
+
+  // Re-initialize after Astro view transitions
+  document.addEventListener('astro:page-load', initNavbarScroll);
+</script>

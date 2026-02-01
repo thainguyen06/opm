@@ -139,6 +139,11 @@ const Index = (props: { base: string }) => {
 		
 		try {
 			await api.post(endpoint, { json: { method: name } });
+			// For agent processes, add a small delay to allow the agent to send the ProcessUpdate
+			// before we refresh the UI. This ensures the UI shows the updated state.
+			if (item.agent_id) {
+				await new Promise(resolve => setTimeout(resolve, 200));
+			}
 			await fetch();
 			success(ACTION_MESSAGES[name] || `${name} action completed successfully`);
 		} catch (err) {
@@ -187,6 +192,9 @@ const Index = (props: { base: string }) => {
 				return acc;
 			}, {} as Record<string, number[]>);
 
+			// Check if any agent processes are involved
+			const hasAgentProcesses = selectedItems.some(item => item.agent_id);
+
 			// Execute actions for each server group
 			const promises = Object.entries(groupedByServer).map(([server, ids]) => {
 				if (server === 'local') {
@@ -207,6 +215,10 @@ const Index = (props: { base: string }) => {
 			});
 
 			await Promise.all(promises);
+			// For agent processes, add a delay to allow ProcessUpdate messages to arrive
+			if (hasAgentProcesses) {
+				await new Promise(resolve => setTimeout(resolve, 200));
+			}
 			await fetch();
 			success(`${method} action completed on ${selectedIds.size} processes`);
 		} catch (err) {
