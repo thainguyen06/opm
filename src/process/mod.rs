@@ -2839,6 +2839,52 @@ mod tests {
     }
 
     #[test]
+    fn test_restored_process_shows_as_online_not_crashed() {
+        // Test that restored processes (PID=0, running=true) show as "online" not "crashed"
+        // This prevents false "crashed" status after system restore/reboot
+        let mut runner = setup_test_runner();
+        let id = runner.id.next();
+
+        let process = Process {
+            id,
+            pid: 0, // Restored process has PID=0 before daemon starts it
+            shell_pid: None,
+            env: BTreeMap::new(),
+            name: "test_restored_process".to_string(),
+            path: PathBuf::from("/tmp"),
+            script: "echo 'hello'".to_string(),
+            restarts: 0,
+            running: true, // Marked as running by restore command
+            crash: Crash {
+                crashed: false, // Reset by restore command
+                value: 0,       // Reset by restore command
+            },
+            watch: Watch {
+                enabled: false,
+                path: String::new(),
+                hash: String::new(),
+            },
+            children: vec![],
+            started: Utc::now(),
+            max_memory: 0,
+            agent_id: None,
+        };
+
+        runner.list.insert(id, process);
+
+        // Fetch the process list and check status
+        let processes = runner.fetch();
+        assert_eq!(processes.len(), 1, "Should have one process");
+
+        // Restored process should show as "online" not "crashed"
+        // This prevents confusion when processes are waiting to be started by daemon
+        assert_eq!(
+            processes[0].status, "online",
+            "Restored process with PID=0 should show as online, not crashed"
+        );
+    }
+
+    #[test]
     fn test_is_pid_alive_detects_zombies() {
         // Test that is_pid_alive returns false for zombie processes
         // We can't easily create a zombie in a test, but we can verify
