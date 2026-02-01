@@ -289,12 +289,12 @@ const View = (props: { id: string; base: string }) => {
 				// Process endpoint returns: {info: {...}, logs: [...]}
 				if (agentId && data.processes) {
 					// Extract the specific process from the agent's processes array
-					const process = data.processes.find((p: any) => p.id === props.id);
-					if (process) {
-						setItem(process);
+					const matchedProcess = data.processes.find((p) => p.id === props.id);
+					if (matchedProcess) {
+						setItem(matchedProcess);
 						setDisabled(false);
 						
-						if (process.info?.status === 'stopped') {
+						if (matchedProcess.info?.status === 'stopped') {
 							source.close();
 						}
 					} else {
