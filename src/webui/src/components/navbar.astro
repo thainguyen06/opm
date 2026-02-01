@@ -98,11 +98,12 @@ const { active } = Astro.props;
         scrollContainer.style.overflowX = 'auto';
         void scrollContainer.offsetHeight;
         
-        // Force scroll position update with a small timeout to bypass cache
-        setTimeout(() => {
+        // Force scroll position update using requestAnimationFrame for better browser compatibility
+        // This ensures layout calculations are complete before applying scroll changes
+        requestAnimationFrame(() => {
           scrollContainer.scrollLeft = 0;
           void scrollContainer.offsetHeight;
-        }, 0);
+        });
       }
     }
   }

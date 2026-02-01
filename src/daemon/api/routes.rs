@@ -2407,18 +2407,14 @@ pub async fn stream_agent_detail(
                     registry.get_processes(&id).unwrap_or_default()
                 };
 
+                // Only yield data if we have valid agent info
+                // The processes array can be empty, which is a valid state
                 let response = json!({
                     "agent": agent,
                     "processes": processes
                 });
 
-                // Ensure JSON serialization is valid before yielding
-                if let Ok(json_str) = serde_json::to_string(&response) {
-                    // Only yield if we have valid, non-empty JSON
-                    if !json_str.is_empty() && json_str != "{}" {
-                        yield Event::data(json_str);
-                    }
-                }
+                yield Event::data(serde_json::to_string(&response).unwrap());
             } else {
                 yield Event::data(json!({"error": "Agent not found"}).to_string());
                 break;
