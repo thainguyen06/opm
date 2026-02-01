@@ -610,7 +610,13 @@ const Index = (props: { base: string }) => {
 									<ProcessDetails item={item} isClickable={false} />
 								</div>
 							) : (
-								<a href={isRemote(item) ? `./view/${item.id}?server=${item.server}` : `./view/${item.id}`} className="block transition-colors duration-200 hover:bg-white dark:bg-zinc-900/20">
+								<a href={
+									item.agent_id 
+										? `./view/${item.id}?agent_id=${item.agent_id}&agent_name=${encodeURIComponent(item.agent_name || item.agent_id)}`
+										: isRemote(item) 
+											? `./view/${item.id}?server=${item.server}` 
+											: `./view/${item.id}`
+								} className="block transition-colors duration-200 hover:bg-white dark:bg-zinc-900/20">
 									<ProcessDetails item={item} isClickable={true} />
 								</a>
 							)}
