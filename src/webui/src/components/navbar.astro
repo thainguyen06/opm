@@ -93,8 +93,9 @@ const { active } = Astro.props;
     if (window.innerWidth <= 640) {
       const isOverflowing = scrollContainer.scrollWidth > scrollContainer.clientWidth;
       if (isOverflowing) {
-        // Trigger a reflow to ensure scrollbar renders
-        scrollContainer.offsetHeight;
+        // Deliberately trigger a reflow to force browser to render scrollbar immediately
+        // Reading offsetHeight causes a synchronous layout calculation
+        void scrollContainer.offsetHeight;
       }
     }
   }
