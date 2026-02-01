@@ -281,22 +281,37 @@ const View = (props: { id: string; base: string }) => {
 		setDisabled(true);
 
 		source.onmessage = (event) => {
-			const data = JSON.parse(event.data);
+			try {
+				const data = JSON.parse(event.data);
 
-			setItem(data);
-			setDisabled(false);
+				setItem(data);
+				setDisabled(false);
 
-			if (data.info.status == 'stopped') {
-				source.close();
-			}
-			if (!hasRun) {
-				setLoaded(true);
-				hasRun = true;
+				if (data.info.status == 'stopped') {
+					source.close();
+				}
+				if (!hasRun) {
+					setLoaded(true);
+					hasRun = true;
+				}
+			} catch (err) {
+				console.error('Failed to parse SSE message:', err, 'data:', event.data);
+				// On parse error, ensure we still mark as loaded to prevent infinite loading
+				if (!hasRun) {
+					setLoaded(true);
+					hasRun = true;
+				}
 			}
 		};
 
 		source.onerror = (error) => {
+			console.error('SSE connection error:', error);
 			source.close();
+			// Ensure we mark as loaded even on error to prevent infinite loading
+			if (!hasRun) {
+				setLoaded(true);
+				hasRun = true;
+			}
 			retryTimeout = setTimeout(() => {
 				openConnection();
 			}, 5000);

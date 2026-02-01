@@ -210,7 +210,8 @@ button, a, input, select {
 @media (max-width: 640px) {
 	.mobile-navbar-scroll {
 		scrollbar-width: thin;  /* Firefox: make scrollbar visible */
-		overflow-x: scroll !important;  /* Force scrollbar to always show */
+		-webkit-overflow-scrolling: touch;  /* iOS smooth scrolling */
+		overflow-x: auto !important;  /* Use auto instead of scroll to show only when needed */
 		scrollbar-gutter: stable;  /* Reserve space for scrollbar */
 		position: relative;
 		padding-bottom: 10px;  /* Space for custom scrollbar */
@@ -245,6 +246,15 @@ button, a, input, select {
 	.mobile-navbar-scroll::-webkit-scrollbar-track {
 		@apply bg-gray-200 dark:bg-zinc-800;
 		visibility: visible;
+	}
+	
+	/* Force scrollbar to always be visible when content overflows */
+	.mobile-navbar-scroll::-webkit-scrollbar-thumb:horizontal {
+		background: #9ca3af;
+	}
+	
+	.dark .mobile-navbar-scroll::-webkit-scrollbar-thumb:horizontal {
+		background: #71717a;
 	}
 }
 
