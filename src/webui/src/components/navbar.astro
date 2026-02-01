@@ -6,7 +6,7 @@ const { active } = Astro.props;
 <!-- Horizontal Top Navigation -->
 <nav class="fixed top-0 left-0 right-0 backdrop-blur-md bg-white/95 dark:bg-zinc-900/95 border-b border-gray-200 dark:border-zinc-800 z-[100] shadow-lg">
   <div class="flex items-center justify-between gap-3 sm:gap-4 px-3 sm:px-6 py-2 sm:py-3 w-full">
-    <div class="flex items-center gap-3 sm:gap-4 min-w-0 overflow-hidden" style="max-width: calc(100% - 60px);">
+    <div class="flex items-center gap-3 sm:gap-4 min-w-0" style="max-width: calc(100% - 60px);">
       <!-- Logo and Brand -->
       <div class="flex items-center gap-2 sm:gap-3 flex-shrink-0">
         <img class="h-6 sm:h-8 w-auto flex-shrink-0" src="{{base_path | safe}}/assets/favicon.svg" alt="OPM">
@@ -85,18 +85,30 @@ const { active } = Astro.props;
     const scrollContainer = document.getElementById('navbar-scroll-container');
     if (!scrollContainer) return;
     
-    // Reset scroll position to start
-    scrollContainer.scrollLeft = 0;
-    
-    // Force browser to recognize overflow state immediately
-    // This ensures the scrollbar appears on first render
+    // For mobile devices (width <= 640px)
     if (window.innerWidth <= 640) {
-      const isOverflowing = scrollContainer.scrollWidth > scrollContainer.clientWidth;
-      if (isOverflowing) {
-        // Deliberately trigger a reflow to force browser to render scrollbar immediately
-        // Reading offsetHeight causes a synchronous layout calculation
+      // Force overflow-x to auto to ensure scrollbar appears when content overflows
+      scrollContainer.style.overflowX = 'auto';
+      
+      // Reset scroll position to start
+      scrollContainer.scrollLeft = 0;
+      
+      // Force a reflow to ensure browser computes the correct overflow state
+      void scrollContainer.offsetHeight;
+      
+      // Use requestAnimationFrame to ensure layout is complete before final positioning
+      requestAnimationFrame(() => {
+        scrollContainer.scrollLeft = 0;
+        
+        // Double-check overflow is set correctly after layout
+        scrollContainer.style.overflowX = 'auto';
+        
+        // Force another reflow to ensure scrollbar visibility is computed
         void scrollContainer.offsetHeight;
-      }
+      });
+    } else {
+      // On desktop, reset to default
+      scrollContainer.scrollLeft = 0;
     }
   }
 
@@ -116,5 +128,21 @@ const { active } = Astro.props;
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimeout);
     resizeTimeout = setTimeout(initNavbarScroll, 100);
+  });
+  
+  // Force re-initialization on visibility change (handles mobile tab switching)
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      // Use a short timeout to ensure browser has completed tab switch rendering
+      setTimeout(initNavbarScroll, 50);
+    }
+  });
+  
+  // Also listen for page show event (handles back/forward cache)
+  window.addEventListener('pageshow', (event) => {
+    // If page is restored from bfcache, reinitialize
+    if (event.persisted) {
+      initNavbarScroll();
+    }
   });
 </script>
