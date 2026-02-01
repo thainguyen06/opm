@@ -284,12 +284,32 @@ const View = (props: { id: string; base: string }) => {
 			try {
 				const data = JSON.parse(event.data);
 
-				setItem(data);
-				setDisabled(false);
+				// Handle different response structures
+				// Agent endpoint returns: {agent: {...}, processes: [...]}
+				// Process endpoint returns: {info: {...}, logs: [...]}
+				if (agentId && data.processes) {
+					// Extract the specific process from the agent's processes array
+					const process = data.processes.find((p: any) => p.id === props.id);
+					if (process) {
+						setItem(process);
+						setDisabled(false);
+						
+						if (process.info?.status === 'stopped') {
+							source.close();
+						}
+					} else {
+						console.warn(`Process ${props.id} not found in agent processes`);
+					}
+				} else {
+					// Standard process endpoint response
+					setItem(data);
+					setDisabled(false);
 
-				if (data.info.status == 'stopped') {
-					source.close();
+					if (data.info?.status === 'stopped') {
+						source.close();
+					}
 				}
+				
 				if (!hasRun) {
 					setLoaded(true);
 					hasRun = true;
