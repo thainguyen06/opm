@@ -268,8 +268,8 @@ fn restart_process() {
                 // If process exited successfully OR if we couldn't find its handle (likely from a restore),
                 // treat it as a clean stop, not a crash.
                 if exited_successfully || !handle_found {
-                    // Reload runner to check if process was deleted concurrently by CLI
-                    runner = Runner::new();
+                    // No longer reloading runner state here.
+                    // The check below is sufficient to handle concurrently deleted processes.
                     if !runner.exists(id) {
                         log!("[daemon] process was deleted during exit detection, skipping", 
                              "name" => item.name, "id" => id);
@@ -286,9 +286,7 @@ fn restart_process() {
                     continue; // Skip crash handling
                 }
                 
-                // Reload runner to check if process was deleted concurrently by CLI
-                // This must be done BEFORE modifying state to avoid race conditions
-                runner = Runner::new();
+                // No longer reloading runner state here.
                 if !runner.exists(id) {
                     log!("[daemon] process was deleted during crash detection, skipping", 
                          "name" => item.name, "id" => id);
@@ -360,8 +358,6 @@ fn restart_process() {
                      runner.save();
                  } else if !recently_acted && !just_started {
                      // Still within limit, no recent action, and not just started - attempt restart now
-                     // Reload runner to check if process was deleted by CLI
-                     runner = Runner::new();
                      if runner.exists(id) {
                          // Check if process is still marked as running after reload
                          // This prevents restarting processes that were stopped/removed during reload
