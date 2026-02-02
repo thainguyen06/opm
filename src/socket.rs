@@ -153,9 +153,53 @@ fn handle_client(mut stream: UnixStream) -> Result<()> {
             SocketResponse::State(merged)
         }
         SocketRequest::SetState(runner) => {
-            // Write to memory cache only - don't commit to permanent storage
-            // Changes stay in RAM until explicit save command
-            dump::write_memory_direct(&runner);
+            // Merge the provided state with existing memory cache to prevent race conditions
+            // where the daemon's stale runner overwrites newly created processes
+            // Read current memory state
+            let current_memory = dump::read_memory_direct_option();
+            
+            let merged_runner = match current_memory {
+                Some(mut current) => {
+                    // Merge strategy: Update/add all processes from the provided runner
+                    // while preserving any processes in memory that aren't in the provided runner.
+                    // 
+                    // This prevents two issues:
+                    // 1. Daemon (or any caller) accidentally deleting processes created after it loaded state
+                    // 2. Race conditions where CLI creates a process while daemon is monitoring
+                    //
+                    // For processes that exist in both:
+                    // - The provided runner's version overwrites the existing one
+                    // - This is intentional: the daemon is the authoritative source for state updates
+                    //   (crash counters, PIDs, running status, etc.)
+                    // - The daemon loads state once per cycle and makes authoritative updates
+                    //
+                    // For processes only in current memory:
+                    // - They are preserved (not deleted)
+                    // - This fixes the reported bug where newly created processes disappeared
+                    
+                    // Update all processes that exist in the provided runner
+                    for (id, process) in runner.list {
+                        current.list.insert(id, process);
+                    }
+                    
+                    // Update the ID counter to the maximum of both
+                    // Use Relaxed ordering since socket handler is single-threaded and sequential
+                    let provided_counter = runner.id.counter.load(std::sync::atomic::Ordering::Relaxed);
+                    let current_counter = current.id.counter.load(std::sync::atomic::Ordering::Relaxed);
+                    if provided_counter > current_counter {
+                        current.id.counter.store(provided_counter, std::sync::atomic::Ordering::Relaxed);
+                    }
+                    
+                    current
+                }
+                None => {
+                    // No existing state, use the provided runner as-is
+                    runner
+                }
+            };
+            
+            // Write merged state to memory cache
+            dump::write_memory_direct(&merged_runner);
             SocketResponse::Success
         }
         SocketRequest::SavePermanent => {
