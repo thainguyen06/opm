@@ -3718,23 +3718,21 @@ mod tests {
 
         // Verify the process is marked as crashed
         let info = runner.info(id).unwrap();
-        assert_eq!(info.crash.crashed, true, "Process should be marked as crashed");
+        assert!(info.crash.crashed, "Process should be marked as crashed");
         assert_eq!(info.crash.value, 1, "Crash count should be 1");
-        assert_eq!(info.running, false, "Process should not be running");
+        assert!(!info.running, "Process should not be running");
         assert_eq!(info.pid, 0, "PID should be 0");
 
-        // Simulate the scenario where daemon checks this process
-        // The process should remain crashed, not change to stopped
-        // (unless handle was found and exit was successful)
-        
         // This test validates that the fix prevents the incorrect state transition:
         // crashed (crash.crashed=true) -> stopped (crash.crashed=false)
-        // that was happening when no process handle was found
+        // that was happening when no process handle was found.
+        // 
+        // The fix ensures that only processes with handles AND successful exit codes
+        // are treated as clean stops. Processes without handles (like this one)
+        // should maintain their crashed state and go through proper crash handling.
         
-        // In the real scenario, the daemon would check if handle exists
-        // Since we're testing the state, we just verify it stays crashed
         let info_after = runner.info(id).unwrap();
-        assert_eq!(info_after.crash.crashed, true, 
-                   "Crashed flag should remain true - process shouldn't transition to stopped without explicit user action");
+        assert!(info_after.crash.crashed, 
+                "Crashed flag should remain true - process shouldn't transition to stopped without explicit user action or successful exit");
     }
 }
