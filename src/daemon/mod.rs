@@ -267,7 +267,9 @@ fn restart_process() {
                 let handle_pid = item.shell_pid.unwrap_or(item.pid);
                 let mut exited_successfully = false;
                 
-                if let Some(handle_ref) = opm::process::PROCESS_HANDLES.get(&handle_pid) {
+                // Remove and check the handle to get exit status
+                // This ensures we only check the exit status once (try_wait consumes it)
+                if let Some((_, handle_ref)) = opm::process::PROCESS_HANDLES.remove(&handle_pid) {
                     if let Ok(mut child) = handle_ref.lock() {
                         // Check if process has exited and get its exit status
                         if let Ok(Some(status)) = child.try_wait() {
