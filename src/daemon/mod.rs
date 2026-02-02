@@ -122,7 +122,7 @@ async fn emit_crash_event_and_notification(id: usize, name: String) {
 }
 
 fn restart_process() {
-    log!("[DAEMON_V2_CHECK] Daemon monitoring cycle initiated. If you see this, the new code is running.");
+    log!("[DAEMON_V2_CHECK] Monitoring cycle initiated", "fingerprint" => "v2_fix");
     // Load daemon config once at the start to avoid repeated I/O operations
     let daemon_config = config::read().daemon;
 
