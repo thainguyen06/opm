@@ -429,19 +429,15 @@ pub fn init_on_startup() -> Runner {
     log!("[dump::init_on_startup] Cleared memory cache for fresh daemon start");
 
     // Note: We preserve crash.crashed flag so restore command can identify crashed processes
-    // The daemon will mark crashed processes as stopped (running=false) when it detects they're dead
-    // but we keep crash.crashed=true so users can restore them with 'opm restore'
+    // We also preserve the running state to maintain process status across daemon restarts
+    // Only reset the crash and restart counters to give processes a fresh start
 
-    // Additionally, on startup we ensure that any crashed processes are reset to a stopped state
-    // so that they don't resuscitate with a stale PID after a restart. This aligns with the
-    // expectation that crashed processes should not be considered running until explicitly restarted.
+    // On startup, reset crash and restart counters for all processes
+    // but preserve their running and crashed states
     for (_id, pr) in permanent.list.iter_mut() {
-        if pr.crash.crashed {
-            // Keep the `running` and `pid` status as is.
-            // Only reset the crash and restart counters.
-            pr.crash.value = 0;
-            pr.restarts = 0;
-        }
+        // Reset counters for all processes to give them a fresh start
+        pr.crash.value = 0;
+        pr.restarts = 0;
     }
 
     // Populate memory cache with loaded state to keep processes in RAM
