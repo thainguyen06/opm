@@ -15,7 +15,7 @@
 //! The socket is created at `~/.opm/opm.sock`
 
 use anyhow::{anyhow, Result};
-use home;
+use home::home_dir;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::{BufRead, BufReader, Read, Write};
@@ -24,6 +24,21 @@ use std::path::Path;
 use std::thread;
 
 use crate::process::{dump, Runner};
+
+/// Duration (in seconds) that daemon will ignore a process after a manual action.
+/// This constant documents the timeout used by daemon/mod.rs::has_recent_action_timestamp().
+/// Keep this in sync with the actual timeout value in the daemon code.
+#[allow(dead_code)]
+const ACTION_IGNORE_DURATION_SECS: u64 = 3;
+
+/// Helper function to create action timestamp file for a process
+/// This tells the daemon to ignore the process for ACTION_IGNORE_DURATION_SECS seconds
+fn create_action_timestamp(id: usize) {
+    if let Some(home_dir) = home_dir() {
+        let action_file = format!("{}/.opm/last_action_{}.timestamp", home_dir.display(), id);
+        let _ = std::fs::write(&action_file, chrono::Utc::now().to_rfc3339());
+    }
+}
 
 /// Request types that can be sent to the daemon via socket
 #[derive(Debug, Serialize, Deserialize)]
@@ -222,11 +237,7 @@ fn handle_client(mut stream: UnixStream) -> Result<()> {
                 let children = runner.info(id).map(|p| p.children.clone()).unwrap_or_default();
                 
                 // Create action timestamp to prevent daemon from interfering during removal
-                // This tells the daemon to ignore this process for a few seconds
-                if let Some(home_dir) = home::home_dir() {
-                    let action_file = format!("{}/.opm/last_action_{}.timestamp", home_dir.display(), id);
-                    let _ = std::fs::write(&action_file, chrono::Utc::now().to_rfc3339());
-                }
+                create_action_timestamp(id);
                 
                 // IMPORTANT: Mark process as stopped BEFORE removing from list
                 // This prevents race condition where daemon's restart_process() loop
@@ -290,11 +301,7 @@ fn handle_client(mut stream: UnixStream) -> Result<()> {
                 let children = runner.info(id).map(|p| p.children.clone()).unwrap_or_default();
                 
                 // Create action timestamp to prevent daemon from interfering during stop
-                // This tells the daemon to ignore this process for a few seconds
-                if let Some(home_dir) = home::home_dir() {
-                    let action_file = format!("{}/.opm/last_action_{}.timestamp", home_dir.display(), id);
-                    let _ = std::fs::write(&action_file, chrono::Utc::now().to_rfc3339());
-                }
+                create_action_timestamp(id);
                 
                 // Mark as stopped and clear crashed flag
                 runner.process(id).running = false;
