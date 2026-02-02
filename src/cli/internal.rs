@@ -1103,23 +1103,24 @@ impl<'i> Internal<'i> {
 
         println!("{} Starting restore process...", *helpers::SUCCESS);
 
-        // Before starting daemon, read dump file and reset counters only
-        // This preserves the running/stopped/crashed state but resets counters for a fresh start
+        // Before starting daemon, read dump file and reset counters and crashed flags
+        // This gives each process a fresh start after system restore/reboot
         let dump_path = global_placeholders::global!("opm.dump");
         if opm::file::Exists::check(&dump_path).file() {
             // Read the dump file directly
             let mut dump_runner = opm::process::dump::read();
             let mut modified = false;
             
-            // Process each entry: reset counters while preserving running/crashed state
-            // This gives each process a fresh start after system restore/reboot
-            // but maintains their original state (running/stopped/crashed)
+            // Process each entry: reset counters and clear crashed flag
+            // This prevents daemon from auto-restarting processes that were crashed before restore
+            // Users can manually start processes they want to run after restore
             for (_id, process) in dump_runner.list.iter_mut() {
-                // Reset counters for processes that have non-zero values
+                // Reset counters and clear crashed flag
                 // Also reset PID to 0 to prevent daemon from treating old PIDs as new crashes
-                if process.restarts != 0 || process.crash.value != 0 || process.pid != 0 {
+                if process.restarts != 0 || process.crash.value != 0 || process.pid != 0 || process.crash.crashed {
                     process.restarts = 0;
                     process.crash.value = 0;
+                    process.crash.crashed = false;  // Clear crashed flag to prevent auto-restart
                     process.pid = 0;  // Clear PID so daemon doesn't misidentify as newly crashed
                     modified = true;
                 }
