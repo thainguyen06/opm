@@ -188,7 +188,11 @@ fn handle_client(mut stream: UnixStream) -> Result<()> {
                     //    - Otherwise, use the provided ID (update existing or add new)
                     // 2. Update the ID counter to ensure future IDs don't collide
                     
-                    let mut max_id = current.list.keys().max().copied().unwrap_or(0);
+                    // Calculate starting point for ID reassignment by finding the maximum ID
+                    // across both current memory AND incoming processes to avoid new collisions
+                    let current_max = current.list.keys().max().copied().unwrap_or(0);
+                    let incoming_max = runner.list.keys().max().copied().unwrap_or(0);
+                    let mut next_available_id = std::cmp::max(current_max, incoming_max);
                     
                     // Update/add all processes from the provided runner
                     for (id, mut process) in runner.list {
@@ -203,9 +207,9 @@ fn handle_client(mut stream: UnixStream) -> Result<()> {
                         
                         let final_id = if needs_new_id {
                             // ID collision detected - assign a new unique ID
-                            max_id += 1;
-                            process.id = max_id;  // Update the process's own ID field
-                            max_id
+                            next_available_id += 1;
+                            process.id = next_available_id;  // Update the process's own ID field
+                            next_available_id
                         } else {
                             // No collision - use the provided ID
                             id
@@ -215,7 +219,8 @@ fn handle_client(mut stream: UnixStream) -> Result<()> {
                     }
                     
                     // Update the ID counter to max + 1 to prevent future collisions
-                    let new_counter = current.list.keys().max().map(|&k| k + 1).unwrap_or(0);
+                    // Reuse next_available_id which is already at the correct value after all insertions
+                    let new_counter = next_available_id + 1;
                     current.id.counter.store(new_counter, std::sync::atomic::Ordering::Relaxed);
                     
                     current
