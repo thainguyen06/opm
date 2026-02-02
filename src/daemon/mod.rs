@@ -266,10 +266,12 @@ fn restart_process() {
                 // Use shell_pid if available, otherwise use regular pid
                 let process_handle_pid = item.shell_pid.unwrap_or(item.pid);
                 let mut exited_successfully = false;
+                let mut handle_found = false;
                 
                 // Remove and check the handle to get exit status
                 // This ensures we only check the exit status once (try_wait consumes it)
                 if let Some((_, handle_ref)) = opm::process::PROCESS_HANDLES.remove(&process_handle_pid) {
+                    handle_found = true;
                     if let Ok(mut child) = handle_ref.lock() {
                         // Check if process has exited and get its exit status
                         if let Ok(Some(status)) = child.try_wait() {
@@ -281,9 +283,9 @@ fn restart_process() {
                     }
                 }
                 
-                // If process exited successfully (exit code 0), don't mark as crashed
-                // Just set running=false and continue monitoring
-                if exited_successfully {
+                // If process exited successfully OR if we couldn't find its handle (likely from a restore),
+                // treat it as a clean stop, not a crash.
+                if exited_successfully || !handle_found {
                     // Reload runner to check if process was deleted concurrently by CLI
                     runner = Runner::new();
                     if !runner.exists(id) {
@@ -295,8 +297,8 @@ fn restart_process() {
                     let process = runner.process(id);
                     process.running = false;
                     process.pid = 0;
-                    // Don't increment crash counter or set crashed flag for successful exits
-                    log!("[daemon] process exited successfully", 
+                    // Don't increment crash counter or set crashed flag for successful/unknown exits
+                    log!("[daemon] process stopped cleanly or was managed by old daemon", 
                          "name" => item.name, "id" => id);
                     runner.save();
                     continue; // Skip crash handling
