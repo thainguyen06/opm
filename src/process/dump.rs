@@ -280,7 +280,7 @@ pub fn read_memory() -> Runner {
 }
 
 /// Write to memory cache (replaces write_temp)
-/// If daemon is running, sends state via socket. Otherwise, writes to memory cache.
+/// If daemon is running, sends state via socket. Otherwise, writes directly to permanent storage.
 pub fn write_memory(dump: &Runner) {
     use global_placeholders::global;
 
@@ -303,10 +303,10 @@ pub fn write_memory(dump: &Runner) {
         }
     }
 
-    // Fallback: Write to local memory cache
-    let mut cache = MEMORY_CACHE.lock().unwrap();
-    *cache = Some(dump.clone());
-    log!("[dump::write_memory] Updated in-memory process cache");
+    // Fallback: Write directly to permanent storage when daemon is not running
+    // This ensures process state persists across separate CLI invocations
+    write(dump);
+    log!("[dump::write_memory] Daemon not running - wrote directly to permanent storage");
 }
 
 /// Clear memory cache
@@ -377,12 +377,10 @@ pub fn read_merged() -> Runner {
 
     // Fallback: Read permanent dump directly without triggering recursive operations
     let permanent = read_permanent_dump();
-
-    // Read memory cache if it exists
-    let memory = read_memory_direct_option();
-
-    // Merge and return
-    merge_runners(permanent, memory)
+    
+    // When daemon is not running, we write directly to permanent storage (no memory cache)
+    // So we just return the permanent dump without merging
+    permanent
 }
 
 /// Initialize on daemon startup: merge any old temp file into permanent, clean temp, clear memory
