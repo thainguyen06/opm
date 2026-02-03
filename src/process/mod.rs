@@ -26,7 +26,6 @@ use nix::{
     unistd::Pid,
 };
 
-use chrono::serde::ts_milliseconds;
 use chrono::{DateTime, Utc};
 use global_placeholders::global;
 use macros_rs::{crashln, string, ternary, then};
@@ -168,22 +167,31 @@ pub type Env = BTreeMap<String, String>;
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Process {
     pub id: usize,
+    /// Process ID - not persisted to dump, always starts at 0
+    #[serde(skip)]
     pub pid: i64,
     /// PID of the parent shell process when running commands through a shell.
     /// This is set when the command is executed via a shell (e.g., bash -c 'script.sh')
     /// and shell_pid != actual_pid. Used for accurate CPU monitoring of shell scripts.
-    #[serde(default)]
+    /// Not persisted to dump, always starts at None
+    #[serde(skip)]
     pub shell_pid: Option<i64>,
     pub env: Env,
     pub name: String,
     pub path: PathBuf,
     pub script: String,
+    /// Restart counter - not persisted to dump, always starts at 0
+    #[serde(skip)]
     pub restarts: u64,
     pub running: bool,
     pub crash: Crash,
     pub watch: Watch,
+    /// Child process IDs - not persisted to dump, always starts empty
+    #[serde(skip)]
     pub children: Vec<i64>,
-    #[serde(with = "ts_milliseconds")]
+    /// Process start timestamp - not persisted to dump
+    /// Defaults to Unix epoch when deserialized, set to current time when process starts
+    #[serde(skip)]
     pub started: DateTime<Utc>,
     /// Maximum memory limit in bytes (0 = no limit)
     #[serde(default)]
@@ -191,11 +199,17 @@ pub struct Process {
     /// Agent ID that owns this process (None for local processes)
     #[serde(default)]
     pub agent_id: Option<String>,
+    /// Timestamp until which the process is frozen (auto-restart paused)
+    /// None means not frozen, Some means frozen until the specified time
+    #[serde(default)]
+    pub frozen_until: Option<DateTime<Utc>>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Crash {
     pub crashed: bool,
+    /// Crash counter - not persisted to dump, always starts at 0
+    #[serde(skip)]
     pub value: u64,
 }
 
@@ -490,6 +504,7 @@ impl Runner {
                     env: stored_env,
                     max_memory,
                     agent_id: None, // Local processes don't have an agent
+                    frozen_until: None, // Not frozen by default
                 },
             );
 
@@ -1027,6 +1042,39 @@ impl Runner {
         if self.remote.is_none() {
             dump::write_memory(&self);
         }
+    }
+
+    /// Freeze a process to prevent auto-restart for a specified duration
+    /// This is used during edit/delete operations to avoid conflicts with daemon
+    pub fn freeze(&mut self, id: usize, duration_secs: i64) {
+        if let Some(process) = self.list.get_mut(&id) {
+            process.frozen_until = Some(Utc::now() + chrono::Duration::seconds(duration_secs));
+            self.save();
+            log::debug!("Process {} frozen for {} seconds", id, duration_secs);
+        } else {
+            log::warn!("Attempted to freeze non-existent process {}", id);
+        }
+    }
+
+    /// Unfreeze a process to allow auto-restart again
+    pub fn unfreeze(&mut self, id: usize) {
+        if let Some(process) = self.list.get_mut(&id) {
+            process.frozen_until = None;
+            self.save();
+            log::debug!("Process {} unfrozen", id);
+        } else {
+            log::warn!("Attempted to unfreeze non-existent process {}", id);
+        }
+    }
+
+    /// Check if a process is currently frozen (auto-restart paused)
+    pub fn is_frozen(&self, id: usize) -> bool {
+        if let Some(process) = self.list.get(&id) {
+            if let Some(frozen_until) = process.frozen_until {
+                return Utc::now() < frozen_until;
+            }
+        }
+        false
     }
 
     /// Save runner state to permanent dump file (used only by explicit 'opm save' command)
@@ -1943,6 +1991,7 @@ mod tests {
             started: Utc::now(),
             max_memory: 0,
             agent_id: None,
+            frozen_until: None,
         };
 
         runner.list.insert(id, process);
@@ -1994,6 +2043,7 @@ mod tests {
             started: Utc::now(),
             max_memory: 0,
             agent_id: None,
+            frozen_until: None,
         };
 
         runner.list.insert(id, process);
@@ -2080,6 +2130,7 @@ mod tests {
             started: Utc::now(),
             max_memory: 0,
             agent_id: None,
+            frozen_until: None,
         };
 
         runner.list.insert(id, process);
@@ -2242,6 +2293,7 @@ mod tests {
             started: Utc::now(),
             max_memory: 0,
             agent_id: None,
+            frozen_until: None,
         };
 
         runner.list.insert(id, process);
@@ -2290,6 +2342,7 @@ mod tests {
             started: Utc::now() - chrono::Duration::seconds(20),
             max_memory: 0,
             agent_id: None,
+            frozen_until: None,
         };
 
         runner.list.insert(id, process);
@@ -2338,6 +2391,7 @@ mod tests {
             started: past_time, // Started 5 minutes ago
             max_memory: 0,
             agent_id: None,
+            frozen_until: None,
         };
 
         runner.list.insert(id, process);
@@ -2391,6 +2445,7 @@ mod tests {
             started: past_time, // Started 10 minutes ago
             max_memory: 0,
             agent_id: None,
+            frozen_until: None,
         };
 
         runner.list.insert(id, process);
@@ -2443,6 +2498,7 @@ mod tests {
             started: Utc::now(),
             max_memory: 0,
             agent_id: None,
+            frozen_until: None,
         };
 
         runner.list.insert(id, process);
@@ -2501,6 +2557,7 @@ mod tests {
             started: Utc::now(),
             max_memory: 0,
             agent_id: None,
+            frozen_until: None,
         };
 
         runner.list.insert(id, process.clone());
@@ -2568,6 +2625,7 @@ mod tests {
             started: Utc::now(),
             max_memory: 0,
             agent_id: None,
+            frozen_until: None,
         };
 
         runner.list.insert(id, process.clone());
@@ -2610,6 +2668,7 @@ mod tests {
             started: Utc::now(),
             max_memory: 0,
             agent_id: None,
+            frozen_until: None,
         };
 
         runner.list.insert(id, process);
@@ -2660,6 +2719,7 @@ mod tests {
             started: Utc::now(),
             max_memory: 0,
             agent_id: None,
+            frozen_until: None,
         };
 
         runner.list.insert(id, process);
@@ -2713,6 +2773,7 @@ mod tests {
             started: Utc::now(),
             max_memory: 0,
             agent_id: None,
+            frozen_until: None,
         };
 
         runner.list.insert(id, process);
@@ -2774,6 +2835,7 @@ mod tests {
             started: Utc::now(),
             max_memory: 0,
             agent_id: None,
+            frozen_until: None,
         };
 
         runner.list.insert(id, process);
@@ -2829,6 +2891,7 @@ mod tests {
             started: Utc::now(),
             max_memory: 0,
             agent_id: None,
+            frozen_until: None,
         };
 
         runner.list.insert(id, process);
@@ -2886,6 +2949,7 @@ mod tests {
             started: Utc::now(),
             max_memory: 0,
             agent_id: None,
+            frozen_until: None,
         };
 
         runner.list.insert(id, process);
@@ -3022,6 +3086,7 @@ mod tests {
             started: Utc::now(),
             max_memory: 0,
             agent_id: None,
+            frozen_until: None,
         };
 
         runner.list.insert(id, process);
@@ -3126,6 +3191,7 @@ mod tests {
             started: Utc::now(),
             max_memory: 0,
             agent_id: None,
+            frozen_until: None,
         };
 
         runner.list.insert(id, process);
@@ -3222,6 +3288,7 @@ mod tests {
             started: Utc::now(),
             max_memory: 0,
             agent_id: None,
+            frozen_until: None,
         };
 
         runner.list.insert(id, process);
@@ -3393,6 +3460,7 @@ mod tests {
                 started: Utc::now(),
                 max_memory: 0,
                 agent_id: None,
+                frozen_until: None,
             };
             runner.list.insert(id, process);
         }
@@ -3495,6 +3563,7 @@ mod tests {
             started: Utc::now(),
             max_memory: 0,
             agent_id: None,
+            frozen_until: None,
         };
 
         runner.list.insert(id, process.clone());
@@ -3590,6 +3659,7 @@ mod tests {
                 started: Utc::now(),
                 max_memory: 0,
                 agent_id: None,
+                frozen_until: None,
             };
             runner.list.insert(id, process);
         }
@@ -3668,6 +3738,7 @@ mod tests {
             started: Utc::now(),
             max_memory: 0,
             agent_id: None,
+            frozen_until: None,
         };
 
         runner.list.insert(id, process);
@@ -3725,6 +3796,7 @@ mod tests {
             started: Utc::now() - chrono::Duration::seconds(10),
             max_memory: 0,
             agent_id: None,
+            frozen_until: None,
         };
 
         runner.list.insert(id, process);
@@ -3785,6 +3857,7 @@ mod tests {
             started: Utc::now(),
             max_memory: 0,
             agent_id: None,
+            frozen_until: None,
         };
 
         runner.list.insert(id, process);
@@ -3863,6 +3936,7 @@ mod tests {
             started: Utc::now() - chrono::Duration::seconds(10),
             max_memory: 0,
             agent_id: None,
+            frozen_until: None,
         };
 
         runner.list.insert(id, process.clone());
@@ -3939,6 +4013,7 @@ mod tests {
             started: Utc::now(),
             max_memory: 0,
             agent_id: None,
+            frozen_until: None,
         };
 
         runner.list.insert(id, process);

@@ -11,6 +11,8 @@ use std::fs;
 #[cfg(not(target_os = "linux"))]
 use nix::{errno::Errno, sys::signal::kill, unistd::Pid};
 
+use nix::{sys::signal::{kill as nix_kill, Signal}, unistd::Pid as NixPid};
+
 use opm::{
     config, file,
     helpers::{self, ColoredString},
@@ -39,6 +41,9 @@ lazy_static! {
 
 // Constants for real-time statistics display timing
 pub(crate) const STATS_PRE_LIST_DELAY_MS: u64 = 100;
+
+// Grace period for process termination during restore
+const PROCESS_TERMINATION_GRACE_PERIOD_MS: u64 = 500;
 
 pub struct Internal<'i> {
     pub id: usize,
@@ -424,6 +429,10 @@ impl<'i> Internal<'i> {
         // Get process info before removal for event emission
         let process_name = self.runner.info(self.id).map(|p| p.name.clone());
 
+        // Freeze process before removal to prevent auto-restart during deletion
+        // Give it 10 seconds freeze window - more than enough for removal to complete
+        self.runner.freeze(self.id, 10);
+        
         self.runner.remove(self.id);
         println!("{} Removed {}({}) ✓", *helpers::SUCCESS, self.kind, self.id);
         log!("process removed (id={})", self.id);
@@ -1050,6 +1059,15 @@ impl<'i> Internal<'i> {
             );
         }
 
+        // Verify process exists before attempting to freeze
+        if !self.runner.exists(self.id) {
+            crashln!("{} Process ({}) not found", *helpers::FAIL, self.id);
+        }
+
+        // Freeze process during editing to prevent auto-restart conflicts
+        // Give it 5 seconds freeze window - enough for edit to complete
+        self.runner.freeze(self.id, 5);
+        
         let process = self.runner.process(self.id);
 
         // Update command if provided
@@ -1074,7 +1092,9 @@ impl<'i> Internal<'i> {
             process.name = new_name.clone();
         }
 
+        // Save changes and unfreeze
         self.runner.save();
+        self.runner.unfreeze(self.id);
 
         println!(
             "{} Adjusted {}({}) ✓",
@@ -1103,37 +1123,34 @@ impl<'i> Internal<'i> {
 
         println!("{} Starting restore process...", *helpers::SUCCESS);
 
-        // Before starting daemon, read dump file and reset counters and crashed flags
-        // This gives each process a fresh start after system restore/reboot
+        // Kill any running processes before restoring to ensure clean state
+        // This prevents port conflicts and resource issues
+        // Note: This is primarily for backward compatibility with old dump files
+        // that still have PIDs saved. New dumps won't have PIDs (they're skipped).
         let dump_path = global_placeholders::global!("opm.dump");
         if opm::file::Exists::check(&dump_path).file() {
-            // Read the dump file directly
-            let mut dump_runner = opm::process::dump::read();
-            let mut modified = false;
+            // Read the dump file to get process information
+            let dump_runner = opm::process::dump::read();
             
-            // Process each entry: reset counters and clear crashed flag
-            // This prevents daemon from auto-restarting processes that were crashed before restore
-            // IMPORTANT: Preserve the running=true flag for processes that were running
-            // so that restore can identify which processes to restart
-            for (_id, process) in dump_runner.list.iter_mut() {
-                // Reset counters and clear crashed flag
-                // Also reset PIDs to 0/None to prevent daemon from treating old PIDs as new crashes
-                // DO NOT set running=false - preserve the running state so restore knows what to restore
-                if process.restarts != 0 || process.crash.value != 0 || process.pid != 0 || process.shell_pid.is_some() || process.crash.crashed {
-                    process.restarts = 0;
-                    process.crash.value = 0;
-                    process.crash.crashed = false;  // Clear crashed flag to prevent auto-restart
-                    process.pid = 0;  // Clear PID so daemon doesn't misidentify as newly crashed
-                    process.shell_pid = None;  // Clear shell_pid as well
-                    // DO NOT set running=false here - preserve it for restore detection
-                    modified = true;
+            // Kill all processes that might be running (for backward compatibility)
+            for (_id, process) in dump_runner.list.iter() {
+                // Only attempt to kill if we have a PID (legacy dump files)
+                if process.pid > 0 {
+                    if let Err(e) = opm::process::process_stop(process.pid) {
+                        ::log::debug!("Failed to stop process {} (PID {}): {}", process.name, process.pid, e);
+                        // Continue anyway - process may already be stopped
+                    }
+                }
+                // Kill child processes too
+                for child_pid in &process.children {
+                    if *child_pid > 0 {
+                        let _ = nix_kill(NixPid::from_raw(*child_pid as i32), Signal::SIGTERM);
+                    }
                 }
             }
             
-            // Save the modified dump file only if changes were made
-            if modified {
-                opm::process::dump::write(&dump_runner);
-            }
+            // Give processes time to terminate
+            std::thread::sleep(std::time::Duration::from_millis(PROCESS_TERMINATION_GRACE_PERIOD_MS));
         }
 
         // Auto-start daemon if not running (Issue #3)
