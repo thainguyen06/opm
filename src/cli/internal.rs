@@ -1115,13 +1115,16 @@ impl<'i> Internal<'i> {
             // This prevents daemon from auto-restarting processes that were crashed before restore
             // Users can manually start processes they want to run after restore
             for (_id, process) in dump_runner.list.iter_mut() {
-                // Reset counters and clear crashed flag
-                // Also reset PID to 0 to prevent daemon from treating old PIDs as new crashes
-                if process.restarts != 0 || process.crash.value != 0 || process.pid != 0 || process.crash.crashed {
+                // Reset counters, clear crashed flag, and mark as stopped
+                // Also reset PIDs to 0/None to prevent daemon from treating old PIDs as new crashes
+                // Setting running=false ensures daemon doesn't try to restart processes automatically
+                if process.restarts != 0 || process.crash.value != 0 || process.pid != 0 || process.shell_pid.is_some() || process.crash.crashed || process.running {
                     process.restarts = 0;
                     process.crash.value = 0;
                     process.crash.crashed = false;  // Clear crashed flag to prevent auto-restart
                     process.pid = 0;  // Clear PID so daemon doesn't misidentify as newly crashed
+                    process.shell_pid = None;  // Clear shell_pid as well
+                    process.running = false;  // Mark as stopped so daemon doesn't auto-restart
                     modified = true;
                 }
             }

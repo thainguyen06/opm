@@ -229,8 +229,10 @@ fn restart_process() {
              let recently_acted = has_recent_action_timestamp(id);
              
              // Check if this is a newly detected crash by looking at PID
-             // PID > 0 means we thought the process was alive, so this is a new crash event
-             let is_new_crash = item.pid > 0;
+             // We need to check the PID that we're actually monitoring (shell_pid if available, otherwise pid)
+             // If the monitored PID is > 0, it means we thought the process was alive, so this is a new crash event
+             let monitored_pid = item.shell_pid.unwrap_or(item.pid);
+             let is_new_crash = monitored_pid > 0;
 
              // Don't mark as crashed if:
              // 1. There was a recent manual action and process was expected to be running, OR
@@ -285,9 +287,10 @@ fn restart_process() {
                     continue;
                 }
                 
-                // Reset PID to 0 to indicate no valid PID
+                // Reset PID and shell_pid to 0 to indicate no valid PID
                 let process = runner.process(id);
                 process.pid = 0;
+                process.shell_pid = None;
                 
                 // Increment crash counter - allow it to exceed limit to show total crash history
                 process.crash.value += 1;

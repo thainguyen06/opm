@@ -16,6 +16,8 @@ use std::{
     time::Duration,
 };
 
+use home;
+
 use dashmap::DashMap;
 use once_cell::sync::Lazy;
 
@@ -490,6 +492,13 @@ impl Runner {
                     agent_id: None, // Local processes don't have an agent
                 },
             );
+
+            // Create timestamp file for this new process to prevent daemon from
+            // immediately marking it as crashed if it exits quickly during startup
+            if let Some(home_dir) = home::home_dir() {
+                let action_file = format!("{}/.opm/last_action_{}.timestamp", home_dir.display(), id);
+                let _ = std::fs::write(&action_file, Utc::now().to_rfc3339());
+            }
         }
 
         return self;
