@@ -382,6 +382,9 @@ impl Runner {
         dump::read_merged_direct()
     }
 
+    /// Refresh the runner state
+    /// Note: This uses Runner::new() which queries via socket.
+    /// Do not call from daemon context - use new_direct() instead.
     pub fn refresh(&self) -> Self {
         Runner::new()
     }
