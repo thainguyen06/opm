@@ -15,6 +15,7 @@
 //! The socket is created at `~/.opm/opm.sock`
 
 use anyhow::{anyhow, Result};
+use home::home_dir;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::{BufRead, BufReader, Read, Write};
@@ -23,6 +24,21 @@ use std::path::Path;
 use std::thread;
 
 use crate::process::{dump, Runner};
+
+/// Duration (in seconds) that daemon will ignore a process after a manual action.
+/// This constant documents the timeout used by daemon/mod.rs::has_recent_action_timestamp().
+/// Keep this in sync with the actual timeout value in the daemon code.
+#[allow(dead_code)]
+const ACTION_IGNORE_DURATION_SECS: u64 = 3;
+
+/// Helper function to create action timestamp file for a process
+/// This tells the daemon to ignore the process for ACTION_IGNORE_DURATION_SECS seconds
+fn create_action_timestamp(id: usize) {
+    if let Some(home_dir) = home_dir() {
+        let action_file = format!("{}/.opm/last_action_{}.timestamp", home_dir.display(), id);
+        let _ = std::fs::write(&action_file, chrono::Utc::now().to_rfc3339());
+    }
+}
 
 /// Request types that can be sent to the daemon via socket
 #[derive(Debug, Serialize, Deserialize)]
@@ -220,11 +236,15 @@ fn handle_client(mut stream: UnixStream) -> Result<()> {
                 let pid = runner.info(id).map(|p| p.pid).unwrap_or(0);
                 let children = runner.info(id).map(|p| p.children.clone()).unwrap_or_default();
                 
+                // Create action timestamp to prevent daemon from interfering during removal
+                create_action_timestamp(id);
+                
                 // IMPORTANT: Mark process as stopped BEFORE removing from list
                 // This prevents race condition where daemon's restart_process() loop
                 // detects the process is dead and tries to restart it during removal
                 // Safe to call process(id) because we're inside runner.exists(id) check
                 runner.process(id).running = false;
+                runner.process(id).crash.crashed = false;  // Clear crashed flag
                 
                 // Save state with running=false before removal
                 // This ensures daemon sees the stopped state and won't try to restart
@@ -280,8 +300,12 @@ fn handle_client(mut stream: UnixStream) -> Result<()> {
                 let pid = runner.info(id).map(|p| p.pid).unwrap_or(0);
                 let children = runner.info(id).map(|p| p.children.clone()).unwrap_or_default();
                 
-                // Mark as stopped
+                // Create action timestamp to prevent daemon from interfering during stop
+                create_action_timestamp(id);
+                
+                // Mark as stopped and clear crashed flag
                 runner.process(id).running = false;
+                runner.process(id).crash.crashed = false;  // Clear crashed flag
                 
                 // Write to memory cache only
                 dump::write_memory_direct(&runner);
