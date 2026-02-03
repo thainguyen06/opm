@@ -26,7 +26,6 @@ use nix::{
     unistd::Pid,
 };
 
-use chrono::serde::ts_milliseconds;
 use chrono::{DateTime, Utc};
 use global_placeholders::global;
 use macros_rs::{crashln, string, ternary, then};
@@ -168,22 +167,30 @@ pub type Env = BTreeMap<String, String>;
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Process {
     pub id: usize,
+    /// Process ID - not persisted to dump, always starts at 0
+    #[serde(skip)]
     pub pid: i64,
     /// PID of the parent shell process when running commands through a shell.
     /// This is set when the command is executed via a shell (e.g., bash -c 'script.sh')
     /// and shell_pid != actual_pid. Used for accurate CPU monitoring of shell scripts.
-    #[serde(default)]
+    /// Not persisted to dump, always starts at None
+    #[serde(skip)]
     pub shell_pid: Option<i64>,
     pub env: Env,
     pub name: String,
     pub path: PathBuf,
     pub script: String,
+    /// Restart counter - not persisted to dump, always starts at 0
+    #[serde(skip)]
     pub restarts: u64,
     pub running: bool,
     pub crash: Crash,
     pub watch: Watch,
+    /// Child process IDs - not persisted to dump, always starts empty
+    #[serde(skip)]
     pub children: Vec<i64>,
-    #[serde(with = "ts_milliseconds")]
+    /// Process start timestamp - not persisted to dump, always starts at current time
+    #[serde(skip)]
     pub started: DateTime<Utc>,
     /// Maximum memory limit in bytes (0 = no limit)
     #[serde(default)]
@@ -200,6 +207,8 @@ pub struct Process {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Crash {
     pub crashed: bool,
+    /// Crash counter - not persisted to dump, always starts at 0
+    #[serde(skip)]
     pub value: u64,
 }
 
