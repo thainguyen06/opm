@@ -189,7 +189,8 @@ pub struct Process {
     /// Child process IDs - not persisted to dump, always starts empty
     #[serde(skip)]
     pub children: Vec<i64>,
-    /// Process start timestamp - not persisted to dump, always starts at current time
+    /// Process start timestamp - not persisted to dump
+    /// Defaults to Unix epoch when deserialized, set to current time when process starts
     #[serde(skip)]
     pub started: DateTime<Utc>,
     /// Maximum memory limit in bytes (0 = no limit)

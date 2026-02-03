@@ -1120,14 +1120,16 @@ impl<'i> Internal<'i> {
 
         // Kill any running processes before restoring to ensure clean state
         // This prevents port conflicts and resource issues
+        // Note: This is primarily for backward compatibility with old dump files
+        // that still have PIDs saved. New dumps won't have PIDs (they're skipped).
         let dump_path = global_placeholders::global!("opm.dump");
         if opm::file::Exists::check(&dump_path).file() {
             // Read the dump file to get process information
             let dump_runner = opm::process::dump::read();
             
-            // Kill all processes that might be running
+            // Kill all processes that might be running (for backward compatibility)
             for (_id, process) in dump_runner.list.iter() {
-                // Only attempt to kill if we have a PID (though PIDs won't be saved after this change)
+                // Only attempt to kill if we have a PID (legacy dump files)
                 if process.pid > 0 {
                     if let Err(e) = opm::process::process_stop(process.pid) {
                         ::log::debug!("Failed to stop process {} (PID {}): {}", process.name, process.pid, e);
