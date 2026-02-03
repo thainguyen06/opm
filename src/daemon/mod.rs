@@ -273,6 +273,7 @@ fn restart_process() {
                     let process = runner.process(id);
                     process.running = false;
                     process.pid = 0;
+                    process.shell_pid = None;
                     // Don't increment crash counter or set crashed flag for successful exits
                     log!("[daemon] process stopped cleanly", 
                          "name" => item.name, "id" => id);
