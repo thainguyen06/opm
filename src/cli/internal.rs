@@ -11,6 +11,8 @@ use std::fs;
 #[cfg(not(target_os = "linux"))]
 use nix::{errno::Errno, sys::signal::kill, unistd::Pid};
 
+use nix::{sys::signal::{kill as nix_kill, Signal}, unistd::Pid as NixPid};
+
 use opm::{
     config, file,
     helpers::{self, ColoredString},
@@ -39,6 +41,9 @@ lazy_static! {
 
 // Constants for real-time statistics display timing
 pub(crate) const STATS_PRE_LIST_DELAY_MS: u64 = 100;
+
+// Grace period for process termination during restore
+const PROCESS_TERMINATION_GRACE_PERIOD_MS: u64 = 500;
 
 pub struct Internal<'i> {
     pub id: usize,
@@ -1139,14 +1144,13 @@ impl<'i> Internal<'i> {
                 // Kill child processes too
                 for child_pid in &process.children {
                     if *child_pid > 0 {
-                        use nix::{sys::signal::{kill, Signal}, unistd::Pid};
-                        let _ = kill(Pid::from_raw(*child_pid as i32), Signal::SIGTERM);
+                        let _ = nix_kill(NixPid::from_raw(*child_pid as i32), Signal::SIGTERM);
                     }
                 }
             }
             
             // Give processes time to terminate
-            std::thread::sleep(std::time::Duration::from_millis(500));
+            std::thread::sleep(std::time::Duration::from_millis(PROCESS_TERMINATION_GRACE_PERIOD_MS));
         }
 
         // Auto-start daemon if not running (Issue #3)
