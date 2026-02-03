@@ -1040,6 +1040,9 @@ impl Runner {
         if let Some(process) = self.list.get_mut(&id) {
             process.frozen_until = Some(Utc::now() + chrono::Duration::seconds(duration_secs));
             self.save();
+            log::debug!("Process {} frozen for {} seconds", id, duration_secs);
+        } else {
+            log::warn!("Attempted to freeze non-existent process {}", id);
         }
     }
 
@@ -1048,6 +1051,9 @@ impl Runner {
         if let Some(process) = self.list.get_mut(&id) {
             process.frozen_until = None;
             self.save();
+            log::debug!("Process {} unfrozen", id);
+        } else {
+            log::warn!("Attempted to unfreeze non-existent process {}", id);
         }
     }
 
