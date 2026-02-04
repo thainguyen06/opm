@@ -236,9 +236,9 @@ fn restart_process() {
              let is_new_crash = item.pid > 0;
 
              // Don't mark as crashed if:
-             // 1. There was a recent manual action and process was expected to be running, OR
-             // 2. Process was just started (less than 2 seconds ago) - give it time to initialize
-             if is_new_crash && !(recently_acted && item.running) && !just_started {
+             // 1. There was a recent manual action (within 3 seconds), OR
+             // 2. Process was just started (within grace period) - give it time to initialize
+             if is_new_crash && !recently_acted && !just_started {
                 // Check if process exited successfully (exit code 0) by checking the child handle
                 // Use shell_pid if available (since we store handles by shell_pid), otherwise use regular pid
                 // The handle is stored by shell_pid because that's the direct child of our spawn call
