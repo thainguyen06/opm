@@ -569,7 +569,7 @@ pub fn restart(items: &Items, server_name: &String) {
 
     // Allow CPU stats to accumulate before displaying the list
     thread::sleep(Duration::from_millis(STATS_PRE_LIST_DELAY_MS));
-    Internal::list(&string!("default"), &list_name);
+    Internal::list_with_runner(&string!("default"), &list_name, Some(&runner));
 }
 
 pub fn reload(items: &Items, server_name: &String) {
@@ -632,7 +632,7 @@ pub fn reload(items: &Items, server_name: &String) {
 
     // Allow CPU stats to accumulate before displaying the list
     thread::sleep(Duration::from_millis(STATS_PRE_LIST_DELAY_MS));
-    Internal::list(&string!("default"), &list_name);
+    Internal::list_with_runner(&string!("default"), &list_name, Some(&runner));
 }
 
 pub fn get_command(item: &Item, server_name: &String) {
