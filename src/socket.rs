@@ -135,11 +135,11 @@ pub fn start_socket_server(socket_path: &str) -> Result<()> {
         match stream {
             Ok(stream) => {
                 // Try to send to worker threads, drop connection if queue is full
-                if let Err(_) = tx.send(stream) {
+                if let Err(e) = tx.send(stream) {
                     log::warn!(
-                        "Socket connection queue full (max: {}), dropping connection. \
+                        "Socket connection queue full (max: {}), dropping connection: {}. \
                         Consider increasing MAX_CONCURRENT_CONNECTIONS or WORKER_THREADS if this happens frequently.",
-                        MAX_CONCURRENT_CONNECTIONS
+                        MAX_CONCURRENT_CONNECTIONS, e
                     );
                 }
             }
@@ -498,7 +498,7 @@ pub fn send_request(socket_path: &str, request: SocketRequest) -> Result<SocketR
     let mut last_error = None;
     
     for attempt in 0..MAX_RETRIES {
-        match try_send_request_once(socket_path, &request) {
+        match send_request_once(socket_path, &request) {
             Ok(response) => return Ok(response),
             Err(e) => {
                 last_error = Some(e);
@@ -520,7 +520,7 @@ pub fn send_request(socket_path: &str, request: SocketRequest) -> Result<SocketR
 }
 
 /// Internal function to attempt a single socket request without retry
-fn try_send_request_once(socket_path: &str, request: &SocketRequest) -> Result<SocketResponse> {
+fn send_request_once(socket_path: &str, request: &SocketRequest) -> Result<SocketResponse> {
     let mut stream = UnixStream::connect(socket_path).map_err(|e| {
         anyhow!(
             "Failed to connect to daemon socket: {}. Is the daemon running?",
