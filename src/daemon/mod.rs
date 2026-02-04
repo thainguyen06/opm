@@ -1018,23 +1018,41 @@ pub mod pid;
 // This should be called on daemon startup and during restore to prevent
 // stale timestamps from previous sessions from interfering with crash detection
 pub fn cleanup_all_timestamp_files() {
-    if let Some(home_dir) = home::home_dir() {
-        let opm_dir = home_dir.join(".opm");
-        if let Ok(entries) = std::fs::read_dir(&opm_dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if let Some(file_name) = path.file_name() {
-                    if let Some(name_str) = file_name.to_str() {
-                        // Remove all files matching pattern "last_action_*.timestamp"
-                        if name_str.starts_with("last_action_") && name_str.ends_with(".timestamp") {
-                            if let Err(e) = std::fs::remove_file(&path) {
-                                ::log::warn!("Failed to remove stale timestamp file {:?}: {}", path, e);
-                            } else {
-                                ::log::debug!("Cleaned up stale timestamp file: {:?}", path);
-                            }
-                        }
-                    }
-                }
+    let home_dir = match home::home_dir() {
+        Some(dir) => dir,
+        None => return,
+    };
+
+    let opm_dir = home_dir.join(".opm");
+    let entries = match std::fs::read_dir(&opm_dir) {
+        Ok(entries) => entries,
+        Err(e) => {
+            ::log::warn!("Failed to read .opm directory for timestamp cleanup: {}", e);
+            return;
+        }
+    };
+
+    for entry in entries {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(e) => {
+                ::log::warn!("Failed to read directory entry during timestamp cleanup: {}", e);
+                continue;
+            }
+        };
+
+        let path = entry.path();
+        let file_name = match path.file_name().and_then(|n| n.to_str()) {
+            Some(name) => name,
+            None => continue,
+        };
+
+        // Remove all files matching pattern "last_action_*.timestamp"
+        if file_name.starts_with("last_action_") && file_name.ends_with(".timestamp") {
+            if let Err(e) = std::fs::remove_file(&path) {
+                ::log::warn!("Failed to remove stale timestamp file {:?}: {}", path, e);
+            } else {
+                ::log::debug!("Cleaned up stale timestamp file: {:?}", path);
             }
         }
     }
