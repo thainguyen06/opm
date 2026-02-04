@@ -1046,15 +1046,15 @@ fn is_timestamp_file(filename: &str) -> bool {
 /// encountered and continues with cleanup to ensure best-effort removal of stale files.
 pub fn cleanup_all_timestamp_files() {
     let Some(home_dir) = home::home_dir() else {
-        ::log::warn!("Cannot cleanup timestamp files: home directory not available");
+        ::log::warn!("Cannot cleanup timestamp files: home directory not available. Stale timestamp files may cause false crash detection.");
         return;
     };
 
     let opm_dir = home_dir.join(".opm");
     let Ok(entries) = std::fs::read_dir(&opm_dir) else {
-        // Directory might not exist yet on first run - this is normal
-        // Only log if it's an unexpected error (will show as "Permission denied" etc.)
-        ::log::debug!("Could not read .opm directory for timestamp cleanup (directory may not exist yet)");
+        // Directory might not exist yet on first run - this is normal and not a concern
+        // If it fails for other reasons (permission denied, etc.), we'll discover it
+        // when the daemon tries to create files there during normal operation
         return;
     };
 
