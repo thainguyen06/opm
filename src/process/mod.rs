@@ -4289,8 +4289,9 @@ mod tests {
     #[test]
     fn test_started_process_shows_correct_status() {
         // Test that a process started with a valid PID shows as "online" not "stopped"
-        // This validates the fix for the issue where processes would show as "stopped" 
-        // immediately after being started because the state wasn't persisted properly.
+        // This validates the fix for the issue where processes would incorrectly show as "stopped"
+        // immediately after being started, even though they were actually running,
+        // because the state wasn't persisted properly between CLI commands.
         
         let mut runner = setup_test_runner();
         let id = runner.id.next();
