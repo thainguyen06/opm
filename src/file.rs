@@ -343,12 +343,10 @@ fn read_file_with_retry(path: &str) -> Result<Vec<u8>, String> {
                     log!("[file::read] Cannot find file: {err}");
                     return Err(format!("Cannot find file: {}", err));
                 } else {
+                    // Only log internally, don't print to stdout during normal operations
+                    // This reduces noise during restore operations where files are being loaded
                     log!(
                         "[file::read] Error reading file. Retrying... (Attempt {retry_count}/{max_retries})"
-                    );
-                    println!(
-                        "{} Error reading file. Retrying... (Attempt {retry_count}/{max_retries})",
-                        *helpers::FAIL
                     );
                 }
             }

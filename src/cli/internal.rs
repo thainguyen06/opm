@@ -11,8 +11,6 @@ use std::fs;
 #[cfg(not(target_os = "linux"))]
 use nix::{errno::Errno, sys::signal::kill, unistd::Pid};
 
-use nix::{sys::signal::{kill as nix_kill, Signal}, unistd::Pid as NixPid};
-
 use opm::{
     config, file,
     helpers::{self, ColoredString},
@@ -41,9 +39,6 @@ lazy_static! {
 
 // Constants for real-time statistics display timing
 pub(crate) const STATS_PRE_LIST_DELAY_MS: u64 = 100;
-
-// Grace period for process termination during restore
-const PROCESS_TERMINATION_GRACE_PERIOD_MS: u64 = 500;
 
 pub struct Internal<'i> {
     pub id: usize,
@@ -1127,31 +1122,12 @@ impl<'i> Internal<'i> {
         // This prevents port conflicts and resource issues
         // Note: This is primarily for backward compatibility with old dump files
         // that still have PIDs saved. New dumps won't have PIDs (they're skipped).
-        let dump_path = global_placeholders::global!("opm.dump");
-        if opm::file::Exists::check(&dump_path).file() {
-            // Read the dump file to get process information
-            let dump_runner = opm::process::dump::read();
-            
-            // Kill all processes that might be running (for backward compatibility)
-            for (_id, process) in dump_runner.list.iter() {
-                // Only attempt to kill if we have a PID (legacy dump files)
-                if process.pid > 0 {
-                    if let Err(e) = opm::process::process_stop(process.pid) {
-                        ::log::debug!("Failed to stop process {} (PID {}): {}", process.name, process.pid, e);
-                        // Continue anyway - process may already be stopped
-                    }
-                }
-                // Kill child processes too
-                for child_pid in &process.children {
-                    if *child_pid > 0 {
-                        let _ = nix_kill(NixPid::from_raw(*child_pid as i32), Signal::SIGTERM);
-                    }
-                }
-            }
-            
-            // Give processes time to terminate
-            std::thread::sleep(std::time::Duration::from_millis(PROCESS_TERMINATION_GRACE_PERIOD_MS));
-        }
+        // 
+        // OPTIMIZATION: We no longer load the full dump file into RAM here.
+        // Instead, we rely on the daemon's init_on_startup() to handle any 
+        // cleanup needed. This avoids unnecessary memory usage and file I/O
+        // during restore operations, especially for large dump files.
+        // The daemon will properly handle process state when it starts.
 
         // Auto-start daemon if not running (Issue #3)
         // Check if daemon is already running using PID file
