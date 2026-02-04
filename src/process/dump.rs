@@ -412,8 +412,9 @@ pub fn read_merged() -> Runner {
         }
     }
 
-    // Fallback: Return memory cache (or empty runner) without touching disk
-    read_memory_direct_option().unwrap_or_else(empty_runner)
+    // Fallback: Read from permanent dump file on disk
+    // When daemon is not running, we need to read the permanent state
+    read_permanent_dump()
 }
 
 /// Initialize on daemon startup: merge any old temp file into permanent, clean temp, clear memory
