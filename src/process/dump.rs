@@ -518,35 +518,30 @@ pub fn has_backup() -> bool {
 mod tests {
     use super::*;
 
+    /// Documents the fix for https://github.com/h0dev/opm/issues/XXX
+    /// 
+    /// Bug: `opm list` and `opm restore` showed "Process table empty" even when
+    /// a valid process.dump file existed with processes.
+    /// 
+    /// Root cause: The `read_merged()` function's fallback logic (when daemon is not running)
+    /// incorrectly returned memory cache (empty) instead of reading permanent dump file.
+    /// 
+    /// Fix: Changed fallback from `read_memory_direct_option().unwrap_or_else(empty_runner)`
+    /// to `read_permanent_dump()` to read from disk when daemon is not running.
+    /// 
+    /// Manual verification:
+    /// - Created process.dump file with test processes
+    /// - Before fix: `opm list` showed "Process table empty"
+    /// - After fix: `opm list` correctly displays all processes from dump file
     #[test]
-    fn test_read_merged_fallback_to_permanent_dump() {
-        // This test verifies the fix for the bug where read_merged() would return
-        // an empty runner when the daemon was not running, even if process.dump existed.
-        // 
-        // The bug was that read_merged() fell back to reading the memory cache
-        // (which is empty when daemon is not running) instead of reading the
-        // permanent dump file from disk.
-        //
-        // Test scenario:
-        // 1. Create a runner with some processes
-        // 2. Write it to permanent dump
-        // 3. Clear memory cache (simulating daemon not running)
-        // 4. Call read_merged() (with daemon not running, it will use fallback)
-        // 5. Verify we get the processes from permanent dump, not an empty runner
-
-        // Setup: Create a test runner with a process
-        let test_runner = empty_runner();
-        test_runner.id.counter.store(1, Ordering::SeqCst);
+    fn test_read_merged_fallback_documented() {
+        // This test documents the bug fix but cannot fully test it without
+        // setting up global paths and potentially interfering with running OPM.
+        // The fix was manually verified to work correctly.
         
-        // Note: We can't actually test this without setting up the global paths
-        // and potentially interfering with a running OPM instance, so we just
-        // document the fix here. The manual testing confirmed the fix works.
-        //
-        // Manual test results:
-        // - Before fix: opm list showed "Process table empty" even with process.dump file
-        // - After fix: opm list correctly shows processes from process.dump file
-        
-        // This test serves as documentation of the bug and its fix
-        assert!(true, "Bug fix documented: read_merged() now reads permanent dump when daemon is not running");
+        // Verify helper functions work correctly
+        let runner = empty_runner();
+        assert_eq!(runner.list.len(), 0);
+        assert_eq!(runner.id.counter.load(Ordering::SeqCst), 0);
     }
 }
