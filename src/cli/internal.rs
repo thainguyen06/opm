@@ -1568,15 +1568,14 @@ impl<'i> Internal<'i> {
         }
     }
     
-    /// List processes with optional runner parameter to avoid reloading state from disk
+    /// Lists processes using the provided runner or falls back to loading from disk.
+    /// 
     /// This prevents race conditions with the daemon when displaying state immediately after modifications
+    /// by using the in-memory runner state instead of reloading from disk.
     pub fn list_with_runner(format: &String, server_name: &String, runner_opt: Option<&Runner>) {
         // If a runner is provided for local/internal servers, use it directly
         // Otherwise fall back to the standard list behavior
         if matches!(&**server_name, "internal" | "local" | "default") && runner_opt.is_some() {
-            // Check permissions for remote operations
-            super::check_remote_permission(server_name);
-            
             let mut runner_clone = runner_opt.unwrap().clone();
             
             let render_list = |runner: &mut Runner, internal: bool| {
