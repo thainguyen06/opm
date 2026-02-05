@@ -188,11 +188,12 @@ fn restart_process() {
         // For processes with children, also check if any children are alive
         // This prevents false positives when shell scripts exit but leave background processes running
         // 
-        // IMPORTANT: Always use item.pid for liveness checks, NOT shell_pid.
-        // The shell_pid (if set) points to the parent shell which may exit quickly after spawning
-        // the actual command. We only want to check if the actual command (item.pid) is alive.
-        // shell_pid is used for CPU monitoring purposes only.
-        let mut process_alive = opm::process::is_pid_alive(item.pid);
+        // Check both the actual PID and shell PID (if present) to determine if process is alive.
+        // For shell-wrapped processes, either PID being alive means the process is running.
+        // This is consistent with the display logic in build_process_item() and prevents
+        // false crash detection when one PID exits but the other is still alive.
+        let mut process_alive = opm::process::is_pid_alive(item.pid) || 
+            item.shell_pid.map_or(false, |pid| opm::process::is_pid_alive(pid));
 
         // Handle case where main process died but children are still alive
         // This commonly occurs when shell scripts exit after spawning background processes
