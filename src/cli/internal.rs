@@ -1173,9 +1173,7 @@ impl<'i> Internal<'i> {
                 retry_count += 1;
             }
             
-            if socket_ready {
-                println!("{} OPM daemon started", *helpers::SUCCESS);
-            } else {
+            if !socket_ready {
                 // Socket not ready after initial retries, but daemon may still be starting
                 // Try a few more times with longer waits before giving up
                 eprintln!("{} Warning: Daemon socket not ready after initial attempts, retrying...", *helpers::WARN);
@@ -1185,7 +1183,7 @@ impl<'i> Internal<'i> {
                 for i in 0..additional_retries {
                     std::thread::sleep(std::time::Duration::from_secs(1));
                     if opm::socket::is_daemon_running(&socket_path) {
-                        println!("{} OPM daemon started", *helpers::SUCCESS);
+                        socket_ready = true;
                         break;
                     }
                     
@@ -1193,6 +1191,11 @@ impl<'i> Internal<'i> {
                         eprintln!("{} Warning: Daemon socket may not be ready after extended wait", *helpers::WARN);
                     }
                 }
+            }
+            
+            // Print success message only once, after all retries are complete
+            if socket_ready {
+                println!("{} OPM daemon started", *helpers::SUCCESS);
             }
         }
         
