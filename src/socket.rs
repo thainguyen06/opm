@@ -164,17 +164,22 @@ fn handle_client(mut stream: UnixStream) -> Result<()> {
     // Set write timeout to prevent hanging on socket writes
     stream.set_write_timeout(Some(std::time::Duration::from_secs(30)))?;
     
-    let reader = BufReader::new(stream.try_clone()?);
-    let mut line = String::new();
-    
-    // Limit input size to 50MB to allow for larger state objects while preventing memory exhaustion
-    // Increased from 10MB to accommodate larger process lists
-    const MAX_REQUEST_SIZE: usize = 50 * 1024 * 1024;
-    let mut limited_reader = reader.take(MAX_REQUEST_SIZE as u64);
-    limited_reader.read_line(&mut line)?;
-
-    // Parse request
-    let request: SocketRequest = serde_json::from_str(&line)?;
+    // Read request from stream
+    // IMPORTANT: We create the BufReader in a limited scope so that it gets dropped
+    // before we write to the stream. This prevents buffering synchronization issues.
+    let request = {
+        let mut line = String::new();
+        
+        // Limit input size to 50MB to allow for larger state objects while preventing memory exhaustion
+        // Increased from 10MB to accommodate larger process lists
+        const MAX_REQUEST_SIZE: usize = 50 * 1024 * 1024;
+        let mut reader = BufReader::new(&mut stream);
+        let mut limited_reader = reader.by_ref().take(MAX_REQUEST_SIZE as u64);
+        limited_reader.read_line(&mut line)?;
+        
+        // Parse request before reader is dropped
+        serde_json::from_str::<SocketRequest>(&line)?
+    }; // BufReader is dropped here, releasing the mutable borrow on stream
 
     // Process request
     let response = match request {
@@ -485,6 +490,10 @@ fn handle_client(mut stream: UnixStream) -> Result<()> {
     stream.write_all(response_json.as_bytes())?;
     stream.write_all(b"\n")?;
     stream.flush()?;
+    
+    // Shutdown write side to signal completion
+    // This ensures the client knows the response is complete
+    stream.shutdown(std::net::Shutdown::Write)?;
 
     Ok(())
 }
@@ -537,6 +546,10 @@ pub(crate) fn send_request_once(socket_path: &str, request: &SocketRequest) -> R
     stream.write_all(request_json.as_bytes())?;
     stream.write_all(b"\n")?;
     stream.flush()?;
+    
+    // Shutdown the write side to signal we're done sending
+    // This ensures the server knows no more data is coming
+    stream.shutdown(std::net::Shutdown::Write)?;
 
     // Read response
     let mut reader = BufReader::new(stream);
