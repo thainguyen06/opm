@@ -756,7 +756,9 @@ pub fn start(verbose: bool) {
                 // Use start_socket_server_with_callback to signal when ready
                 if let Err(e) = opm::socket::start_socket_server_with_callback(&socket_path, Some(move || {
                     // Signal that socket server is ready to accept connections
-                    let _ = ready_tx.send(());
+                    if let Err(e) = ready_tx.send(()) {
+                        log!("[daemon] Failed to send socket readiness signal", "error" => format!("{}", e));
+                    }
                 })) {
                     log!("[daemon] Unix socket server error", "error" => format!("{}", e));
                     eprintln!("[daemon] Critical: Unix socket server failed to start: {}", e);
@@ -771,8 +773,8 @@ pub fn start(verbose: bool) {
                         log!("[daemon] Unix socket server ready", "path" => socket_path_clone);
                     }
                     Err(_) => {
-                        log!("[daemon] Warning: Socket server readiness timeout", "path" => socket_path_clone);
-                        eprintln!("[daemon] Warning: Socket server may not be ready. Continuing anyway.");
+                        log!("[daemon] Socket server initialization timeout", "path" => &socket_path_clone, "timeout" => "5s");
+                        eprintln!("[daemon] Warning: Socket server failed to initialize within 5 seconds. CLI commands may fail until initialization completes.");
                     }
                 }
             }

@@ -85,7 +85,7 @@ pub enum SocketResponse {
 ///
 /// Takes an optional callback that is invoked once the server is fully ready to accept connections.
 pub fn start_socket_server(socket_path: &str) -> Result<()> {
-    start_socket_server_with_callback(socket_path, None::<fn()>)
+    start_socket_server_with_callback::<fn()>(socket_path, None)
 }
 
 /// Start the Unix socket server with an optional readiness callback
