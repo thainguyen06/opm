@@ -459,6 +459,9 @@ pub fn read_from_daemon_only() -> Result<Runner, String> {
                 // Don't retry on the last attempt
                 if attempt < MAX_RETRIES - 1 {
                     // Exponential backoff with cap: 100ms, 200ms, 400ms, 800ms, then capped at 1000ms
+                    // For attempt 0 (first failure): 100 * 2^0 = 100ms
+                    // For attempt 1 (second failure): 100 * 2^1 = 200ms
+                    // For attempt 2 (third failure): 100 * 2^2 = 400ms, etc.
                     let backoff_ms = (INITIAL_BACKOFF_MS * 2u64.pow(attempt)).min(1000);
                     thread::sleep(Duration::from_millis(backoff_ms));
                     log!(
@@ -477,7 +480,7 @@ pub fn read_from_daemon_only() -> Result<Runner, String> {
     let err = format!(
         "Failed to read from daemon after {} retries: {}",
         MAX_RETRIES,
-        last_error.unwrap()
+        last_error.expect("last_error should be set after all retries fail")
     );
     log!("[dump::read_from_daemon_only] {}", err);
     Err(err)
