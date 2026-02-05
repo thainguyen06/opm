@@ -989,12 +989,12 @@ fn main() {
                 let total_wait_secs = total_wait_ms as f64 / 1000.0;
                 
                 // Try immediately first, then retry with increasing delays
-                // Use shorter retry parameters if daemon was already running
+                // Use reduced retry count if daemon was already running (socket should be ready quickly)
+                // Use full retry count if we just started the daemon (socket needs time to initialize)
                 let max_retries = if daemon_was_started {
-                    SOCKET_RETRY_MAX
+                    SOCKET_RETRY_MAX // Full retries when we just started the daemon
                 } else {
-                    // If daemon was already running, reduce retries since socket should be ready quickly
-                    3
+                    3 // Reduced retries when daemon was already running
                 };
                 
                 loop {

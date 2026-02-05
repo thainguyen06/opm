@@ -1150,7 +1150,7 @@ impl<'i> Internal<'i> {
             // Use socket readiness check instead of fixed sleep
             use global_placeholders::global;
             let socket_path = global!("opm.socket");
-            let max_retries = 10;
+            let max_retries = 10; // Same as SOCKET_RETRY_MAX in main.rs
             let mut retry_count = 0;
             let mut socket_ready = false;
             
@@ -1165,6 +1165,7 @@ impl<'i> Internal<'i> {
                 }
                 
                 // Start with 200ms and increase by 100ms each retry
+                // (matches SOCKET_RETRY_INITIAL_MS and SOCKET_RETRY_INCREMENT_MS in main.rs)
                 let wait_ms = 200 + (retry_count * 100);
                 std::thread::sleep(std::time::Duration::from_millis(wait_ms));
                 retry_count += 1;
