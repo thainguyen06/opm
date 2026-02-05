@@ -416,15 +416,16 @@ fn handle_client(mut stream: UnixStream) -> Result<()> {
             }
         }
         SocketRequest::StartProcess(id) => {
+            // Create action timestamp FIRST to prevent daemon from interfering during start
+            // This must be done before any state changes to ensure daemon sees it
+            create_action_timestamp(id);
+            
             // Start a stopped process
             let permanent = dump::read_permanent_direct();
             let memory = dump::read_memory_direct_option();
             let mut runner = dump::merge_runners_public(permanent, memory);
             
             if runner.exists(id) {
-                // Create action timestamp to prevent daemon from interfering during start
-                create_action_timestamp(id);
-                
                 // This is a simplified start - full implementation would need process spawning logic
                 // For now, just mark as running and let the daemon handle actual process start
                 runner.process(id).running = true;
@@ -439,6 +440,10 @@ fn handle_client(mut stream: UnixStream) -> Result<()> {
             }
         }
         SocketRequest::RestartProcess(id) => {
+            // Create action timestamp FIRST to prevent daemon from interfering during restart
+            // This must be done before any state changes to ensure daemon sees it
+            create_action_timestamp(id);
+            
             // Restart a process by stopping and starting it
             let permanent = dump::read_permanent_direct();
             let memory = dump::read_memory_direct_option();
@@ -447,9 +452,6 @@ fn handle_client(mut stream: UnixStream) -> Result<()> {
             if runner.exists(id) {
                 let pid = runner.info(id).map(|p| p.pid).unwrap_or(0);
                 let children = runner.info(id).map(|p| p.children.clone()).unwrap_or_default();
-                
-                // Create action timestamp to prevent daemon from interfering during restart
-                create_action_timestamp(id);
                 
                 // Kill existing process
                 if pid > 0 {
