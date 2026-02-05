@@ -251,7 +251,9 @@ fn restart_process() {
          // This happens after manual start/restart commands via socket
          if item.running && item.pid == 0 && !item.crash.crashed {
              log!("[daemon] starting process with no PID", "name" => item.name, "id" => id);
-             runner.restart(id, true, false); // dead=true (daemon operation), increment_counter=false (not counting as a restart)
+             let is_daemon_operation = true;  // This is a daemon-initiated operation
+             let should_increment_counter = false;  // Don't increment counter for initial start
+             runner.restart(id, is_daemon_operation, should_increment_counter);
              log!("[daemon] process started", "name" => item.name, "id" => id, "new_pid" => runner.info(id).map(|p| p.pid).unwrap_or(0));
              continue;
          }
