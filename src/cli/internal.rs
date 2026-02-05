@@ -597,7 +597,7 @@ impl<'i> Internal<'i> {
                 // For shell-wrapped processes, either PID being alive means the process is running.
                 // This is consistent with the daemon monitoring logic and prevents false crash detection.
                 let pid_valid = item.pid > 0;
-                let main_pid_alive = pid_valid && is_pid_alive(item.pid as i64);
+                let main_pid_alive = pid_valid && is_pid_alive(item.pid);
                 let shell_pid_alive = item.shell_pid.map_or(false, |pid| is_pid_alive(pid));
                 let pid_alive = main_pid_alive || shell_pid_alive;
                 let process_actually_running = item.running && pid_alive;
