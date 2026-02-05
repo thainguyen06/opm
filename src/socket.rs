@@ -118,7 +118,12 @@ pub fn start_socket_server(socket_path: &str) -> Result<()> {
                     }
                 };
                 if let Err(e) = handle_client(stream) {
-                    log::error!("Error handling socket client: {}", e);
+                    // Log with more context to help debugging
+                    log::error!("Error handling socket client in worker thread {}: {}", i, e);
+                    // Also log the error chain for more detailed debugging
+                    if let Some(source) = e.source() {
+                        log::debug!("Socket error source: {}", source);
+                    }
                 }
             }
             log::info!("Socket worker thread {} exiting", i);
@@ -130,12 +135,19 @@ pub fn start_socket_server(socket_path: &str) -> Result<()> {
         match stream {
             Ok(stream) => {
                 // Try to send to worker threads, drop connection if queue is full
-                if tx.send(stream).is_err() {
-                    log::warn!("Socket connection queue full, dropping connection");
+                if let Err(e) = tx.send(stream) {
+                    log::warn!(
+                        "Socket connection queue full (max: {}), dropping connection: {}. \
+                        Consider increasing MAX_CONCURRENT_CONNECTIONS or WORKER_THREADS if this happens frequently.",
+                        MAX_CONCURRENT_CONNECTIONS, e
+                    );
                 }
             }
             Err(e) => {
-                log::error!("Error accepting socket connection: {}", e);
+                log::error!(
+                    "Error accepting socket connection: {}. This may indicate a system resource issue.",
+                    e
+                );
             }
         }
     }
@@ -146,13 +158,18 @@ pub fn start_socket_server(socket_path: &str) -> Result<()> {
 /// Handle a single client connection
 fn handle_client(mut stream: UnixStream) -> Result<()> {
     // Set read timeout to prevent hanging on malicious clients
-    stream.set_read_timeout(Some(std::time::Duration::from_secs(5)))?;
+    // Increased from 5s to 30s to allow for large state transfers
+    stream.set_read_timeout(Some(std::time::Duration::from_secs(30)))?;
+    
+    // Set write timeout to prevent hanging on socket writes
+    stream.set_write_timeout(Some(std::time::Duration::from_secs(30)))?;
     
     let reader = BufReader::new(stream.try_clone()?);
     let mut line = String::new();
     
-    // Limit input size to 10MB to prevent memory exhaustion
-    const MAX_REQUEST_SIZE: usize = 10 * 1024 * 1024;
+    // Limit input size to 50MB to allow for larger state objects while preventing memory exhaustion
+    // Increased from 10MB to accommodate larger process lists
+    const MAX_REQUEST_SIZE: usize = 50 * 1024 * 1024;
     let mut limited_reader = reader.take(MAX_REQUEST_SIZE as u64);
     limited_reader.read_line(&mut line)?;
 
@@ -473,13 +490,47 @@ fn handle_client(mut stream: UnixStream) -> Result<()> {
 }
 
 /// Client function to send a request to the daemon via socket
+/// Implements retry logic with exponential backoff for transient failures
 pub fn send_request(socket_path: &str, request: SocketRequest) -> Result<SocketResponse> {
+    const MAX_RETRIES: u32 = 3;
+    const INITIAL_BACKOFF_MS: u64 = 50;
+    
+    let mut last_error = None;
+    
+    for attempt in 0..MAX_RETRIES {
+        match send_request_once(socket_path, &request) {
+            Ok(response) => return Ok(response),
+            Err(e) => {
+                last_error = Some(e);
+                
+                // Don't retry on the last attempt
+                if attempt < MAX_RETRIES - 1 {
+                    // Exponential backoff: 50ms, 100ms, 200ms
+                    let backoff_ms = INITIAL_BACKOFF_MS * 2u64.pow(attempt);
+                    std::thread::sleep(std::time::Duration::from_millis(backoff_ms));
+                    log::debug!("Socket request failed (attempt {}/{}), retrying after {}ms", 
+                               attempt + 1, MAX_RETRIES, backoff_ms);
+                }
+            }
+        }
+    }
+    
+    // All retries exhausted, return the last error
+    Err(last_error.unwrap())
+}
+
+/// Internal function to attempt a single socket request without retry
+fn send_request_once(socket_path: &str, request: &SocketRequest) -> Result<SocketResponse> {
     let mut stream = UnixStream::connect(socket_path).map_err(|e| {
         anyhow!(
             "Failed to connect to daemon socket: {}. Is the daemon running?",
             e
         )
     })?;
+    
+    // Set timeouts for client connections as well
+    stream.set_read_timeout(Some(std::time::Duration::from_secs(30)))?;
+    stream.set_write_timeout(Some(std::time::Duration::from_secs(30)))?;
 
     // Send request
     let request_json = serde_json::to_string(&request)?;
