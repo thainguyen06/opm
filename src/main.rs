@@ -947,8 +947,8 @@ fn main() {
         Commands::Restore { server } => {
             // Unconditionally reset and restart the daemon silently before restore
             let config = opm::config::read();
-            opm::daemon::reset();
-            opm::daemon::restart(&config.daemon.web.api, &config.daemon.web.ui, false);
+            daemon::reset();
+            daemon::restart(&config.daemon.web.api, &config.daemon.web.ui, false);
 
             // Wait for daemon socket to be ready before proceeding with restore
             // This prevents "Connection refused" errors when restore tries to read from daemon
@@ -1031,7 +1031,7 @@ fn main() {
         Commands::Flush { item, server } => cli::flush(item, &defaults(server)),
 
         Commands::Daemon { command } => match command {
-            Daemon::Stop => daemon::stop(),
+            Daemon::Stop => daemon::stop(true),
             Daemon::Reset => daemon::reset(),
             Daemon::Health { format } => daemon::health(format),
             Daemon::Restore { api, webui } => daemon::restart(api, webui, level.as_str() != "OFF"),
