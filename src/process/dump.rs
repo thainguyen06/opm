@@ -430,7 +430,8 @@ pub fn read_from_daemon_only() -> Result<Runner, String> {
     // Use more aggressive retry strategy for restore operations
     // The daemon might be busy processing existing processes, so we give it more time
     // We use send_request_once directly to avoid nested retries
-    const MAX_RETRIES: u32 = 10;
+    // Increased from 10 to 15 retries to match socket readiness check in main.rs
+    const MAX_RETRIES: u32 = 15;
     const INITIAL_BACKOFF_MS: u64 = 100;
     
     let mut last_error = None;

@@ -796,8 +796,10 @@ fn remove_agent_config() -> Result<(), std::io::Error> {
 // Time to wait for daemon to initialize after starting (in seconds)
 const DAEMON_INIT_WAIT_SECS: u64 = 2;
 // Socket readiness retry parameters
-const SOCKET_RETRY_MAX: u32 = 10;
-const SOCKET_RETRY_INITIAL_MS: u64 = 200;
+// Total wait time: sum(INITIAL + i*INCREMENT for i in 0..MAX) ≈ 15 seconds
+// This provides enough time for daemon socket initialization during container restarts
+const SOCKET_RETRY_MAX: u32 = 15;
+const SOCKET_RETRY_INITIAL_MS: u64 = 300;
 const SOCKET_RETRY_INCREMENT_MS: u64 = 100;
 
 fn start_agent_daemon() {
@@ -1010,12 +1012,16 @@ fn main() {
                 }
                 
                 if !socket_ready {
-                    eprintln!(
-                        "{} Warning: Daemon socket is not ready after ~{:.1} seconds. Restore may fail.\n\
-                         {} Consider waiting a moment and retrying the restore command.", 
-                        *opm::helpers::WARN,
+                    // Socket not ready after all retries - fail early with clear error
+                    // This prevents confusing downstream errors like "Connection refused"
+                    crashln!(
+                        "{} Daemon socket is not ready after ~{:.1} seconds.\n\
+                         {} The daemon may still be initializing or failed to start.\n\
+                         {} Please wait a moment and retry: opm restore", 
+                        *opm::helpers::FAIL,
                         total_wait_secs,
-                        " ".repeat(4) // Indent the second line
+                        " ".repeat(4), // Indent
+                        " ".repeat(4)  // Indent
                     );
                 }
             }
