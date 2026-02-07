@@ -782,8 +782,8 @@ impl Runner {
             }
             
             // If no children found after polling, that's OK - the daemon will discover them later
-            if process.children.is_empty() && elapsed_ms >= MAX_DISCOVERY_TIME_MS {
-                log::debug!("No children discovered after {}ms for process {}", MAX_DISCOVERY_TIME_MS, result.pid);
+            if process.children.is_empty() {
+                log::debug!("No children discovered after {}ms for process {}", elapsed_ms, result.pid);
             }
 
             // Merge .env variables into the stored environment (dotenv takes priority)
