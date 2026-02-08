@@ -1010,6 +1010,7 @@ pub fn cleanup_all_timestamp_files() {
 }
 
 // Helper function to check if there was a recent action timestamp file
+#[allow(dead_code)]
 fn has_recent_action_timestamp(id: usize) -> bool {
     match home::home_dir() {
         Some(home_dir) => {

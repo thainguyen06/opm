@@ -4604,7 +4604,6 @@ mod tests {
             agent_id: None,
             frozen_until: None,
             last_action_at: Utc::now(),
-            last_action_at: Utc::now(),
         };
 
         runner.list.insert(id, process);
@@ -4652,7 +4651,6 @@ mod tests {
             agent_id: None,
             frozen_until: None,
             last_action_at: Utc::now(),
-            last_action_at: Utc::now(), // Just happened
         };
 
         runner.list.insert(id, process);
@@ -4704,7 +4702,6 @@ mod tests {
             max_memory: 0,
             agent_id: None,
             frozen_until: None,
-            last_action_at: Utc::now(),
             last_action_at: Utc::now(),
         };
 
