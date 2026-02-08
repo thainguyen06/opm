@@ -130,7 +130,7 @@ fn restart_process() {
 
         // Check if PID info is missing/incomplete - log error and skip crash detection
         if opm::process::is_pid_info_missing(item.pid, &item.children) {
-            log::error!("[daemon] process {} ({}) has missing/incomplete PID info (pid={}, children={:?}) - cannot determine crash status", 
+            ::log::error!("[daemon] process {} ({}) has missing/incomplete PID info (pid={}, children={:?}) - cannot determine crash status",
                 item.name, id, item.pid, item.children);
             // DO NOT mark as crashed when PID info is missing
             continue;
