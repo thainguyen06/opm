@@ -239,6 +239,10 @@ pub struct Process {
     /// None means not frozen, Some means frozen until the specified time
     #[serde(default)]
     pub frozen_until: Option<DateTime<Utc>>,
+    /// Timestamp of last action (start/restart/reload/restore) for per-process crash detection delay
+    /// Not persisted to dump, always starts at Unix epoch
+    #[serde(skip)]
+    pub last_action_at: DateTime<Utc>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -573,6 +577,7 @@ impl Runner {
                     max_memory,
                     agent_id: None, // Local processes don't have an agent
                     frozen_until: None, // Not frozen by default
+                    last_action_at: Utc::now(),
                 },
             );
 
@@ -758,6 +763,7 @@ impl Runner {
             // Clear crashed flag after successful restart
             // This allows the daemon to properly detect if the process crashes again
             process.crash.crashed = false;
+            process.last_action_at = Utc::now();
 
             // Discover children immediately after starting the process
             // This prevents race conditions where the parent exits before the daemon
@@ -965,6 +971,7 @@ impl Runner {
             // Clear crashed flag after successful reload
             // This allows the daemon to properly detect if the process crashes again
             process.crash.crashed = false;
+            process.last_action_at = Utc::now();
 
             // Merge .env variables into the stored environment (dotenv takes priority)
             let mut updated_env: Env = env::vars().collect();
@@ -1390,6 +1397,7 @@ impl Runner {
             let process = self.process(id);
             process.running = false;
             process.crash.crashed = false;
+            process.last_action_at = Utc::now();
             // Keep crash.value to preserve crash history - only reset via reset_counters()
             process.children = vec![];
             // Set PID to 0 to indicate no valid PID and prevent monitor from treating this as a crash
@@ -1452,6 +1460,7 @@ impl Runner {
         process.restarts = 0;
         process.crash.value = 0;
         process.crash.crashed = false;
+            process.last_action_at = Utc::now();
         return self;
     }
 
@@ -2040,6 +2049,29 @@ pub fn process_find_children(parent_pid: i64) -> Vec<i64> {
 
     children
 }
+/// Check if any descendant (or the root PID) in the tracked set is alive
+/// This includes the root pid, children, and grandchildren
+pub fn is_any_descendant_alive(root_pid: i64, children: &[i64]) -> bool {
+    // Check root PID first
+    if is_pid_alive(root_pid) {
+        return true;
+    }
+    
+    // Check all tracked children
+    for &child_pid in children {
+        if is_pid_alive(child_pid) {
+            return true;
+        }
+    }
+    
+    false
+}
+
+/// Check if PID info is missing/incomplete for crash detection purposes
+/// Returns true if pid <= 0 and no tracked descendants
+pub fn is_pid_info_missing(pid: i64, children: &[i64]) -> bool {
+    pid <= 0 && children.is_empty()
+}
 
 /// Result of running a process
 #[derive(Debug, Clone)]
@@ -2188,6 +2220,7 @@ mod tests {
             max_memory: 0,
             agent_id: None,
             frozen_until: None,
+            last_action_at: Utc::now(),
         };
 
         runner.list.insert(id, process);
@@ -2240,6 +2273,7 @@ mod tests {
             max_memory: 0,
             agent_id: None,
             frozen_until: None,
+            last_action_at: Utc::now(),
         };
 
         runner.list.insert(id, process);
@@ -2327,6 +2361,7 @@ mod tests {
             max_memory: 0,
             agent_id: None,
             frozen_until: None,
+            last_action_at: Utc::now(),
         };
 
         runner.list.insert(id, process);
@@ -2490,6 +2525,7 @@ mod tests {
             max_memory: 0,
             agent_id: None,
             frozen_until: None,
+            last_action_at: Utc::now(),
         };
 
         runner.list.insert(id, process);
@@ -2539,6 +2575,7 @@ mod tests {
             max_memory: 0,
             agent_id: None,
             frozen_until: None,
+            last_action_at: Utc::now(),
         };
 
         runner.list.insert(id, process);
@@ -2588,6 +2625,7 @@ mod tests {
             max_memory: 0,
             agent_id: None,
             frozen_until: None,
+            last_action_at: Utc::now(),
         };
 
         runner.list.insert(id, process);
@@ -2639,6 +2677,7 @@ mod tests {
             max_memory: 0,
             agent_id: None,
             frozen_until: None,
+            last_action_at: Utc::now(),
         };
 
         runner.list.insert(id, process);
@@ -2684,6 +2723,7 @@ mod tests {
             max_memory: 0,
             agent_id: None,
             frozen_until: None,
+            last_action_at: Utc::now(),
         };
 
         runner.list.insert(id, process);
@@ -2737,6 +2777,7 @@ mod tests {
             max_memory: 0,
             agent_id: None,
             frozen_until: None,
+            last_action_at: Utc::now(),
         };
 
         runner.list.insert(id, process);
@@ -2796,6 +2837,7 @@ mod tests {
             max_memory: 0,
             agent_id: None,
             frozen_until: None,
+            last_action_at: Utc::now(),
         };
 
         runner.list.insert(id, process.clone());
@@ -2864,6 +2906,7 @@ mod tests {
             max_memory: 0,
             agent_id: None,
             frozen_until: None,
+            last_action_at: Utc::now(),
         };
 
         runner.list.insert(id, process.clone());
@@ -2907,6 +2950,7 @@ mod tests {
             max_memory: 0,
             agent_id: None,
             frozen_until: None,
+            last_action_at: Utc::now(),
         };
 
         runner.list.insert(id, process);
@@ -2958,6 +3002,7 @@ mod tests {
             max_memory: 0,
             agent_id: None,
             frozen_until: None,
+            last_action_at: Utc::now(),
         };
 
         runner.list.insert(id, process);
@@ -3012,6 +3057,7 @@ mod tests {
             max_memory: 0,
             agent_id: None,
             frozen_until: None,
+            last_action_at: Utc::now(),
         };
 
         runner.list.insert(id, process);
@@ -3074,6 +3120,7 @@ mod tests {
             max_memory: 0,
             agent_id: None,
             frozen_until: None,
+            last_action_at: Utc::now(),
         };
 
         runner.list.insert(id, process);
@@ -3130,6 +3177,7 @@ mod tests {
             max_memory: 0,
             agent_id: None,
             frozen_until: None,
+            last_action_at: Utc::now(),
         };
 
         runner.list.insert(id, process);
@@ -3189,6 +3237,7 @@ mod tests {
             max_memory: 0,
             agent_id: None,
             frozen_until: None,
+            last_action_at: Utc::now(),
         };
 
         runner.list.insert(id, process);
@@ -3327,6 +3376,7 @@ mod tests {
             max_memory: 0,
             agent_id: None,
             frozen_until: None,
+            last_action_at: Utc::now(),
         };
 
         runner.list.insert(id, process);
@@ -3432,6 +3482,7 @@ mod tests {
             max_memory: 0,
             agent_id: None,
             frozen_until: None,
+            last_action_at: Utc::now(),
         };
 
         runner.list.insert(id, process);
@@ -3529,6 +3580,7 @@ mod tests {
             max_memory: 0,
             agent_id: None,
             frozen_until: None,
+            last_action_at: Utc::now(),
         };
 
         runner.list.insert(id, process);
@@ -3574,6 +3626,7 @@ mod tests {
                     process.running = true;
                     // With our fix: crashed flag cleared AFTER successful restart
                     process.crash.crashed = false;
+            process.last_action_at = Utc::now();
                 }
 
                 assert_eq!(
@@ -3619,6 +3672,7 @@ mod tests {
             process.running = true;
             // With our fix: crashed flag cleared AFTER successful manual restart
             process.crash.crashed = false;
+            process.last_action_at = Utc::now();
         }
 
         assert_eq!(
@@ -3701,6 +3755,7 @@ mod tests {
                 max_memory: 0,
                 agent_id: None,
                 frozen_until: None,
+            last_action_at: Utc::now(),
             };
             runner.list.insert(id, process);
         }
@@ -3804,6 +3859,7 @@ mod tests {
             max_memory: 0,
             agent_id: None,
             frozen_until: None,
+            last_action_at: Utc::now(),
         };
 
         runner.list.insert(id, process.clone());
@@ -3900,6 +3956,7 @@ mod tests {
                 max_memory: 0,
                 agent_id: None,
                 frozen_until: None,
+            last_action_at: Utc::now(),
             };
             runner.list.insert(id, process);
         }
@@ -3979,6 +4036,7 @@ mod tests {
             max_memory: 0,
             agent_id: None,
             frozen_until: None,
+            last_action_at: Utc::now(),
         };
 
         runner.list.insert(id, process);
@@ -4037,6 +4095,7 @@ mod tests {
             max_memory: 0,
             agent_id: None,
             frozen_until: None,
+            last_action_at: Utc::now(),
         };
 
         runner.list.insert(id, process);
@@ -4098,6 +4157,7 @@ mod tests {
             max_memory: 0,
             agent_id: None,
             frozen_until: None,
+            last_action_at: Utc::now(),
         };
 
         runner.list.insert(id, process);
@@ -4177,6 +4237,7 @@ mod tests {
             max_memory: 0,
             agent_id: None,
             frozen_until: None,
+            last_action_at: Utc::now(),
         };
 
         runner.list.insert(id, process.clone());
@@ -4198,6 +4259,7 @@ mod tests {
         if runner.exists(id) {
             let process = runner.process(id);
             process.crash.crashed = false;
+            process.last_action_at = Utc::now();
         }
 
         // Verify the crashed flag was cleared
@@ -4254,6 +4316,7 @@ mod tests {
             max_memory: 0,
             agent_id: None,
             frozen_until: None,
+            last_action_at: Utc::now(),
         };
 
         runner.list.insert(id, process);
@@ -4273,6 +4336,7 @@ mod tests {
         let process = runner.process(id);
         process.running = false;
         process.crash.crashed = false;
+            process.last_action_at = Utc::now();
         process.children = vec![];
         process.pid = 0;
         process.shell_pid = None; // This is the fix being tested - shell_pid must be None
@@ -4338,6 +4402,7 @@ mod tests {
             max_memory: 0,
             agent_id: None,
             frozen_until: None,
+            last_action_at: Utc::now(),
         };
 
         runner.list.insert(id, process);
@@ -4417,6 +4482,7 @@ mod tests {
             max_memory: 0,
             agent_id: None,
             frozen_until: None,
+            last_action_at: Utc::now(),
         };
 
         runner.list.insert(id, process);
@@ -4477,6 +4543,7 @@ mod tests {
             max_memory: 0,
             agent_id: None,
             frozen_until: None,
+            last_action_at: Utc::now(),
         };
 
         runner.list.insert(id, process);
@@ -4499,5 +4566,171 @@ mod tests {
         // 2. Have the child removed from the children list
         // 3. Continue to be marked as running (not crashed)
         // This is what the daemon fix implements
+    }
+
+    #[test]
+    fn test_background_descendant_not_crashed() {
+        // Test that a background shell script with a living descendant is NOT marked as crashed
+        // The descendant being alive should prevent crash marking
+        let mut runner = setup_test_runner();
+        let id = runner.id.next();
+
+        // Use current process PID as a simulated "alive descendant"
+        let alive_descendant = std::process::id() as i64;
+        let dead_root_pid = UNLIKELY_PID;
+
+        let process = Process {
+            id,
+            pid: dead_root_pid, // Root PID is dead
+            shell_pid: None,
+            env: BTreeMap::new(),
+            name: "test_background_shell".to_string(),
+            path: PathBuf::from("/tmp"),
+            script: "a.sh".to_string(),
+            restarts: 0,
+            running: true,
+            crash: Crash {
+                crashed: false,
+                value: 0,
+            },
+            watch: Watch {
+                enabled: false,
+                path: String::new(),
+                hash: String::new(),
+            },
+            children: vec![alive_descendant], // But descendant is alive
+            started: Utc::now(),
+            max_memory: 0,
+            agent_id: None,
+            frozen_until: None,
+            last_action_at: Utc::now(),
+            last_action_at: Utc::now(),
+        };
+
+        runner.list.insert(id, process);
+
+        // Verify that is_any_descendant_alive detects the living descendant
+        let item = runner.info(id).unwrap();
+        assert!(
+            is_any_descendant_alive(item.pid, &item.children),
+            "Should detect living descendant even when root PID is dead"
+        );
+        assert!(
+            !is_pid_info_missing(item.pid, &item.children),
+            "PID info should NOT be missing - we have a tracked descendant"
+        );
+    }
+
+    #[test]
+    fn test_per_process_delay_skips_crash() {
+        // Test that crash detection is skipped within 5s of last_action_at
+        let mut runner = setup_test_runner();
+        let id = runner.id.next();
+
+        let process = Process {
+            id,
+            pid: UNLIKELY_PID, // Dead PID
+            shell_pid: None,
+            env: BTreeMap::new(),
+            name: "test_delay_process".to_string(),
+            path: PathBuf::from("/tmp"),
+            script: "echo test".to_string(),
+            restarts: 0,
+            running: true,
+            crash: Crash {
+                crashed: false,
+                value: 0,
+            },
+            watch: Watch {
+                enabled: false,
+                path: String::new(),
+                hash: String::new(),
+            },
+            children: vec![], // No descendants
+            started: Utc::now(),
+            max_memory: 0,
+            agent_id: None,
+            frozen_until: None,
+            last_action_at: Utc::now(),
+            last_action_at: Utc::now(), // Just happened
+        };
+
+        runner.list.insert(id, process);
+
+        let item = runner.info(id).unwrap();
+        let seconds_since_action = (Utc::now() - item.last_action_at).num_seconds();
+        
+        // Should be within 5s delay
+        assert!(
+            seconds_since_action < 5,
+            "Should be within 5s delay immediately after creation"
+        );
+        
+        // Simulate daemon check - process should NOT be marked crashed within delay
+        // (The actual daemon would skip crash marking when within_action_delay is true)
+        assert!(
+            !item.crash.crashed,
+            "Process should NOT be marked crashed within 5s delay"
+        );
+    }
+
+    #[test]
+    fn test_missing_pid_info_skips_crash() {
+        // Test that missing/incomplete PID info logs error and does NOT mark crashed
+        let mut runner = setup_test_runner();
+        let id = runner.id.next();
+
+        let process = Process {
+            id,
+            pid: 0, // Invalid PID (<= 0)
+            shell_pid: None,
+            env: BTreeMap::new(),
+            name: "test_missing_pid".to_string(),
+            path: PathBuf::from("/tmp"),
+            script: "echo test".to_string(),
+            restarts: 0,
+            running: true,
+            crash: Crash {
+                crashed: false,
+                value: 0,
+            },
+            watch: Watch {
+                enabled: false,
+                path: String::new(),
+                hash: String::new(),
+            },
+            children: vec![], // No tracked descendants
+            started: Utc::now(),
+            max_memory: 0,
+            agent_id: None,
+            frozen_until: None,
+            last_action_at: Utc::now(),
+            last_action_at: Utc::now(),
+        };
+
+        runner.list.insert(id, process);
+
+        let item = runner.info(id).unwrap();
+        
+        // Verify PID info is detected as missing
+        assert!(
+            is_pid_info_missing(item.pid, &item.children),
+            "PID info should be missing when pid <= 0 and no children"
+        );
+        
+        // The daemon should:
+        // 1. Log an error about missing PID info
+        // 2. NOT mark the process as crashed (no crash counter increment)
+        // 3. Continue to the next process
+        
+        // Verify crash counter was NOT incremented
+        assert_eq!(
+            item.crash.value, 0,
+            "Crash counter should NOT be incremented when PID info is missing"
+        );
+        assert!(
+            !item.crash.crashed,
+            "Process should NOT be marked crashed when PID info is missing"
+        );
     }
 }

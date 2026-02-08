@@ -128,16 +128,32 @@ fn restart_process() {
             None => continue, // Process was removed, skip it
         };
 
-        let main_pid_alive = opm::process::is_pid_alive(item.pid) || 
+        // Check if PID info is missing/incomplete - log error and skip crash detection
+        if opm::process::is_pid_info_missing(item.pid, &item.children) {
+            log::error!("[daemon] process {} ({}) has missing/incomplete PID info (pid={}, children={:?}) - cannot determine crash status", 
+                item.name, id, item.pid, item.children);
+            // DO NOT mark as crashed when PID info is missing
+            continue;
+        }
+
+        // Check if any descendant is alive (root PID + tracked children)
+        let any_descendant_alive = opm::process::is_any_descendant_alive(item.pid, &item.children) || 
             item.shell_pid.map_or(false, |pid| opm::process::is_pid_alive(pid));
 
-        if main_pid_alive {
+        if any_descendant_alive {
             // --- PROCESS IS ALIVE ---
             // Update children list for the next cycle.
             let current_children = opm::process::process_find_children(item.pid);
-            if !current_children.is_empty() && current_children != item.children {
-                log!("[daemon] updating children list", "name" => &item.name, "id" => id, "children" => format!("{:?}", current_children));
-                runner.set_children(id, current_children).save();
+            // Merge new children with existing ones (keep union of both sets)
+            let mut all_children: std::collections::HashSet<i64> = item.children.iter().copied().collect();
+            for child in &current_children {
+                all_children.insert(*child);
+            }
+            let merged_children: Vec<i64> = all_children.into_iter().collect();
+            
+            if merged_children != item.children {
+                log!("[daemon] updating children list", "name" => &item.name, "id" => id, "children" => format!("{:?}", merged_children));
+                runner.set_children(id, merged_children).save();
             }
 
             // Perform other checks for living processes (memory, watch).
@@ -173,11 +189,19 @@ fn restart_process() {
                 }
             }
         } else {
-            // --- PROCESS IS DEAD ---
-            // The main PID is gone. Check for surviving children to adopt.
-            // Use the stored children list instead of finding children of dead parent,
-            // because when a process dies, its children get reparented to init (pid 1)
-            // and we can't find them by parent PID anymore.
+            // --- PROCESS IS DEAD (no root, no children alive) ---
+            
+            // Check per-process 5s delay after last action (start/restart/reload/restore)
+            let seconds_since_action = (Utc::now() - item.last_action_at).num_seconds();
+            let within_action_delay = seconds_since_action < 5;
+            
+            if within_action_delay {
+                log!("[daemon] skipping crash check - within 5s delay after action", 
+                    "name" => &item.name, "id" => id, "seconds_since_action" => seconds_since_action);
+                continue;
+            }
+
+            // Check for surviving children to adopt (using stored children list)
             let adoptable_child = item.children.iter().find(|&&child_pid| opm::process::is_pid_alive(child_pid));
 
             if let Some(&alive_child_pid) = adoptable_child {
@@ -199,10 +223,9 @@ fn restart_process() {
             // No living parent and no living children to adopt. This is a real crash or clean exit.
             let grace_period = daemon_config.crash_grace_period as i64;
             let just_started = (Utc::now() - item.started).num_seconds() < grace_period;
-            let recently_acted = has_recent_action_timestamp(id);
             let is_new_crash = item.pid > 0;
 
-            if is_new_crash && !recently_acted && !just_started {
+            if is_new_crash && !just_started {
                 let process_handle_pid = item.shell_pid.unwrap_or(item.pid);
                 let mut exited_successfully = false;
                 let mut handle_found = false;
@@ -260,9 +283,10 @@ fn restart_process() {
             if item.running && runner.exists(id) && runner.info(id).map_or(false, |p| p.running) {
                  let grace_period = daemon_config.crash_grace_period as i64;
                  let just_started = (Utc::now() - item.started).num_seconds() < grace_period;
-                 let recently_acted = has_recent_action_timestamp(id);
+                 let seconds_since_action = (Utc::now() - item.last_action_at).num_seconds();
+                 let within_action_delay = seconds_since_action < 5;
                 
-                if !runner.is_frozen(id) && !just_started && !recently_acted {
+                if !runner.is_frozen(id) && !just_started && !within_action_delay {
                     log!("[daemon] restarting crashed process", "name" => &item.name, "id" => id);
                     runner.restart(id, true, true);
                 }
