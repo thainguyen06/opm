@@ -63,6 +63,7 @@ token = "your-secret-token"
 process_logs = true  # Delete process logs on restore (default: true)
 daemon_log = true    # Delete daemon.log on restore (default: true)
 agent_log = true     # Delete agent.log on restore (default: true)
+opm_log = true       # Delete opm.log on restore (default: true)
 ```
 
 ### API Endpoints

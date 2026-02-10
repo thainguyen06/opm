@@ -81,6 +81,7 @@ pub fn read() -> Config {
                             process_logs: true,
                             daemon_log: true,
                             agent_log: true,
+                            opm_log: true,
                         }),
                         crash_detection: true,
                         crash_grace_period: 2,
