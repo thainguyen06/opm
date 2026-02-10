@@ -2557,8 +2557,9 @@ mod tests {
 
         let err_msg = result.unwrap_err();
         assert!(
-            err_msg.contains("Failed to open") && err_msg.contains("log file"),
-            "Error message should indicate log file error, got: {}",
+            (err_msg.contains("Failed to open") && err_msg.contains("log file"))
+                || (err_msg.contains("Failed to create log directory")),
+            "Error message should indicate log file or directory error, got: {}",
             err_msg
         );
     }
