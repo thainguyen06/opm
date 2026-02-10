@@ -103,11 +103,11 @@ where
 
     let listener = UnixListener::bind(socket_path)?;
     
-    // Set restrictive permissions (600 - owner read/write only)
+    // Set permissions to allow cross-user CLI access when daemon runs under a different user
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let permissions = std::fs::Permissions::from_mode(0o600);
+        let permissions = std::fs::Permissions::from_mode(0o666);
         std::fs::set_permissions(socket_path, permissions)?;
     }
     
@@ -583,27 +583,70 @@ pub fn send_request(socket_path: &str, request: SocketRequest) -> Result<SocketR
     const INITIAL_BACKOFF_MS: u64 = 50;
     
     let mut last_error = None;
-    
-    for attempt in 0..MAX_RETRIES {
-        match send_request_once(socket_path, &request) {
-            Ok(response) => return Ok(response),
-            Err(e) => {
-                last_error = Some(e);
-                
-                // Don't retry on the last attempt
-                if attempt < MAX_RETRIES - 1 {
-                    // Exponential backoff: 50ms, 100ms, 200ms
-                    let backoff_ms = INITIAL_BACKOFF_MS * 2u64.pow(attempt);
-                    std::thread::sleep(std::time::Duration::from_millis(backoff_ms));
-                    log::debug!("Socket request failed (attempt {}/{}), retrying after {}ms", 
-                               attempt + 1, MAX_RETRIES, backoff_ms);
+    let candidates = collect_socket_paths(socket_path);
+
+    for path in candidates {
+        for attempt in 0..MAX_RETRIES {
+            match send_request_once(&path, &request) {
+                Ok(response) => return Ok(response),
+                Err(e) => {
+                    last_error = Some(e);
+
+                    // Don't retry on the last attempt
+                    if attempt < MAX_RETRIES - 1 {
+                        // Exponential backoff: 50ms, 100ms, 200ms
+                        let backoff_ms = INITIAL_BACKOFF_MS * 2u64.pow(attempt);
+                        std::thread::sleep(std::time::Duration::from_millis(backoff_ms));
+                        log::debug!(
+                            "Socket request failed (attempt {}/{} for {}), retrying after {}ms",
+                            attempt + 1,
+                            MAX_RETRIES,
+                            path,
+                            backoff_ms
+                        );
+                    }
                 }
             }
         }
     }
-    
-    // All retries exhausted, return the last error
+
     Err(last_error.unwrap())
+}
+
+fn collect_socket_paths(primary: &str) -> Vec<String> {
+    use std::collections::HashSet;
+    use std::path::Path;
+
+    let mut paths: Vec<String> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
+
+    if let Ok(env_path) = std::env::var("OPM_SOCKET") {
+        if !env_path.trim().is_empty() && seen.insert(env_path.clone()) {
+            paths.push(env_path);
+        }
+    }
+
+    if seen.insert(primary.to_string()) {
+        paths.push(primary.to_string());
+    }
+
+    if Path::new("/root/.opm/opm.sock").exists() && seen.insert("/root/.opm/opm.sock".to_string()) {
+        paths.push("/root/.opm/opm.sock".to_string());
+    }
+
+    if let Ok(entries) = std::fs::read_dir("/home") {
+        for entry in entries.flatten() {
+            let candidate = entry.path().join(".opm/opm.sock");
+            if candidate.exists() {
+                let candidate = candidate.to_string_lossy().to_string();
+                if seen.insert(candidate.clone()) {
+                    paths.push(candidate);
+                }
+            }
+        }
+    }
+
+    paths
 }
 
 /// Internal function to attempt a single socket request without retry
