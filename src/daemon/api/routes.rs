@@ -862,7 +862,8 @@ pub async fn restore_handler(_t: Token) -> Json<ActionResponse> {
         }
     }
 
-    let runner = Runner::new();
+    opm::process::dump::load_permanent_into_memory();
+    let runner = Runner::new_direct();
 
     // Collect IDs of processes that were running AND not crashed when saved
     // These are the processes we will attempt to restore
@@ -883,7 +884,7 @@ pub async fn restore_handler(_t: Token) -> Json<ActionResponse> {
         .collect();
 
     // Restore those processes (without incrementing counters)
-    let mut runner = Runner::new();
+    let mut runner = Runner::new_direct();
 
     // Mark crashed processes that are stopped as fully stopped and reset crash flag
     // This ensures they start fresh if manually restarted later

@@ -323,12 +323,13 @@ fn restart_process() {
             }
         }
          // Handle processes that need to be started (e.g. after restore or `opm start`)
-         if item.running && item.pid == 0 && !item.crash.crashed {
-             log!("[daemon] starting process with no PID", "name" => &item.name, "id" => id);
-             runner.restart(id, true, false); // is_daemon_op=true, increment_counter=false
-             continue;
-         }
+          if item.running && item.pid == 0 && !item.crash.crashed {
+              log!("[daemon] starting process with no PID", "name" => &item.name, "id" => id);
+              runner.restart(id, true, false); // is_daemon_op=true, increment_counter=false
+              continue;
+          }
     }
+
 }
 
 pub fn health(format: &String) {
@@ -630,11 +631,9 @@ pub fn start(verbose: bool) {
             }
         }
 
-        // Initialize on daemon startup: load state from disk and clear any old temp files
-        // IMPORTANT: This must be done BEFORE starting the socket server to avoid race conditions
-        // where CLI commands arrive before the cache is initialized, causing state to be lost
-        use opm::process::dump;
-        let _startup_runner = dump::init_on_startup();
+        // Do not load permanent dump on daemon startup.
+        // Permanent dump should be loaded into memory only during `opm restore`.
+        opm::process::dump::clear_memory();
 
         // Clean up all stale timestamp files from previous daemon sessions
         // This prevents old timestamps from interfering with crash detection

@@ -50,6 +50,7 @@ pub enum SocketRequest {
     SetState(Runner),
     /// Save the current state to permanent storage
     SavePermanent,
+    LoadPermanent,
     /// Remove a process by ID (handled by daemon to avoid race conditions)
     RemoveProcess(usize),
     /// Stop a process by ID
@@ -323,6 +324,10 @@ fn handle_client(mut stream: UnixStream) -> Result<()> {
         SocketRequest::SavePermanent => {
             // Commit memory cache to permanent storage directly
             dump::commit_memory_direct();
+            SocketResponse::Success
+        }
+        SocketRequest::LoadPermanent => {
+            dump::load_permanent_into_memory();
             SocketResponse::Success
         }
         SocketRequest::RemoveProcess(id) => {

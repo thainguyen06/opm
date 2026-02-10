@@ -1287,6 +1287,18 @@ impl<'i> Internal<'i> {
         // This prevents old timestamp files from interfering with crash detection
         crate::daemon::cleanup_all_timestamp_files();
         
+        // Load permanent dump into daemon memory for restore operations
+        use global_placeholders::global;
+        let socket_path = global!("opm.socket");
+        match opm::socket::send_request(&socket_path, opm::socket::SocketRequest::LoadPermanent) {
+            Ok(opm::socket::SocketResponse::Success) => {}
+            Ok(opm::socket::SocketResponse::Error(message)) => {
+                crashln!("{} Failed to load dump into daemon memory: {message}", *helpers::FAIL)
+            }
+            Ok(_) => crashln!("{} Unexpected response from daemon", *helpers::FAIL),
+            Err(e) => crashln!("{} Failed to contact daemon: {e}", *helpers::FAIL),
+        }
+
         // Read state from daemon only (no disk fallback) since daemon is guaranteed to be running
         // If daemon connection fails here, it may be due to daemon still initializing
         // The socket readiness checks above should have given the daemon enough time to start

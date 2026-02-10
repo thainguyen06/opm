@@ -346,6 +346,12 @@ pub fn write_memory(dump: &Runner) {
     log!("[dump::write_memory] Updated in-memory process cache");
 }
 
+pub fn load_permanent_into_memory() -> Runner {
+    let runner = read_permanent_dump();
+    write_memory_direct(&runner);
+    runner
+}
+
 /// Clear memory cache
 pub fn clear_memory() {
     let mut cache = MEMORY_CACHE.lock().unwrap();
