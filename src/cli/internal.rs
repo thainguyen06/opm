@@ -1385,6 +1385,20 @@ impl<'i> Internal<'i> {
             }
         }
 
+        // Clear opm log if enabled (default: true)
+        let should_cleanup_opm_log = restore_cleanup.map(|rc| rc.opm_log).unwrap_or(true);
+
+        if should_cleanup_opm_log {
+            if let Some(path) = home::home_dir() {
+                let opm_log_path = path.join(".opm").join("opm.log");
+                if opm_log_path.exists() {
+                    if let Err(e) = fs::remove_file(&opm_log_path) {
+                        ::log::warn!("Failed to delete opm.log: {}", e);
+                    }
+                }
+            }
+        }
+
         let mut restored_ids = Vec::new();
         let mut failed_ids = Vec::new();
 

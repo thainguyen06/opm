@@ -67,6 +67,8 @@ pub struct RestoreCleanup {
     pub daemon_log: bool,
     #[serde(default = "default_true")]
     pub agent_log: bool,
+    #[serde(default = "default_true")]
+    pub opm_log: bool,
 }
 
 fn default_true() -> bool {
