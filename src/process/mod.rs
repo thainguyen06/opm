@@ -2139,12 +2139,24 @@ pub struct ProcessRunResult {
 
 /// Run the process
 pub fn process_run(metadata: ProcessMetadata) -> Result<ProcessRunResult, String> {
-    use std::fs::OpenOptions;
+    use std::fs::{self, OpenOptions};
     use std::process::{Command, Stdio};
 
     let log_base = format!("{}/{}", metadata.log_path, metadata.name.replace(' ', "_"));
     let stdout_path = format!("{}-out.log", log_base);
     let stderr_path = format!("{}-error.log", log_base);
+
+    // Create parent directories for log files if they don't exist
+    // This handles cases where process name contains slashes (e.g., "server/server.js")
+    if let Some(parent) = std::path::Path::new(&stdout_path).parent() {
+        fs::create_dir_all(parent).map_err(|err| {
+            format!(
+                "Failed to create log directory '{}': {}. \
+                Check that you have write permissions.",
+                parent.display(), err
+            )
+        })?;
+    }
 
     // Create log files
     let stdout_file = OpenOptions::new()
