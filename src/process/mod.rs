@@ -1721,11 +1721,12 @@ impl ProcessWrapper {
         let full_config = config::read();
         let config = full_config.runner;
 
+        let crash_detection_enabled = config::read().daemon.crash_detection;
         // Check if process actually exists before reporting as online
-        // A process marked as running but with a non-existent PID should be shown as crashed
-        // For shell-wrapped processes, either PID being alive means the process is running
-        let process_actually_running = item.running && 
-            (is_pid_alive(item.pid) || item.shell_pid.map_or(false, |pid| is_pid_alive(pid)));
+        // Use descendants and shell PID for shell-wrapped/backgrounded processes
+        let any_descendant_alive = is_any_descendant_alive(item.pid, &item.children) ||
+            item.shell_pid.map_or(false, |pid| is_any_descendant_alive(pid, &item.children));
+        let process_actually_running = item.running && any_descendant_alive;
 
         let mut memory_usage: Option<MemoryInfo> = None;
         let mut cpu_percent: Option<f64> = None;
@@ -1766,21 +1767,26 @@ impl ProcessWrapper {
                 // PID is 0 - process is waiting to be started or restarted by daemon
                 string!("starting")
             } else {
-                // Calculate time since start only when needed (not for pid=0 case)
-                let time_since_start = Utc::now().signed_duration_since(item.started);
-                
-                if time_since_start < grace_period {
-                    // Within grace period - still initializing
-                    string!("starting")
+                if !crash_detection_enabled {
+                    string!("stopped")
                 } else {
-                    // Grace period expired - process has crashed
-                    string!("crashed")
+                    // Calculate time since start only when needed (not for pid=0 case)
+                    let time_since_start = Utc::now().signed_duration_since(item.started);
+                    
+                    if time_since_start < grace_period {
+                        // Within grace period - still initializing
+                        string!("starting")
+                    } else {
+                        // Grace period expired - process has crashed
+                        string!("crashed")
+                    }
                 }
             }
         } else {
-            match item.crash.crashed {
-                true => string!("crashed"),
-                false => string!("stopped"),
+            if crash_detection_enabled && item.crash.crashed {
+                string!("crashed")
+            } else {
+                string!("stopped")
             }
         };
 

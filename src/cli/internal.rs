@@ -17,7 +17,7 @@ use opm::{
     log,
     process::{
         get_process_cpu_usage_with_children_from_process, get_process_memory_with_children, http,
-        is_pid_alive, ItemSingle, Runner,
+        is_any_descendant_alive, is_pid_alive, ItemSingle, Runner,
     },
 };
 
@@ -1447,9 +1447,12 @@ impl<'i> Internal<'i> {
                 println!("{} Process table empty", *helpers::SUCCESS);
             } else {
                 for (id, item) in runner.items() {
+                    let crash_detection_enabled = config::read().daemon.crash_detection;
                     // Check if process actually exists before reporting as online
-                    // A process marked as running but with a non-existent PID should be shown as crashed
-                    let process_actually_running = item.running && is_pid_alive(item.pid);
+                    // Include shell PID and tracked descendants to avoid false crashed status
+                    let any_descendant_alive = is_any_descendant_alive(item.pid, &item.children) ||
+                        item.shell_pid.map_or(false, |pid| is_any_descendant_alive(pid, &item.children));
+                    let process_actually_running = item.running && any_descendant_alive;
 
                     let mut cpu_percent: String = string!("0.00%");
                     let mut memory_usage: String = string!("0b");
@@ -1505,15 +1508,18 @@ impl<'i> Internal<'i> {
                     let status = if process_actually_running {
                         "online   ".green().bold()
                     } else if item.running {
-                        // Process is marked as running but PID doesn't exist - it crashed
-                        "crashed   ".red().bold()
-                    } else {
-                        match item.crash.crashed {
-                            true => "crashed   ",
-                            false => "stopped   ",
+                        // Process is marked as running but PID doesn't exist
+                        if crash_detection_enabled {
+                            "crashed   ".red().bold()
+                        } else {
+                            "stopped   ".red().bold()
                         }
-                        .red()
-                        .bold()
+                    } else {
+                        if crash_detection_enabled && item.crash.crashed {
+                            "crashed   ".red().bold()
+                        } else {
+                            "stopped   ".red().bold()
+                        }
                     };
 
                     // Only count uptime when the process is actually running
