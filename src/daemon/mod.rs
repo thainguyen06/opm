@@ -196,15 +196,48 @@ fn restart_process() {
         } else {
             // --- PROCESS IS DEAD (no root, no children alive) ---
 
+            // Reload runner from memory to get the freshest state before crash detection.
+            // This prevents race conditions where the process just started but we're
+            // checking with stale state from the beginning of the monitoring cycle.
+            // Critical: Without this reload, a process that starts during the daemon cycle
+            // appears dead (pid=0) and gets incorrectly marked as stopped.
+            runner = Runner::new_direct();
+            let fresh_item = match runner.info(id) {
+                Some(item) => item.clone(),
+                None => {
+                    log!("[daemon] process {} was removed during cycle, skipping", "id" => id);
+                    continue;
+                }
+            };
+
+            // Re-check if process is actually alive with fresh state
+            // This is critical because the process might have just started
+            let fresh_any_descendant_alive = opm::process::is_any_descendant_alive(fresh_item.pid, &fresh_item.children)
+                || fresh_item
+                    .shell_pid
+                    .map_or(false, |pid| opm::process::is_pid_alive(pid));
+
+            if fresh_any_descendant_alive {
+                // Process is actually alive! The initial check was with stale state.
+                // Update our working item reference and continue with alive logic
+                log!("[daemon] process {} actually alive after reload (was stale), skipping crash check", 
+                    "name" => &fresh_item.name, "id" => id);
+                continue;
+            }
+
             // Check per-process 5s delay after last action (start/restart/reload/restore)
-            let seconds_since_action = (Utc::now() - item.last_action_at).num_seconds();
+            // Use fresh_item to get accurate last_action_at
+            let seconds_since_action = (Utc::now() - fresh_item.last_action_at).num_seconds();
             let within_action_delay = seconds_since_action < 5;
 
             if within_action_delay {
                 log!("[daemon] skipping crash check - within 5s delay after action", 
-                    "name" => &item.name, "id" => id, "seconds_since_action" => seconds_since_action);
+                    "name" => &fresh_item.name, "id" => id, "seconds_since_action" => seconds_since_action);
                 continue;
             }
+
+            // Use fresh_item for all subsequent checks
+            let item = fresh_item;
 
             // Check for surviving processes to adopt
             // First, try to find any alive process in the same process group as the tracked PID
