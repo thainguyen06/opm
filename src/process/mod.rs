@@ -4769,6 +4769,10 @@ mod tests {
         let mut runner = setup_test_runner();
         let id = runner.id.next();
 
+        // Unix epoch constant used throughout the test
+        let unix_epoch = chrono::DateTime::from_timestamp(0, 0)
+            .expect("Unix epoch timestamp should always be valid");
+
         // Simulate process after LoadPermanent - has all fields but pid=0 (default after deserialization)
         let process_from_dump = Process {
             id,
@@ -4790,11 +4794,11 @@ mod tests {
                 hash: String::new(),
             },
             children: vec![],
-            started: chrono::DateTime::from_timestamp(0, 0).unwrap(), // Unix epoch (default)
+            started: unix_epoch, // Unix epoch (default)
             max_memory: 0,
             agent_id: None,
             frozen_until: None,
-            last_action_at: chrono::DateTime::from_timestamp(0, 0).unwrap(),
+            last_action_at: unix_epoch,
         };
 
         runner.list.insert(id, process_from_dump.clone());
@@ -4826,7 +4830,7 @@ mod tests {
         daemon_stale_runner.pid = 0; // Stale PID from daemon's old runner
         daemon_stale_runner.shell_pid = None;
         daemon_stale_runner.children = vec![]; // Stale children list
-        daemon_stale_runner.started = chrono::DateTime::from_timestamp(0, 0).unwrap(); // Stale start time
+        daemon_stale_runner.started = unix_epoch; // Stale start time
 
         // The fix: When merging in SetState handler, if existing has pid>0 but incoming has pid=0,
         // preserve the existing PID. We simulate this merge logic here.
@@ -4838,7 +4842,6 @@ mod tests {
             merged.pid = existing.pid;
             merged.shell_pid = existing.shell_pid;
             merged.children = existing.children.clone();
-            let unix_epoch = chrono::DateTime::from_timestamp(0, 0).unwrap();
             if existing.started != unix_epoch {
                 merged.started = existing.started;
             }
@@ -4858,7 +4861,7 @@ mod tests {
         );
         assert_ne!(
             info_final.started,
-            chrono::DateTime::from_timestamp(0, 0).unwrap(),
+            unix_epoch,
             "Start time should be preserved, not reset to Unix epoch"
         );
 

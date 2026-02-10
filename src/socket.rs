@@ -315,7 +315,8 @@ fn handle_client(mut stream: UnixStream) -> Result<()> {
                                 process.shell_pid = existing.shell_pid;
                                 process.children = existing.children.clone();
                                 // Only preserve started if it's not the default Unix epoch
-                                let unix_epoch = chrono::DateTime::from_timestamp(0, 0).unwrap();
+                                let unix_epoch = chrono::DateTime::from_timestamp(0, 0)
+                                    .expect("Unix epoch timestamp should always be valid");
                                 if existing.started != unix_epoch {
                                     process.started = existing.started;
                                 }
