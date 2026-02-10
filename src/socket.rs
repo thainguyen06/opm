@@ -333,25 +333,20 @@ fn handle_client(mut stream: UnixStream) -> Result<()> {
                             // This fixes the phantom crash/stop issue where processes appear stopped after restore/start
                             // even though they're actually running.
 
-                            // If existing has a valid PID (>0) but incoming has default PID (0),
-                            // preserve the existing PID and running state - it was likely set mid-cycle
+                            // Safety check: If existing has a valid PID but incoming has pid=0,
+                            // preserve the existing state. This handles edge cases like:
+                            // - Deserialization from old dump files that had serde(skip) on pid
+                            // - Corrupted state updates
+                            // - Daemon restarts where temporary state is lost
                             if existing.pid > 0 && process.pid == 0 {
                                 process.pid = existing.pid;
                                 process.shell_pid = existing.shell_pid;
                                 process.children = existing.children.clone();
-                                // Preserve running state when preserving PID
-                                // This prevents daemon from incorrectly stopping a running process
-                                // when shell wrapper exits but child is still alive
                                 process.running = existing.running;
-                                // Only preserve started if it's not the default Unix epoch
-                                let unix_epoch = chrono::DateTime::from_timestamp(0, 0)
-                                    .expect("Unix epoch timestamp should always be valid");
-                                if existing.started != unix_epoch {
-                                    process.started = existing.started;
-                                }
+                                process.started = existing.started;
                                 log::debug!(
-                                    "[socket] Preserved mid-cycle PID update for process '{}' (id={}): pid={}, running={}, children={:?}",
-                                    process.name, id, process.pid, process.running, process.children
+                                    "[socket] Preserved PID for process '{}' (id={}): pid={}, running={}",
+                                    process.name, id, process.pid, process.running
                                 );
                             }
                         }
