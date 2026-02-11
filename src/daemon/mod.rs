@@ -128,12 +128,27 @@ fn restart_process() {
             None => continue, // Process was removed, skip it
         };
 
-        // Check if PID info is missing/incomplete - log error and skip crash detection
+        // Check if PID info is missing/incomplete - treat as crashed if process should be running
         if opm::process::is_pid_info_missing(item.pid, &item.children) {
-            ::log::error!("[daemon] process {} ({}) has missing/incomplete PID info (pid={}, children={:?}) - cannot determine crash status",
+            ::log::error!("[daemon] process {} ({}) has missing/incomplete PID info (pid={}, children={:?}) - treating as crashed if running",
                 item.name, id, item.pid, item.children);
-            // DO NOT mark as crashed when PID info is missing
-            continue;
+            
+            // If process should be running but has missing PID info, treat it as crashed
+            if item.running {
+                // Treat as crashed process - this will trigger restart logic below
+                if runner.exists(id) {
+                    let process = runner.process(id);
+                    process.pid = 0;
+                    process.shell_pid = None;
+                    process.crash.value += 1;
+                    process.crash.crashed = true;
+                    
+                    log!("[daemon] process treated as crashed due to missing PID info", 
+                        "name" => &item.name, "id" => id, "crashes" => process.crash.value);
+                    runner.save();
+                }
+            }
+            // Continue to restart logic below
         }
 
         // Check if any descendant is alive (root PID + tracked children)

@@ -933,9 +933,11 @@ pub async fn restore_handler(_t: Token) -> Json<ActionResponse> {
     for id in all_process_ids {
         runner.reset_counters(id);
     }
-    // Use save_permanent() to persist counter reset to permanent dump file
-    // This ensures subsequent commands see the reset counters even if daemon restarts
-    runner.save_permanent();
+    // Note: We no longer automatically save to permanent storage after restore.
+    // The daemon will maintain state in memory and only persist to disk on explicit
+    // opm save command or daemon shutdown. This prevents unwanted process.dump writes
+    // and allows the restore operation to be more lightweight.
+    runner.save(); // Save to memory only
 
     timer.observe_duration();
     Json(attempt(true, "restore"))

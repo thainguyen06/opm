@@ -63,9 +63,11 @@ fn empty_runner() -> Runner {
 /// Helper function to read permanent dump with fallback to empty runner
 fn read_permanent_dump() -> Runner {
     if !Exists::check(&global!("opm.dump")).file() {
+        // Return empty runner without creating process.dump file
+        // This aligns with the principle that process.dump should only be created
+        // on explicit save operations or daemon shutdown, not on read operations
         let runner = empty_runner();
-        write(&runner);
-        log!("created dump file");
+        log!("[dump] No permanent dump file found, returning empty runner");
         return runner;
     }
 
@@ -73,8 +75,10 @@ fn read_permanent_dump() -> Runner {
         Ok(runner) => runner,
         Err(err) => {
             log!("[dump] Failed to read permanent dump: {err}");
+            // Return empty runner without creating process.dump file on parse error
+            // This prevents creating corrupted/empty dump files that could mask issues
             let runner = empty_runner();
-            write(&runner);
+            log!("[dump] Returning empty runner due to parse error");
             runner
         }
     }
@@ -213,14 +217,15 @@ pub fn from(address: &str, token: Option<&str>) -> Result<Runner, anyhow::Error>
 
 pub fn read() -> Runner {
     if !Exists::check(&global!("opm.dump")).file() {
+        // Return empty runner without creating process.dump file
+        // This aligns with the principle that process.dump should only be created
+        // on explicit save operations or daemon shutdown, not on read operations
         let runner = Runner {
             id: Id::new(0),
             list: BTreeMap::new(),
             remote: None,
         };
-
-        write(&runner);
-        log!("created dump file");
+        log!("[dump::read] No permanent dump file found, returning empty runner");
         return runner;
     }
 

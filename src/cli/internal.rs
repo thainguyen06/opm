@@ -1505,10 +1505,11 @@ impl<'i> Internal<'i> {
             }
         }
 
-        // Save final state after restore attempts to persist crashed process states
-        // This ensures processes that failed to restore (via set_crashed() calls) are properly
-        // marked as crashed in permanent storage for daemon monitoring
-        runner.save_permanent();
+        // Note: We no longer automatically save to permanent storage after restore.
+        // The daemon will maintain state in memory and only persist to disk on explicit
+        // opm save command or daemon shutdown. This prevents unwanted process.dump writes
+        // and allows the restore operation to be more lightweight.
+        runner.save(); // Save to memory only
 
         Internal::list(&string!("default"), &list_name);
     }
