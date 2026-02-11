@@ -261,7 +261,6 @@ fn restart_process() {
                         process.shell_pid = None;
                         process.crash.value += 1;
                         process.crash.crashed = true;
-                        process.restarts += 1; // Increment restarts counter to match crash.value
                         let crash_count = process.crash.value;
 
                         if item.running {
@@ -290,6 +289,11 @@ fn restart_process() {
                     // Don't restart if frozen or if we just performed an action (start/restart/stop)
                     // Grace period check removed - if crash was detected, we should restart immediately
                     if !runner.is_frozen(id) && !within_action_delay {
+                        // Increment restarts counter before calling restart()
+                        // This ensures the counter accurately reflects restart attempts
+                        if let Some(process) = runner.list.get_mut(&id) {
+                            process.restarts += 1;
+                        }
                         log!("[daemon] restarting crashed process", "name" => &item.name, "id" => id);
                         runner.restart(id, true, true);
                     }
