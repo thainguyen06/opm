@@ -101,10 +101,10 @@ fn reap_zombie_processes() {
             // Non-blocking check if the child has exited
             match child.try_wait() {
                 Ok(Some(status)) => {
-                    // Child has exited - log and remove from handles
-                    log!("[daemon] reaped zombie/exited process", "pid" => pid, "success" => status.success());
-                    drop(child); // Release the lock before removing
+                    // Child has exited - remove from handles before dropping the lock
+                    // This eliminates any race condition where another thread could access the handle
                     opm::process::PROCESS_HANDLES.remove(&pid);
+                    log!("[daemon] reaped zombie/exited process", "pid" => pid, "success" => status.success());
                 }
                 Ok(None) => {
                     // Child is still running, nothing to do
