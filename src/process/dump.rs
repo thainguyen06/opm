@@ -44,6 +44,7 @@ use macros_rs::{crashln, fmtstr, string};
 use once_cell::sync::Lazy;
 use reqwest::blocking::Client;
 use reqwest::header::{HeaderMap, HeaderValue};
+use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::{collections::BTreeMap, fs, sync::Mutex};
 
@@ -298,13 +299,59 @@ pub fn write(dump: &Runner) {
         ),
     };
 
-    if let Err(err) = fs::write(&dump_path, encoded) {
+    // Atomic write: write to temp file first, then rename
+    // This prevents corruption if the write is interrupted (power loss, kill -9, etc.)
+    // Use PathBuf for proper cross-platform path handling
+    let temp_path = PathBuf::from(&dump_path).with_extension("tmp");
+    
+    // Write to temporary file
+    if let Err(err) = fs::write(&temp_path, &encoded) {
         crashln!(
-            "{} Error writing dumpfile.\n{}",
+            "{} Error writing temporary dumpfile.\n{}",
             *helpers::FAIL,
             string!(err).white()
         )
     }
+
+    // Verify temp file size is non-zero before renaming
+    match fs::metadata(&temp_path) {
+        Ok(metadata) => {
+            if metadata.len() == 0 {
+                if let Err(e) = fs::remove_file(&temp_path) {
+                    log!("[dump::write] Failed to cleanup empty temp file: {}", e);
+                }
+                crashln!(
+                    "{} Temporary dump file is empty (0 bytes), aborting write to prevent data loss",
+                    *helpers::FAIL
+                );
+            }
+        }
+        Err(err) => {
+            if let Err(e) = fs::remove_file(&temp_path) {
+                log!("[dump::write] Failed to cleanup temp file after metadata error: {}", e);
+            }
+            crashln!(
+                "{} Cannot verify temporary dump file.\n{}",
+                *helpers::FAIL,
+                string!(err).white()
+            );
+        }
+    }
+
+    // Atomically rename temp file to actual dump file
+    // On Unix, this is atomic and will never leave the dump file in a partial state
+    if let Err(err) = fs::rename(&temp_path, &dump_path) {
+        if let Err(e) = fs::remove_file(&temp_path) {
+            log!("[dump::write] Failed to cleanup temp file after rename error: {}", e);
+        }
+        crashln!(
+            "{} Error renaming temporary dumpfile to final location.\n{}",
+            *helpers::FAIL,
+            string!(err).white()
+        )
+    }
+
+    log!("[dump::write] Successfully wrote dump file atomically");
 }
 
 /// Read from memory cache (replaces read_temp)
@@ -540,14 +587,8 @@ pub fn init_on_startup() -> Runner {
 
     // Note: We preserve both the crash.crashed flag and running state
     // so restore command can properly handle processes across daemon restarts.
-    // Only reset the crash and restart counters to give processes a fresh start
-
-    // On startup, reset restart counter for all processes
-    // but preserve their running and crashed states
-    for (_id, pr) in permanent.list.iter_mut() {
-        // Reset counter for all processes to give them a fresh start
-        pr.restarts = 0;
-    }
+    // The restart counter is not persisted (marked with #[serde(skip)]),
+    // so it automatically resets to 0 on daemon startup.
 
     // Populate memory cache with loaded state to keep processes in RAM
     // This ensures the daemon has the process state immediately available in memory
@@ -556,7 +597,7 @@ pub fn init_on_startup() -> Runner {
     // This is a one-time startup operation, so the clone overhead is negligible.
     let mut cache = MEMORY_CACHE.lock().unwrap();
     *cache = Some(permanent.clone());
-    log!("[dump::init_on_startup] Populated memory cache with loaded state");
+    log!("[dump::init_on_startup] Populated memory cache with loaded state (restart counters reset to 0)");
 
     permanent
 }
