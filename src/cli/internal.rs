@@ -1644,12 +1644,20 @@ impl<'i> Internal<'i> {
                         string!("none  ")
                     };
 
+                    // Display restarts counter consistently with `opm info` command:
+                    // Show crash.value when crashed, otherwise show restarts counter
+                    let restarts_value = if item.crash.crashed {
+                        item.crash.value
+                    } else {
+                        item.restarts
+                    };
+
                     processes.push(ProcessItem {
                         status: status.into(),
                         cpu: format!("{cpu_percent}   "),
                         mem: format!("{memory_usage}   "),
                         id: id.to_string().cyan().bold().into(),
-                        restarts: format!("{}  ", item.crash.value),
+                        restarts: format!("{}  ", restarts_value),
                         name: format!("{}   ", item.name.clone()),
                         pid: ternary!(
                             process_actually_running,

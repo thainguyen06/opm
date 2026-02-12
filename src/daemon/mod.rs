@@ -19,6 +19,7 @@ use serde::Serialize;
 use serde_json::json;
 use std::panic;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::{process, thread::sleep, time::Duration};
 
 use opm::{
@@ -86,8 +87,45 @@ async fn emit_crash_event_and_notification(id: usize, name: String) {
     }
 }
 
+/// Reap zombie child processes by calling try_wait() on all process handles
+/// This function should be called periodically (e.g., at the start of each monitoring cycle)
+/// to prevent zombie process accumulation
+fn reap_zombie_processes() {
+    let handles_snapshot: Vec<(i64, Arc<Mutex<std::process::Child>>)> = opm::process::PROCESS_HANDLES
+        .iter()
+        .map(|entry| (*entry.key(), entry.value().clone()))
+        .collect();
+    
+    for (pid, handle_ref) in handles_snapshot {
+        if let Ok(mut child) = handle_ref.try_lock() {
+            // Non-blocking check if the child has exited
+            match child.try_wait() {
+                Ok(Some(status)) => {
+                    // Child has exited - remove from handles before dropping the lock
+                    // This eliminates any race condition where another thread could access the handle
+                    opm::process::PROCESS_HANDLES.remove(&pid);
+                    log!("[daemon] reaped zombie/exited process", "pid" => pid, "success" => status.success());
+                }
+                Ok(None) => {
+                    // Child is still running, nothing to do
+                }
+                Err(e) => {
+                    // Error calling try_wait - log but don't remove
+                    ::log::warn!("[daemon] error calling try_wait on pid {}: {}", pid, e);
+                }
+            }
+        }
+        // If we can't acquire the lock, skip this handle - it might be in use elsewhere
+    }
+}
+
 fn restart_process() {
     log!("[DAEMON_V2_CHECK] Monitoring cycle initiated", "fingerprint" => "v2_fix");
+    
+    // Reap zombie processes at the start of each monitoring cycle
+    // This prevents zombie accumulation by calling try_wait() on all child process handles
+    reap_zombie_processes();
+    
     // Load daemon config once at the start to avoid repeated I/O operations
     let daemon_config = config::read().daemon;
 
