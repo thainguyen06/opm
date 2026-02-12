@@ -73,10 +73,27 @@ fn read_permanent_dump() -> Runner {
     match file::try_read_object(global!("opm.dump")) {
         Ok(runner) => runner,
         Err(err) => {
+            // Deserialization failed - likely due to structure changes after upgrade
+            // Create a timestamped backup to prevent data loss
+            let dump_path = global!("opm.dump");
+            let timestamp = Utc::now().format("%Y%m%d_%H%M%S");
+            let corrupted_backup = format!("{}.corrupted.{}", dump_path, timestamp);
+            
+            if let Err(e) = fs::copy(&dump_path, &corrupted_backup) {
+                log!("[dump] ERROR: Failed to backup corrupted dump file: {}", e);
+            } else {
+                log!("[dump] Corrupted dump file backed up to: {}", corrupted_backup);
+                println!("{}", format!("\n⚠️  Warning: OPM dump file could not be read (likely due to structure changes after upgrade)").yellow());
+                println!("{}", format!("   Backup created at: {}", corrupted_backup).yellow());
+                println!("{}", format!("   Your old process data is preserved in the backup file.").yellow());
+                println!("{}", format!("   Starting with empty process list. Use 'opm restore' if needed.\n").yellow());
+            }
+            
             log!("[dump] Failed to read permanent dump: {err}");
-            let runner = empty_runner();
-            write(&runner);
-            runner
+            
+            // Return empty runner WITHOUT writing to disk
+            // This prevents overwriting the backup we just created
+            empty_runner()
         }
     }
 }
