@@ -721,11 +721,10 @@ impl<'i> Internal<'i> {
                     // PID existed before but is no longer alive -> crash
                     "crashed   ".red().bold()
                 } else {
-                    // Fall back to previously stored crash state or stopped
-                    match item.crash.crashed {
-                        true => "crashed   ".red().bold(),
-                        false => "stopped   ".red().bold(),
-                    }
+                    // Process is not running (running=false) - always show as stopped
+                    // This ensures stopped processes display correctly even if they have
+                    // stale crash.crashed flags from old dumps or failed restore operations
+                    "stopped   ".red().bold()
                 };
 
                 let memory_limit = if item.max_memory > 0 {
@@ -818,12 +817,10 @@ impl<'i> Internal<'i> {
             } else if item.errored {
                 "errored  ".red().bold()
             } else {
-                match item.crash.crashed {
-                    true => "crashed   ",
-                    false => "stopped   ",
-                }
-                .red()
-                .bold()
+                // Process is not running (running=false) - always show as stopped
+                // This ensures stopped processes display correctly even if they have
+                // stale crash.crashed flags from old dumps or failed restore operations
+                "stopped   ".red().bold()
             };
 
             // Only count uptime when the process is actually running (not crashed or stopped)
@@ -1632,11 +1629,10 @@ impl<'i> Internal<'i> {
                             "stopped   ".red().bold()
                         }
                     } else {
-                        if crash_detection_enabled && item.crash.crashed {
-                            "crashed   ".red().bold()
-                        } else {
-                            "stopped   ".red().bold()
-                        }
+                        // Process is not running (running=false) - always show as stopped
+                        // This ensures stopped processes display correctly even if they have
+                        // stale crash.crashed flags from old dumps or failed restore operations
+                        "stopped   ".red().bold()
                     };
 
                     // Only count uptime when the process is actually running
@@ -1862,12 +1858,10 @@ impl<'i> Internal<'i> {
                             // Process is marked as running but PID doesn't exist - it crashed
                             "crashed   ".red().bold()
                         } else {
-                            match item.crash.crashed {
-                                true => "crashed   ",
-                                false => "stopped   ",
-                            }
-                            .red()
-                            .bold()
+                            // Process is not running (running=false) - always show as stopped
+                            // This ensures stopped processes display correctly even if they have
+                            // stale crash.crashed flags from old dumps or failed restore operations
+                            "stopped   ".red().bold()
                         };
 
                         // Only count uptime when the process is actually running

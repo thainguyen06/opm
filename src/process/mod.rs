@@ -1236,6 +1236,15 @@ impl Runner {
         }
     }
 
+    /// Save runner state directly to memory cache without using socket
+    /// This is used by the daemon itself to avoid serialization/deserialization
+    /// that would lose fields marked with #[serde(skip)] like the restart counter
+    pub fn save_direct(&self) {
+        if self.remote.is_none() {
+            dump::write_memory_direct(&self);
+        }
+    }
+
     /// Freeze a process to prevent auto-restart for a specified duration
     /// This is used during edit/delete operations to avoid conflicts with daemon
     pub fn freeze(&mut self, id: usize, duration_secs: i64) {
