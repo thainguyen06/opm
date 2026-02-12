@@ -255,8 +255,8 @@ fn restart_process() {
             // When a process dies, we no longer try to adopt its children
 
             if daemon_config.crash_detection {
-                // --- CRASH HANDLING LOGIC ---
-                // No living parent and no living children to adopt. This is a real crash or clean exit.
+                // --- CRASH DETECTION LOGIC ---
+                // Detect new crashes: process has PID but is now dead
                 let grace_period = daemon_config.crash_grace_period as i64;
                 let just_started = (Utc::now() - item.started).num_seconds() < grace_period;
                 let is_new_crash = item.pid > 0;
@@ -340,8 +340,15 @@ fn restart_process() {
                     }
                 }
 
-                // If the process is supposed to be running, attempt a restart.
-                // Check the UPDATED process state (after limit check), not the stale snapshot
+                // --- AUTO-RESTART LOGIC ---
+                // Attempt to restart any process that is supposed to be running but is dead.
+                // This handles both:
+                // 1. Newly detected crashes (from the crash detection logic above)
+                // 2. Previously crashed processes that are still dead (pid=0, crashed=true)
+                //
+                // By placing this logic outside the is_new_crash check, we ensure that
+                // processes that failed to restart (e.g., due to bad working directory)
+                // will continue to be retried on subsequent daemon cycles.
                 if runner.exists(id) {
                     let updated_process = runner.info(id).cloned();
                     if let Some(proc) = updated_process {
