@@ -290,16 +290,21 @@ fn reset_restart_counters(runner: &Runner) -> Runner {
 /// This prevents 0-byte corruption by ensuring the target file is only updated
 /// after the new data has been successfully written and verified
 fn write_dump_atomically(temp_path: &str, dump_path: &str, encoded: &str) -> Result<(), String> {
+    // Minimum size threshold for a valid dump file
+    // Even an empty Runner should serialize to at least a few bytes of RON structure
+    const MIN_VALID_SIZE: u64 = 10;
+    
     // Write to temporary file
     fs::write(temp_path, encoded)
         .map_err(|e| format!("Failed to write temporary file: {}", e))?;
     
-    // Verify the temporary file was written successfully and is not empty
+    // Verify the temporary file was written successfully and is not empty or too small
     let metadata = fs::metadata(temp_path)
         .map_err(|e| format!("Failed to read temporary file metadata: {}", e))?;
     
-    if metadata.len() == 0 {
-        return Err("Temporary file is empty (0 bytes)".to_string());
+    if metadata.len() < MIN_VALID_SIZE {
+        return Err(format!("Temporary file is too small ({} bytes, expected at least {})", 
+                          metadata.len(), MIN_VALID_SIZE));
     }
     
     // Atomically rename temporary file to official dump file
