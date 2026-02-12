@@ -698,13 +698,8 @@ impl Runner {
                 self.handle_restart_failure(id, &name, max_restarts, !dead);
                 // Note: handle_restart_failure sets crashed=true, so we don't need to set it here
 
-                // Save state to persist counter increments made by daemon (when dead=true)
-                // or by handle_restart_failure (when dead=false)
-                if dead {
-                    self.save_direct();
-                } else {
-                    self.save();
-                }
+                // Save state to persist counter increments and state changes
+                self.save_after_restart_failure(dead);
 
                 log::error!(
                     "Failed to set working directory {:?} for process {} during restart: {}",
@@ -774,13 +769,8 @@ impl Runner {
                     self.handle_restart_failure(id, &name, max_restarts, !dead);
                     // Note: handle_restart_failure sets crashed=true, so we don't need to set it here
 
-                    // Save state to persist counter increments made by daemon (when dead=true)
-                    // or by handle_restart_failure (when dead=false)
-                    if dead {
-                        self.save_direct();
-                    } else {
-                        self.save();
-                    }
+                    // Save state to persist counter increments and state changes
+                    self.save_after_restart_failure(dead);
 
                     log::error!("Failed to restart process '{}' (id={}): {}", name, id, err);
                     println!(
@@ -931,13 +921,8 @@ impl Runner {
                 self.handle_restart_failure(id, &name, max_restarts, !dead);
                 // Note: handle_restart_failure sets crashed=true, so we don't need to set it here
 
-                // Save state to persist counter increments made by daemon (when dead=true)
-                // or by handle_restart_failure (when dead=false)
-                if dead {
-                    self.save_direct();
-                } else {
-                    self.save();
-                }
+                // Save state to persist counter increments and state changes
+                self.save_after_restart_failure(dead);
 
                 log::error!(
                     "Failed to set working directory {:?} for process {} during reload: {}",
@@ -1007,13 +992,8 @@ impl Runner {
                     self.handle_restart_failure(id, &name, max_restarts, !dead);
                     // Note: handle_restart_failure sets crashed=true, so we don't need to set it here
 
-                    // Save state to persist counter increments made by daemon (when dead=true)
-                    // or by handle_restart_failure (when dead=false)
-                    if dead {
-                        self.save_direct();
-                    } else {
-                        self.save();
-                    }
+                    // Save state to persist counter increments and state changes
+                    self.save_after_restart_failure(dead);
 
                     log::error!("Failed to reload process '{}' (id={}): {}", name, id, err);
                     println!(
@@ -1422,6 +1402,17 @@ impl Runner {
     pub fn new_crash(&mut self, id: usize) -> &mut Self {
         self.process(id).restarts += 1;
         return self;
+    }
+
+    /// Save state after restart/reload failure to persist counter increments and state changes
+    /// Uses save_direct() for daemon operations (dead=true) to preserve #[serde(skip)] fields
+    /// Uses save() for user operations (dead=false) for full serialization
+    fn save_after_restart_failure(&mut self, dead: bool) {
+        if dead {
+            self.save_direct();
+        } else {
+            self.save();
+        }
     }
 
     /// Handle restart/reload failure by optionally incrementing restart counter and checking limit
