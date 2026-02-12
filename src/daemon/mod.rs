@@ -156,12 +156,16 @@ fn restart_process() {
             .shell_pid
             .map_or(false, |pid| opm::process::is_pid_alive(pid));
 
-        let any_descendant_alive = opm::process::is_any_descendant_alive(item.pid, &item.children)
-            || shell_alive;
+        // Treat PID=0 as dead (it's not a valid process PID for managed processes)
+        // PID 0 is reserved for the kernel scheduler and should never be assigned to user processes
+        let has_valid_pid = item.pid > 0;
+        
+        let any_descendant_alive = has_valid_pid 
+            && (opm::process::is_any_descendant_alive(item.pid, &item.children) || shell_alive);
 
         // Check if the main process (PID or shell_pid) is alive
         // This is the primary indicator of process health
-        let main_process_alive = opm::process::is_pid_alive(item.pid) || shell_alive;
+        let main_process_alive = has_valid_pid && (opm::process::is_pid_alive(item.pid) || shell_alive);
 
         // Even if a PID is alive, check if all tracked children are zombies
         // This handles cases where the wrong PID was adopted but the actual children crashed
@@ -255,8 +259,8 @@ fn restart_process() {
             // When a process dies, we no longer try to adopt its children
 
             if daemon_config.crash_detection {
-                // --- CRASH HANDLING LOGIC ---
-                // No living parent and no living children to adopt. This is a real crash or clean exit.
+                // --- CRASH DETECTION LOGIC ---
+                // Detect new crashes: process has PID but is now dead
                 let grace_period = daemon_config.crash_grace_period as i64;
                 let just_started = (Utc::now() - item.started).num_seconds() < grace_period;
                 let is_new_crash = item.pid > 0;
@@ -340,11 +344,22 @@ fn restart_process() {
                     }
                 }
 
-                // If the process is supposed to be running, attempt a restart.
-                // Check the UPDATED process state (after limit check), not the stale snapshot
+                // --- AUTO-RESTART LOGIC ---
+                // Attempt to restart any process that is supposed to be running but is dead.
+                // This handles both:
+                // 1. Newly detected crashes (from the crash detection logic above)
+                // 2. Previously crashed processes that are still dead (pid=0, crashed=true)
+                //
+                // By placing this logic outside the is_new_crash check, we ensure that
+                // processes that failed to restart (e.g., due to bad working directory)
+                // will continue to be retried on subsequent daemon cycles.
+                log!("[daemon] checking if process needs restart", "id" => id, "name" => &item.name);
                 if runner.exists(id) {
+                    log!("[daemon] process exists in runner", "id" => id);
                     let updated_process = runner.info(id).cloned();
+                    log!("[daemon] got updated process", "id" => id, "has_proc" => updated_process.is_some());
                     if let Some(proc) = updated_process {
+                        log!("[daemon] checking if process is running", "id" => id, "running" => proc.running, "restarts" => proc.restarts);
                         if proc.running {
                             // Check restart limit BEFORE attempting restart
                             if proc.restarts >= daemon_config.restarts {
