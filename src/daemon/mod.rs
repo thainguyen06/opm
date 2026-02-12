@@ -299,7 +299,6 @@ fn restart_process() {
                         process.shell_pid = None;
                         process.crash.value += 1;
                         process.crash.crashed = true;
-                        let crash_count = process.crash.value;
 
                         if item.running {
                             let process_name = item.name.clone();
@@ -307,11 +306,13 @@ fn restart_process() {
                                 handle.spawn(emit_crash_event_and_notification(id, process_name));
                             }
 
-                            if crash_count >= daemon_config.restarts {
+                            // Check restart limit using restarts counter (not crash.value)
+                            // This is the single source of truth displayed in `opm info`
+                            if item.restarts >= daemon_config.restarts {
                                 process.running = false;
-                                log!("[daemon] process reached max crash limit", "name" => &item.name, "id" => id, "crashes" => crash_count);
+                                log!("[daemon] process reached max restart limit", "name" => &item.name, "id" => id, "restarts" => item.restarts, "limit" => daemon_config.restarts);
                             } else {
-                                log!("[daemon] process crashed", "name" => &item.name, "id" => id, "crashes" => crash_count);
+                                log!("[daemon] process crashed", "name" => &item.name, "id" => id, "crashes" => process.crash.value);
                             }
                         }
                         runner.save();
@@ -319,23 +320,47 @@ fn restart_process() {
                 }
 
                 // If the process is supposed to be running, attempt a restart.
-                if item.running && runner.exists(id) && runner.info(id).map_or(false, |p| p.running)
-                {
-                    let seconds_since_action = (Utc::now() - item.last_action_at).num_seconds();
-                    let within_action_delay = seconds_since_action < 5;
+                // Check the UPDATED process state (after limit check), not the stale snapshot
+                if runner.exists(id) {
+                    let updated_process = runner.info(id).cloned();
+                    if let Some(proc) = updated_process {
+                        if proc.running {
+                            // Check restart limit BEFORE attempting restart
+                            if proc.restarts >= daemon_config.restarts {
+                                // Limit reached - stop the process permanently
+                                if let Some(process) = runner.list.get_mut(&id) {
+                                    process.running = false;
+                                }
+                                runner.save();
+                                log!("[daemon] process reached max restart limit, stopping permanently", 
+                                    "name" => &proc.name, "id" => id, "restarts" => proc.restarts, "limit" => daemon_config.restarts);
+                            } else {
+                                let seconds_since_action = (Utc::now() - proc.last_action_at).num_seconds();
+                                
+                                // Exponential backoff: 1s, 2s, 4s, 8s, 16s, 32s... capped at 30s
+                                // At 5+ restarts, delay hits 30s cap (2^5 = 32s, capped to 30s)
+                                let backoff_delay = (2u64.pow(proc.restarts as u32)).min(30);
+                                let within_backoff = seconds_since_action < backoff_delay as i64;
 
-                    // Don't restart if frozen or within 5 seconds of last action (start/restart/stop)
-                    // Action delay prevents rapid restart loops
-                    if !runner.is_frozen(id) && !within_action_delay {
-                        // Increment restarts counter before calling restart()
-                        // Note: restart() crashes the program on failure (crashln!), so this is safe
-                        if let Some(process) = runner.list.get_mut(&id) {
-                            process.restarts += 1;
+                                if within_backoff {
+                                    // Only log once per backoff period to reduce log noise
+                                    // (will log again after backoff expires and restarts)
+                                } else if runner.is_frozen(id) {
+                                    log!("[daemon] process is frozen, skipping restart", "name" => &proc.name, "id" => id);
+                                } else {
+                                    // Increment restarts counter before calling restart()
+                                    // Note: restart() crashes the program on failure (crashln!), so this is safe
+                                    let new_restart_count = proc.restarts + 1;
+                                    if let Some(process) = runner.list.get_mut(&id) {
+                                        process.restarts = new_restart_count;
+                                    }
+                                    log!("[daemon] restarting crashed process", "name" => &proc.name, "id" => id, "restarts" => new_restart_count, "backoff_secs" => backoff_delay);
+                                    runner.restart(id, true, true);
+                                    // Save state after restart to persist PID, counters, and cleared crashed flag
+                                    runner.save();
+                                }
+                            }
                         }
-                        log!("[daemon] restarting crashed process", "name" => &item.name, "id" => id);
-                        runner.restart(id, true, true);
-                        // Save state after restart to persist PID, counters, and cleared crashed flag
-                        runner.save();
                     }
                 }
             } else {
