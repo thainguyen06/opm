@@ -698,6 +698,9 @@ impl Runner {
                 self.handle_restart_failure(id, &name, max_restarts, !dead);
                 // Note: handle_restart_failure sets crashed=true, so we don't need to set it here
 
+                // Save state to persist counter increments and state changes
+                self.save_after_restart_failure(dead);
+
                 log::error!(
                     "Failed to set working directory {:?} for process {} during restart: {}",
                     path,
@@ -765,6 +768,9 @@ impl Runner {
                     // When dead=false (manual restart): increment (first time counting this failure)
                     self.handle_restart_failure(id, &name, max_restarts, !dead);
                     // Note: handle_restart_failure sets crashed=true, so we don't need to set it here
+
+                    // Save state to persist counter increments and state changes
+                    self.save_after_restart_failure(dead);
 
                     log::error!("Failed to restart process '{}' (id={}): {}", name, id, err);
                     println!(
@@ -915,6 +921,9 @@ impl Runner {
                 self.handle_restart_failure(id, &name, max_restarts, !dead);
                 // Note: handle_restart_failure sets crashed=true, so we don't need to set it here
 
+                // Save state to persist counter increments and state changes
+                self.save_after_restart_failure(dead);
+
                 log::error!(
                     "Failed to set working directory {:?} for process {} during reload: {}",
                     path,
@@ -982,6 +991,9 @@ impl Runner {
                     // When dead=false (manual reload): increment (first time counting this failure)
                     self.handle_restart_failure(id, &name, max_restarts, !dead);
                     // Note: handle_restart_failure sets crashed=true, so we don't need to set it here
+
+                    // Save state to persist counter increments and state changes
+                    self.save_after_restart_failure(dead);
 
                     log::error!("Failed to reload process '{}' (id={}): {}", name, id, err);
                     println!(
@@ -1390,6 +1402,21 @@ impl Runner {
     pub fn new_crash(&mut self, id: usize) -> &mut Self {
         self.process(id).restarts += 1;
         return self;
+    }
+
+    /// Save state after restart/reload failure to persist counter increments and state changes
+    /// 
+    /// # Arguments
+    /// * `dead` - True if this is a daemon-initiated restart (process already dead/crashed),
+    ///           False if this is a user-initiated manual restart/reload.
+    ///           When true, uses save_direct() to preserve #[serde(skip)] fields like restart counter.
+    ///           When false, uses save() for full serialization.
+    fn save_after_restart_failure(&mut self, dead: bool) {
+        if dead {
+            self.save_direct();
+        } else {
+            self.save();
+        }
     }
 
     /// Handle restart/reload failure by optionally incrementing restart counter and checking limit
