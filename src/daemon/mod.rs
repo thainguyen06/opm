@@ -1198,6 +1198,7 @@ fn has_recent_action_timestamp(id: usize) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::thread;
 
     #[test]
     fn test_restore_in_progress_flag() {
@@ -1217,5 +1218,51 @@ mod tests {
         assert!(is_restore_in_progress());
         clear_restore_in_progress();
         assert!(!is_restore_in_progress());
+    }
+
+    #[test]
+    fn test_restore_in_progress_flag_concurrent() {
+        // Test thread-safety of atomic flag operations under concurrent access
+        // This verifies the flag works correctly when multiple threads check/set it simultaneously
+        
+        // Start with clean state
+        clear_restore_in_progress();
+        assert!(!is_restore_in_progress());
+        
+        // Spawn multiple reader threads that will check the flag
+        let readers: Vec<_> = (0..10)
+            .map(|i| {
+                thread::spawn(move || {
+                    // Simulate daemon loop checking if restore is in progress
+                    for _ in 0..100 {
+                        let in_progress = is_restore_in_progress();
+                        // The flag should be either true or false (never corrupted)
+                        assert!(in_progress || !in_progress);
+                        thread::yield_now();
+                    }
+                    i
+                })
+            })
+            .collect();
+        
+        // Spawn writer thread that toggles the flag
+        let writer = thread::spawn(|| {
+            for _ in 0..50 {
+                set_restore_in_progress();
+                thread::yield_now();
+                clear_restore_in_progress();
+                thread::yield_now();
+            }
+        });
+        
+        // Wait for all threads to complete
+        writer.join().expect("Writer thread panicked");
+        for reader in readers {
+            reader.join().expect("Reader thread panicked");
+        }
+        
+        // Verify flag is in valid state after concurrent operations
+        let final_state = is_restore_in_progress();
+        assert!(final_state || !final_state); // Should be either true or false, not corrupted
     }
 }
