@@ -1194,3 +1194,28 @@ fn has_recent_action_timestamp(id: usize) -> bool {
         None => false,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_restore_in_progress_flag() {
+        // Initially should be false
+        assert!(!is_restore_in_progress());
+        
+        // Set the flag
+        set_restore_in_progress();
+        assert!(is_restore_in_progress());
+        
+        // Clear the flag
+        clear_restore_in_progress();
+        assert!(!is_restore_in_progress());
+        
+        // Can set and clear multiple times
+        set_restore_in_progress();
+        assert!(is_restore_in_progress());
+        clear_restore_in_progress();
+        assert!(!is_restore_in_progress());
+    }
+}
