@@ -1229,18 +1229,29 @@ mod tests {
         clear_restore_in_progress();
         assert!(!is_restore_in_progress());
         
+        // Use Arc to share state transition counter across threads
+        use std::sync::Arc;
+        use std::sync::atomic::AtomicUsize;
+        
+        let true_reads = Arc::new(AtomicUsize::new(0));
+        let false_reads = Arc::new(AtomicUsize::new(0));
+        
         // Spawn multiple reader threads that will check the flag
         let readers: Vec<_> = (0..10)
-            .map(|i| {
+            .map(|_| {
+                let true_count = Arc::clone(&true_reads);
+                let false_count = Arc::clone(&false_reads);
                 thread::spawn(move || {
                     // Simulate daemon loop checking if restore is in progress
                     for _ in 0..100 {
                         let in_progress = is_restore_in_progress();
-                        // The flag should be either true or false (never corrupted)
-                        assert!(in_progress || !in_progress);
+                        if in_progress {
+                            true_count.fetch_add(1, Ordering::Relaxed);
+                        } else {
+                            false_count.fetch_add(1, Ordering::Relaxed);
+                        }
                         thread::yield_now();
                     }
-                    i
                 })
             })
             .collect();
@@ -1261,8 +1272,18 @@ mod tests {
             reader.join().expect("Reader thread panicked");
         }
         
-        // Verify flag is in valid state after concurrent operations
-        let final_state = is_restore_in_progress();
-        assert!(final_state || !final_state); // Should be either true or false, not corrupted
+        // Verify we observed both states (flag was toggled successfully)
+        let true_count = true_reads.load(Ordering::Relaxed);
+        let false_count = false_reads.load(Ordering::Relaxed);
+        
+        // Total reads should be 10 threads * 100 iterations = 1000
+        assert_eq!(true_count + false_count, 1000, "All reads should be accounted for");
+        
+        // Both states should have been observed (writer toggled 50 times)
+        assert!(true_count > 0, "Flag should have been observed as true at least once");
+        assert!(false_count > 0, "Flag should have been observed as false at least once");
+        
+        // After writer completes (50 set/clear pairs), flag should be cleared
+        assert!(!is_restore_in_progress(), "Flag should be cleared after all operations");
     }
 }
