@@ -43,6 +43,9 @@ use tabled::{
 
 static ENABLE_API: AtomicBool = AtomicBool::new(false);
 static ENABLE_WEBUI: AtomicBool = AtomicBool::new(false);
+// Flag to prevent daemon from auto-starting processes during restore operation
+// This prevents race condition where daemon restarts processes that restore is already handling
+static RESTORE_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
 extern "C" fn handle_termination_signal(_: libc::c_int) {
     // SAFETY: Signal handlers should be kept simple and avoid complex operations.
@@ -417,7 +420,9 @@ fn restart_process() {
             }
         }
         // Handle processes that need to be started (e.g. after restore or `opm start`)
-        if item.running && item.pid == 0 && !item.crash.crashed {
+        // Skip this during restore to prevent race condition where daemon restarts
+        // processes that restore is already handling, which would create duplicates
+        if item.running && item.pid == 0 && !item.crash.crashed && !is_restore_in_progress() {
             log!("[daemon] starting process with no PID", "name" => &item.name, "id" => id);
             runner.restart(id, true, false); // is_daemon_op=true, increment_counter=false
             // Save state after restart to persist PID and state changes
@@ -1139,6 +1144,23 @@ pub fn cleanup_all_timestamp_files() {
     }
 }
 
+/// Set restore in progress flag to prevent daemon from auto-starting processes during restore
+pub fn set_restore_in_progress() {
+    RESTORE_IN_PROGRESS.store(true, Ordering::SeqCst);
+    ::log::info!("[daemon] restore in progress flag set");
+}
+
+/// Clear restore in progress flag to allow daemon to resume auto-starting processes
+pub fn clear_restore_in_progress() {
+    RESTORE_IN_PROGRESS.store(false, Ordering::SeqCst);
+    ::log::info!("[daemon] restore in progress flag cleared");
+}
+
+/// Check if restore is currently in progress
+pub fn is_restore_in_progress() -> bool {
+    RESTORE_IN_PROGRESS.load(Ordering::SeqCst)
+}
+
 // Helper function to check if there was a recent action timestamp file
 #[allow(dead_code)]
 fn has_recent_action_timestamp(id: usize) -> bool {
@@ -1170,5 +1192,98 @@ fn has_recent_action_timestamp(id: usize) -> bool {
             false
         }
         None => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::thread;
+
+    #[test]
+    fn test_restore_in_progress_flag() {
+        // Initially should be false
+        assert!(!is_restore_in_progress());
+        
+        // Set the flag
+        set_restore_in_progress();
+        assert!(is_restore_in_progress());
+        
+        // Clear the flag
+        clear_restore_in_progress();
+        assert!(!is_restore_in_progress());
+        
+        // Can set and clear multiple times
+        set_restore_in_progress();
+        assert!(is_restore_in_progress());
+        clear_restore_in_progress();
+        assert!(!is_restore_in_progress());
+    }
+
+    #[test]
+    fn test_restore_in_progress_flag_concurrent() {
+        // Test thread-safety of atomic flag operations under concurrent access
+        // This verifies the flag works correctly when multiple threads check/set it simultaneously
+        
+        // Start with clean state
+        clear_restore_in_progress();
+        assert!(!is_restore_in_progress());
+        
+        // Use Arc to share state transition counter across threads
+        use std::sync::Arc;
+        use std::sync::atomic::AtomicUsize;
+        
+        let true_reads = Arc::new(AtomicUsize::new(0));
+        let false_reads = Arc::new(AtomicUsize::new(0));
+        
+        // Spawn multiple reader threads that will check the flag
+        let readers: Vec<_> = (0..10)
+            .map(|_| {
+                let true_count = Arc::clone(&true_reads);
+                let false_count = Arc::clone(&false_reads);
+                thread::spawn(move || {
+                    // Simulate daemon loop checking if restore is in progress
+                    for _ in 0..100 {
+                        let in_progress = is_restore_in_progress();
+                        if in_progress {
+                            true_count.fetch_add(1, Ordering::Relaxed);
+                        } else {
+                            false_count.fetch_add(1, Ordering::Relaxed);
+                        }
+                        thread::yield_now();
+                    }
+                })
+            })
+            .collect();
+        
+        // Spawn writer thread that toggles the flag
+        let writer = thread::spawn(|| {
+            for _ in 0..50 {
+                set_restore_in_progress();
+                thread::yield_now();
+                clear_restore_in_progress();
+                thread::yield_now();
+            }
+        });
+        
+        // Wait for all threads to complete
+        writer.join().expect("Writer thread panicked");
+        for reader in readers {
+            reader.join().expect("Reader thread panicked");
+        }
+        
+        // Verify we observed both states (flag was toggled successfully)
+        let true_count = true_reads.load(Ordering::Relaxed);
+        let false_count = false_reads.load(Ordering::Relaxed);
+        
+        // Total reads should be 10 threads * 100 iterations = 1000
+        assert_eq!(true_count + false_count, 1000, "All reads should be accounted for");
+        
+        // Both states should have been observed (writer toggled 50 times)
+        assert!(true_count > 0, "Flag should have been observed as true at least once");
+        assert!(false_count > 0, "Flag should have been observed as false at least once");
+        
+        // After writer completes (50 set/clear pairs), flag should be cleared
+        assert!(!is_restore_in_progress(), "Flag should be cleared after all operations");
     }
 }

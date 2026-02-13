@@ -1292,6 +1292,10 @@ impl<'i> Internal<'i> {
         // This prevents old timestamp files from interfering with crash detection
         crate::daemon::cleanup_all_timestamp_files();
 
+        // Set restore in progress flag to prevent daemon from auto-starting processes
+        // This prevents race condition where daemon and restore both try to start the same process
+        crate::daemon::set_restore_in_progress();
+
         // Load permanent dump into daemon memory for restore operations
         match opm::socket::send_request(&socket_path, opm::socket::SocketRequest::LoadPermanent) {
             Ok(opm::socket::SocketResponse::Success) => {}
@@ -1507,6 +1511,10 @@ impl<'i> Internal<'i> {
         // This ensures processes that failed to restore (via set_crashed() calls) are properly
         // marked as crashed in permanent storage for daemon monitoring
         runner.save_permanent();
+
+        // Clear restore in progress flag to allow daemon to resume normal operations
+        // This must be done after all processes have been started to prevent duplicates
+        crate::daemon::clear_restore_in_progress();
 
         // Print final success message with count of restored processes
         let restored_count = restored_ids.len();
