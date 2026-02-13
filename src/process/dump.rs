@@ -411,23 +411,12 @@ pub fn write_memory(dump: &Runner) {
 }
 
 pub fn load_permanent_into_memory() -> Runner {
-    let mut runner = read_permanent_dump();
+    let runner = read_permanent_dump();
     
-    // Preserve restart counters from memory cache if it exists
-    // This is critical because restart counters have #[serde(skip)] and are not persisted to permanent dump
-    // When loading permanent dump (e.g., during restore), we must preserve the runtime counters
-    // that the daemon has been maintaining in memory, otherwise they reset to 0 and auto-restart breaks
-    if let Some(memory) = read_memory_direct_option() {
-        log!("[dump::load_permanent_into_memory] Preserving restart counters from memory cache");
-        for (id, process) in runner.list.iter_mut() {
-            if let Some(mem_process) = memory.list.get(id) {
-                // Preserve the restart counter that was in memory
-                process.restarts = mem_process.restarts;
-                log!("[dump::load_permanent_into_memory] Preserved restart counter for process {} (id={}): {}", 
-                    process.name, id, process.restarts);
-            }
-        }
-    }
+    // Restart counters are NOT preserved during restore (they have #[serde(skip)])
+    // This means counters reset to 0, giving processes a fresh start after restore
+    // This is intentional behavior - restore should provide a clean slate
+    log!("[dump::load_permanent_into_memory] Loaded permanent dump, restart counters reset to 0");
     
     write_memory_direct(&runner);
     runner

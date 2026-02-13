@@ -243,14 +243,10 @@ fn restart_process() {
             // --- PROCESS IS DEAD (no root, no children alive) ---
 
             // Check per-process 5s delay after last action (start/restart/reload/restore)
+            // This delay prevents immediate crash detection for newly started processes
+            // but should NOT prevent auto-restart of already-crashed processes
             let seconds_since_action = (Utc::now() - item.last_action_at).num_seconds();
             let within_action_delay = seconds_since_action < 5;
-
-            if within_action_delay {
-                log!("[daemon] skipping crash check - within 5s delay after action", 
-                    "name" => &item.name, "id" => id, "seconds_since_action" => seconds_since_action);
-                continue;
-            }
 
             // Child PID adoption logic has been removed due to bugs in PR #306
             // The adoption logic had two critical issues:
@@ -260,10 +256,13 @@ fn restart_process() {
 
             if daemon_config.crash_detection {
                 // --- CRASH DETECTION LOGIC ---
-                // Detect new crashes: process has PID but is now dead
-                let grace_period = daemon_config.crash_grace_period as i64;
-                let just_started = (Utc::now() - item.started).num_seconds() < grace_period;
-                let is_new_crash = item.pid > 0;
+                // Only run crash detection if not within action delay
+                // This prevents false crash detection for processes that are still starting up
+                if !within_action_delay {
+                    // Detect new crashes: process has PID but is now dead
+                    let grace_period = daemon_config.crash_grace_period as i64;
+                    let just_started = (Utc::now() - item.started).num_seconds() < grace_period;
+                    let is_new_crash = item.pid > 0;
 
                 if is_new_crash && !just_started {
                     // Check if this is a manual stop (user-initiated via 'opm stop')
@@ -343,12 +342,16 @@ fn restart_process() {
                         runner.save_direct();
                     }
                 }
+            } // End of !within_action_delay check for crash detection
 
                 // --- AUTO-RESTART LOGIC ---
                 // Attempt to restart any process that is supposed to be running but is dead.
                 // This handles both:
                 // 1. Newly detected crashes (from the crash detection logic above)
                 // 2. Previously crashed processes that are still dead (pid=0, crashed=true)
+                //
+                // IMPORTANT: This logic runs even during the action delay period to ensure
+                // that already-crashed processes can be restarted without waiting for the delay
                 //
                 // By placing this logic outside the is_new_crash check, we ensure that
                 // processes that failed to restart (e.g., due to bad working directory)
