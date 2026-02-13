@@ -73,10 +73,27 @@ fn read_permanent_dump() -> Runner {
     match file::try_read_object(global!("opm.dump")) {
         Ok(runner) => runner,
         Err(err) => {
+            // Deserialization failed - likely due to structure changes after upgrade
+            // Create a timestamped backup to prevent data loss
+            let dump_path = global!("opm.dump");
+            let timestamp = Utc::now().format("%Y%m%d_%H%M%S");
+            let corrupted_backup = format!("{}.corrupted.{}", dump_path, timestamp);
+            
+            if let Err(e) = fs::copy(&dump_path, &corrupted_backup) {
+                log!("[dump] ERROR: Failed to backup corrupted dump file: {}", e);
+            } else {
+                log!("[dump] Corrupted dump file backed up to: {}", corrupted_backup);
+                println!("{}", format!("\n⚠️  Warning: OPM dump file could not be read (likely due to structure changes after upgrade)").yellow());
+                println!("{}", format!("   Backup created at: {}", corrupted_backup).yellow());
+                println!("{}", format!("   Your old process data is preserved in the backup file.").yellow());
+                println!("{}", format!("   Starting with empty process list. Use 'opm restore' if needed.\n").yellow());
+            }
+            
             log!("[dump] Failed to read permanent dump: {err}");
-            let runner = empty_runner();
-            write(&runner);
-            runner
+            
+            // Return empty runner WITHOUT writing to disk
+            // This prevents overwriting the backup we just created
+            empty_runner()
         }
     }
 }
@@ -394,7 +411,24 @@ pub fn write_memory(dump: &Runner) {
 }
 
 pub fn load_permanent_into_memory() -> Runner {
-    let runner = read_permanent_dump();
+    let mut runner = read_permanent_dump();
+    
+    // Preserve restart counters from memory cache if it exists
+    // This is critical because restart counters have #[serde(skip)] and are not persisted to permanent dump
+    // When loading permanent dump (e.g., during restore), we must preserve the runtime counters
+    // that the daemon has been maintaining in memory, otherwise they reset to 0 and auto-restart breaks
+    if let Some(memory) = read_memory_direct_option() {
+        log!("[dump::load_permanent_into_memory] Preserving restart counters from memory cache");
+        for (id, process) in runner.list.iter_mut() {
+            if let Some(mem_process) = memory.list.get(id) {
+                // Preserve the restart counter that was in memory
+                process.restarts = mem_process.restarts;
+                log!("[dump::load_permanent_into_memory] Preserved restart counter for process {} (id={}): {}", 
+                    process.name, id, process.restarts);
+            }
+        }
+    }
+    
     write_memory_direct(&runner);
     runner
 }
