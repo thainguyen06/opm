@@ -377,9 +377,9 @@ fn restart_process() {
                             } else {
                                 let seconds_since_action = (Utc::now() - proc.last_action_at).num_seconds();
                                 
-                                // Exponential backoff: 1s, 2s, 4s, 8s, 16s, 32s... capped at 30s
-                                // At 5+ restarts, delay hits 30s cap (2^5 = 32s, capped to 30s)
-                                let backoff_delay = (2u64.pow(proc.restarts as u32)).min(30);
+                                // Fixed delay: 2 seconds between restart attempts
+                                // This prevents rapid restart loops while keeping auto-restart responsive
+                                let backoff_delay = 2u64;
                                 let within_backoff = seconds_since_action < backoff_delay as i64;
 
                                 if within_backoff {
