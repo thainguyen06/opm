@@ -43,6 +43,9 @@ use tabled::{
 
 static ENABLE_API: AtomicBool = AtomicBool::new(false);
 static ENABLE_WEBUI: AtomicBool = AtomicBool::new(false);
+// Flag to prevent daemon from auto-starting processes during restore operation
+// This prevents race condition where daemon restarts processes that restore is already handling
+static RESTORE_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
 extern "C" fn handle_termination_signal(_: libc::c_int) {
     // SAFETY: Signal handlers should be kept simple and avoid complex operations.
@@ -417,7 +420,9 @@ fn restart_process() {
             }
         }
         // Handle processes that need to be started (e.g. after restore or `opm start`)
-        if item.running && item.pid == 0 && !item.crash.crashed {
+        // Skip this during restore to prevent race condition where daemon restarts
+        // processes that restore is already handling, which would create duplicates
+        if item.running && item.pid == 0 && !item.crash.crashed && !is_restore_in_progress() {
             log!("[daemon] starting process with no PID", "name" => &item.name, "id" => id);
             runner.restart(id, true, false); // is_daemon_op=true, increment_counter=false
             // Save state after restart to persist PID and state changes
@@ -1137,6 +1142,23 @@ pub fn cleanup_all_timestamp_files() {
             }
         }
     }
+}
+
+/// Set restore in progress flag to prevent daemon from auto-starting processes during restore
+pub fn set_restore_in_progress() {
+    RESTORE_IN_PROGRESS.store(true, Ordering::SeqCst);
+    ::log::info!("[daemon] restore in progress flag set");
+}
+
+/// Clear restore in progress flag to allow daemon to resume auto-starting processes
+pub fn clear_restore_in_progress() {
+    RESTORE_IN_PROGRESS.store(false, Ordering::SeqCst);
+    ::log::info!("[daemon] restore in progress flag cleared");
+}
+
+/// Check if restore is currently in progress
+pub fn is_restore_in_progress() -> bool {
+    RESTORE_IN_PROGRESS.load(Ordering::SeqCst)
 }
 
 // Helper function to check if there was a recent action timestamp file
