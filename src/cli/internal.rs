@@ -1189,13 +1189,13 @@ impl<'i> Internal<'i> {
     }
 
     pub fn restore(server_name: &String) {
-        let (kind, list_name) = super::format(server_name);
+        let (kind, _list_name) = super::format(server_name);
 
         if !matches!(&**server_name, "internal" | "local") {
             crashln!("{} Cannot restore on remote servers", *helpers::FAIL)
         }
 
-        println!("{} Starting restore process...", *helpers::SUCCESS);
+
 
         // Kill any running processes before restoring to ensure clean state
         // This prevents port conflicts and resource issues
@@ -1215,12 +1215,10 @@ impl<'i> Internal<'i> {
 
         // Reset daemon first to compress process IDs and clean state
         // This must happen BEFORE starting daemon to ensure clean startup
-        println!("{} Resetting daemon state...", *helpers::SUCCESS);
         crate::daemon::reset();
 
         // Always restart daemon (stop if running, then start)
         // This ensures daemon starts fresh with reset state
-        println!("{} Starting OPM daemon...", *helpers::SUCCESS);
         crate::daemon::restart(&api_enabled, &webui_enabled, false);
 
         // Wait for daemon socket to be ready before proceeding
@@ -1425,8 +1423,7 @@ impl<'i> Internal<'i> {
             .collect();
 
         if processes_to_restore.is_empty() {
-            println!("{} No processes to restore", *helpers::SUCCESS);
-            Internal::list(&string!("default"), &list_name);
+            println!("{} Success: 0 processes restored.", *helpers::SUCCESS);
             return;
         }
 
@@ -1462,12 +1459,14 @@ impl<'i> Internal<'i> {
             // Check if the restart was successful
             if let Some(process) = runner.info(*id) {
                 // Verify the process is actually running using the same logic as daemon
-                // Use shell_pid if available (for shell scripts), otherwise use main pid
+                // Check the actual process PID first (long-running), then shell_pid (transient)
                 // This ensures consistent behavior between restore and daemon monitoring
-                let pid_to_check = process.shell_pid.unwrap_or(process.pid);
-                // Use a purely PID-based health check (no log signal dependency)
-                let process_alive = if pid_to_check > 0 {
-                    opm::process::is_pid_alive(pid_to_check as i64)
+                // The daemon checks: is_pid_alive(item.pid) || shell_alive
+                // So we should also check pid first, then shell_pid
+                let process_alive = if process.pid > 0 {
+                    opm::process::is_pid_alive(process.pid)
+                } else if let Some(shell_pid) = process.shell_pid {
+                    shell_pid > 0 && opm::process::is_pid_alive(shell_pid)
                 } else {
                     false
                 };
@@ -1509,7 +1508,9 @@ impl<'i> Internal<'i> {
         // marked as crashed in permanent storage for daemon monitoring
         runner.save_permanent();
 
-        Internal::list(&string!("default"), &list_name);
+        // Print final success message with count of restored processes
+        let restored_count = restored_ids.len();
+        println!("{} Success: {} processes restored.", *helpers::SUCCESS, restored_count);
         
         // Restore operation is complete - exit the restore process
         // The daemon is now running in a separate PID and will continue independently
