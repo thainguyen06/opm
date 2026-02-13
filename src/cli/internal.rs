@@ -1295,7 +1295,6 @@ impl<'i> Internal<'i> {
         crate::daemon::cleanup_all_timestamp_files();
 
         // Load permanent dump into daemon memory for restore operations
-        // socket_path already defined above
         match opm::socket::send_request(&socket_path, opm::socket::SocketRequest::LoadPermanent) {
             Ok(opm::socket::SocketResponse::Success) => {}
             Ok(opm::socket::SocketResponse::Error(message)) => {
