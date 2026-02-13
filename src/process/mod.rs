@@ -214,7 +214,8 @@ pub struct Process {
     pub path: PathBuf,
     pub script: String,
     /// Restart counter - tracks how many times process has been restarted by daemon
-    /// Persisted to enable accurate display in CLI and proper restart limit enforcement
+    /// Serialized for socket communication to display correctly in CLI commands
+    /// Also persisted to dump file, maintaining restart count across daemon restarts
     pub restarts: u64,
     pub running: bool,
     pub crash: Crash,
