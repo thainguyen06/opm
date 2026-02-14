@@ -2918,6 +2918,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -2973,6 +2975,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -3065,6 +3069,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -3231,6 +3237,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -3283,6 +3291,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -3335,6 +3345,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -3389,6 +3401,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -3437,6 +3451,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -3493,6 +3509,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -3555,6 +3573,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process.clone());
@@ -3626,6 +3646,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process.clone());
@@ -3672,6 +3694,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -3726,6 +3750,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -3783,6 +3809,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -3843,6 +3871,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -3902,6 +3932,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -3966,6 +3998,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -4109,6 +4143,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -4219,6 +4255,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -4319,6 +4357,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -4496,6 +4536,8 @@ mod tests {
                 last_restart_attempt: None,
                 failed_restart_attempts: 0,
                 session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
             };
             runner.list.insert(id, process);
         }
@@ -4602,6 +4644,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process.clone());
@@ -4695,6 +4739,8 @@ mod tests {
                 last_restart_attempt: None,
                 failed_restart_attempts: 0,
                 session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
             };
             runner.list.insert(id, process);
         }
@@ -4797,6 +4843,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -4866,6 +4914,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -4932,6 +4982,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -5012,6 +5064,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process.clone());
@@ -5095,6 +5149,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -5183,6 +5239,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -5271,6 +5329,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -5334,6 +5394,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -5399,6 +5461,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -5448,6 +5512,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -5502,6 +5568,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -5577,6 +5645,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process_from_dump.clone());
@@ -5708,6 +5778,8 @@ mod tests {
             last_restart_attempt: None,
             failed_restart_attempts: 0,
             session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
