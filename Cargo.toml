@@ -71,6 +71,7 @@ clap-verbosity-flag = "2.2.2"
 global_placeholders = "0.1.0"
 num_cpus = "1.16.0"
 sys-info = "0.9.1"
+sysinfo = "0.32.1"
 dotenvy = "0.15.7"
 uuid = { version = "1.11.0", features = ["v4", "serde"] }
 hostname = "0.4.0"
