@@ -25,7 +25,8 @@ use std::{process, thread::sleep, time::Duration};
 use opm::{
     config,
     helpers::{self, ColoredString},
-    process::{dump, get_process_cpu_usage_with_children_from_process, hash, Runner},
+    process::{dump, get_process_cpu_usage_with_children_from_process, hash, Runner, 
+              RESTART_COOLDOWN_SECS, FAILED_RESTART_COOLDOWN_SECS, COOLDOWN_LOG_INTERVAL_SECS},
 };
 
 use tabled::{
@@ -40,14 +41,6 @@ use tabled::{
 
 // Grace period for crash detection is now configurable via daemon.crash_grace_period in config.toml
 // Default is 2 seconds to prevent false crash detection when processes are initializing
-
-// Anti-spam restart cooldown constants
-// Minimum delay between restart attempts to prevent rapid restart loops
-const RESTART_COOLDOWN_SECS: u64 = 5;
-// Extended delay for failed restarts (e.g., port conflicts) to give time for issues to resolve
-const FAILED_RESTART_COOLDOWN_SECS: u64 = 10;
-// Interval for periodic cooldown logging to reduce log noise
-const COOLDOWN_LOG_INTERVAL_SECS: i64 = 5;
 
 static ENABLE_API: AtomicBool = AtomicBool::new(false);
 static ENABLE_WEBUI: AtomicBool = AtomicBool::new(false);
@@ -326,15 +319,14 @@ fn restart_process() {
                         // 1. Exactly one child exists (prevents adopting wrong PID)
                         // 2. The child is actually alive
                         // 3. Process is supposed to be running (prevents restarting stopped processes)
-                        // 4. The child matches the expected command name (safety check)
                         if current_children.len() == 1 && item.running {
                             let child_pid = current_children[0];
                             if opm::process::is_pid_alive(child_pid) {
-                                // Verify the child is related to our process by checking command name
-                                // This prevents adopting unrelated processes
+                                // Verify we can access the child process (basic safety check)
                                 #[cfg(any(target_os = "linux", target_os = "macos"))]
                                 {
                                     use opm::process::unix::NativeProcess;
+                                    // Try to create process handle - if successful, we can safely adopt
                                     if let Ok(_child_process) = NativeProcess::new(child_pid as u32) {
                                         // Adopt the child PID
                                         if runner.exists(id) {
@@ -456,15 +448,12 @@ fn restart_process() {
                                     "name" => &proc.name, "id" => id, "restarts" => proc.restarts, "limit" => daemon_config.restarts);
                             } else {
                                 // Anti-spam cooldown mechanism
-                                // Enforce minimum 5-second delay between restart attempts
-                                // For failed restarts (port conflicts), use 10-second delay
+                                // Enforce minimum delay between restart attempts
                                 let seconds_since_last_attempt = proc.last_restart_attempt
                                     .map(|t| (Utc::now() - t).num_seconds())
-                                    .unwrap_or(999); // If never attempted, allow restart
+                                    .unwrap_or(i64::MAX); // Never attempted - allow restart immediately
                                 
                                 // Calculate backoff delay based on failure count
-                                // Normal restart: 5 seconds minimum
-                                // Failed restart (port conflict, etc.): 10 seconds
                                 let base_delay = if proc.failed_restart_attempts > 0 {
                                     FAILED_RESTART_COOLDOWN_SECS
                                 } else {
@@ -475,8 +464,8 @@ fn restart_process() {
 
                                 if within_cooldown {
                                     // Process is in cooldown period - skip restart
-                                    // Only log periodically to reduce noise
-                                    if seconds_since_last_attempt == 0 || seconds_since_last_attempt % COOLDOWN_LOG_INTERVAL_SECS == 0 {
+                                    // Log periodically to reduce noise (but not at 0 to avoid race with restart log)
+                                    if seconds_since_last_attempt > 0 && seconds_since_last_attempt % COOLDOWN_LOG_INTERVAL_SECS == 0 {
                                         log!("[daemon] process in restart cooldown", 
                                             "name" => &proc.name, 
                                             "id" => id, 
@@ -520,17 +509,18 @@ fn restart_process() {
                                     runner.restart(id, true, true);
                                     
                                     // Update failed restart counter based on result
-                                    // Check if restart succeeded by verifying process has valid PID
+                                    // Verify process is actually running by checking PID > 0 AND process is alive
                                     if let Some(process) = runner.list.get_mut(&id) {
-                                        if process.pid > 0 {
-                                            // Restart succeeded - reset failure counter
+                                        if process.pid > 0 && opm::process::is_pid_alive(process.pid) {
+                                            // Restart succeeded - process has valid PID and is alive
                                             process.failed_restart_attempts = 0;
                                         } else {
-                                            // Restart failed - increment failure counter
+                                            // Restart failed - no valid PID or process is not alive
                                             process.failed_restart_attempts += 1;
                                             log!("[daemon] restart attempt failed", 
                                                 "name" => &proc.name, 
                                                 "id" => id,
+                                                "pid" => process.pid,
                                                 "failed_attempts" => process.failed_restart_attempts);
                                         }
                                     }

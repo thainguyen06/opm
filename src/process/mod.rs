@@ -47,6 +47,14 @@ const TERMINATION_CHECK_INTERVAL_MS: u64 = 100;
 // This prevents false crash reports during slow process initialization and restart cycles
 const STATUS_GRACE_PERIOD_SECS: i64 = 15;
 
+// Anti-spam restart cooldown constants
+// Minimum delay between restart attempts to prevent rapid restart loops
+pub const RESTART_COOLDOWN_SECS: u64 = 5;
+// Extended delay for failed restarts (e.g., port conflicts) to give time for issues to resolve
+pub const FAILED_RESTART_COOLDOWN_SECS: u64 = 10;
+// Interval for periodic cooldown logging to reduce log noise
+pub const COOLDOWN_LOG_INTERVAL_SECS: i64 = 5;
+
 /// Write timestamp file durably to disk with fsync
 /// This ensures the timestamp is persisted before the function returns,
 /// preventing race conditions where the daemon might check for the file
@@ -260,10 +268,6 @@ impl Process {
     /// Check if the process is in restart cooldown period
     /// Returns true if the process is waiting for cooldown to expire before next restart attempt
     pub fn is_in_restart_cooldown(&self) -> bool {
-        // Cooldown delays (must match daemon constants)
-        const RESTART_COOLDOWN_SECS: u64 = 5;
-        const FAILED_RESTART_COOLDOWN_SECS: u64 = 10;
-        
         self.last_restart_attempt
             .map(|t| {
                 let secs_since = (Utc::now() - t).num_seconds();
