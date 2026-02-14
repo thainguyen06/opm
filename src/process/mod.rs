@@ -2857,8 +2857,7 @@ pub fn process_run(metadata: ProcessMetadata) -> Result<ProcessRunResult, String
     let session_id: Option<i64> = None;
 
     // Capture process start time for PID reuse detection
-    // Wait a bit to ensure process is registered in the OS
-    std::thread::sleep(std::time::Duration::from_millis(100));
+    // validate_process_with_sysinfo will refresh process list from OS
     let start_time = validate_process_with_sysinfo(actual_pid, None, None).1;
 
     Ok(ProcessRunResult {
