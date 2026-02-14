@@ -106,7 +106,7 @@ fn find_immediate_children_linux(parent_pid: i64) -> Vec<i64> {
 #[cfg(target_os = "linux")]
 fn find_orphaned_children_by_parent_trace(dead_parent_pid: i64) -> Option<i64> {
     use sysinfo::{ProcessRefreshKind, System, ProcessesToUpdate};
-    use std::time::SystemTime;
+    use std::time::{SystemTime, Duration};
     
     let shell_names = ["sh", "bash", "zsh", "fish", "dash", "opm"];
     
@@ -121,7 +121,10 @@ fn find_orphaned_children_by_parent_trace(dead_parent_pid: i64) -> Option<i64> {
     // Look for processes that might have been spawned by the dead parent
     // We can't check parent PID directly since parent is dead (children get re-parented to init)
     // Instead, look for recently created processes (within last 2 seconds)
-    let now = SystemTime::now();
+    let now_secs = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or(Duration::from_secs(0))
+        .as_secs();
     let mut candidates = Vec::new();
     
     for (sysinfo_pid, process) in system.processes() {
@@ -133,10 +136,18 @@ fn find_orphaned_children_by_parent_trace(dead_parent_pid: i64) -> Option<i64> {
         }
         
         // Check if process was created recently (within last 2 seconds)
-        let process_age = now.duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs() as i64
-            - process.start_time() as i64;
+        // start_time() returns seconds since UNIX epoch
+        let process_start = process.start_time();
+        if now_secs < process_start {
+            // Clock skew detected - process start time is in the future
+            log::warn!(
+                "Process {} has start time in the future (now={}, start={}), skipping",
+                pid, now_secs, process_start
+            );
+            continue;
+        }
+        
+        let process_age = now_secs - process_start;
             
         if process_age <= 2 {
             let name = process.name().to_string_lossy().to_string();
@@ -514,9 +525,17 @@ fn find_orphaned_children_macos(dead_parent_pid: i64) -> Option<i64> {
         }
         
         // Check if process was created recently (within last 2 seconds)
-        let process_age = now.duration_since(process.create_time)
-            .unwrap_or_default()
-            .as_secs();
+        let process_age = match now.duration_since(process.create_time) {
+            Ok(duration) => duration.as_secs(),
+            Err(e) => {
+                // Clock skew detected - process start time is in the future
+                log::warn!(
+                    "Process {} has start time in the future (error: {}), skipping",
+                    pid, e
+                );
+                continue;
+            }
+        };
             
         if process_age <= 2 {
             let name = process.name.to_lowercase();

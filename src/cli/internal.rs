@@ -1520,10 +1520,10 @@ impl<'i> Internal<'i> {
                 // Check if a process matching this command is already running in the system
                 if runner_guard.exists(id) {
                     let process = runner_guard.process(id);
-                    let command_pattern = extract_search_pattern_for_restore(&process.script);
+                    let search_identifier = extract_search_pattern_for_restore(&process.script);
                     
-                    if !command_pattern.is_empty() {
-                        if let Some(existing_pid) = opm::process::find_process_by_command(&command_pattern) {
+                    if !search_identifier.is_empty() {
+                        if let Some(existing_pid) = opm::process::find_process_by_command(&search_identifier) {
                             ::log::info!(
                                 "Found existing process for '{}' (id={}) with PID {}, attaching instead of spawning",
                                 name,
@@ -1626,13 +1626,7 @@ impl<'i> Internal<'i> {
                 // This ensures consistent behavior between restore and daemon monitoring
                 // The daemon checks: is_pid_alive(item.pid) || shell_alive
                 // So we should also check pid first, then shell_pid
-                let process_alive = if process.pid > 0 {
-                    opm::process::is_pid_alive(process.pid)
-                } else if let Some(shell_pid) = process.shell_pid {
-                    shell_pid > 0 && opm::process::is_pid_alive(shell_pid)
-                } else {
-                    false
-                };
+                let process_alive = opm::process::is_process_actually_alive(process.pid, process.shell_pid);
 
                 // Small startup grace period to avoid falsely reporting as crashed
                 let recently_started =
@@ -1687,16 +1681,8 @@ impl<'i> Internal<'i> {
                     return false;
                 }
                 
-                // Check if the process is actually alive (same logic as status display)
-                let process_alive = if p.pid > 0 {
-                    opm::process::is_pid_alive(p.pid)
-                } else if let Some(shell_pid) = p.shell_pid {
-                    shell_pid > 0 && opm::process::is_pid_alive(shell_pid)
-                } else {
-                    false
-                };
-                
-                process_alive
+                // Check if the process is actually alive using shared helper method
+                opm::process::is_process_actually_alive(p.pid, p.shell_pid)
             })
             .count();
         
