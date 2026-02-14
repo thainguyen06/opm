@@ -266,6 +266,14 @@ pub struct Process {
     /// Used to detect if any process in the session is still alive
     #[serde(default)]
     pub session_id: Option<i64>,
+    /// Process start time (system uptime seconds) for PID reuse detection
+    /// Persisted to detect when PID has been recycled by OS
+    #[serde(default)]
+    pub process_start_time: Option<u64>,
+    /// Indicates this process is a wrapper/tree (bash script with children)
+    /// Used to display tree indicator in UI
+    #[serde(default)]
+    pub is_process_tree: bool,
 }
 
 impl Process {
@@ -539,10 +547,7 @@ impl Runner {
         } else {
             let id = self.id.next();
             let config = config::read().runner;
-            let crash = Crash {
-                crashed: false,
-
-            };
+            let crash = Crash { crashed: false };
 
             let watch = match watch {
                 Some(watch) => Watch {
@@ -616,11 +621,13 @@ impl Runner {
                     agent_id: None,     // Local processes don't have an agent
                     frozen_until: None, // Not frozen by default
                     last_action_at: Utc::now(),
-                    manual_stop: false, // Not manually stopped by default
-                    errored: false,     // Not in error state by default
+                    manual_stop: false,         // Not manually stopped by default
+                    errored: false,             // Not in error state by default
                     last_restart_attempt: None, // No restart attempt yet
                     failed_restart_attempts: 0, // No failures yet
                     session_id: result.session_id, // Store session ID for tracking
+                    process_start_time: result.start_time, // Store for PID reuse detection
+                    is_process_tree: result.shell_pid.is_some(), // Mark as tree if has shell wrapper
                 },
             );
 
@@ -668,7 +675,11 @@ impl Runner {
             let config = full_config.runner;
             let max_restarts = full_config.daemon.restarts;
             let Process {
-                path, script, name, running: was_running, ..
+                path,
+                script,
+                name,
+                running: was_running,
+                ..
             } = process.clone();
 
             // Save the current working directory so we can restore it after restart
@@ -684,7 +695,11 @@ impl Runner {
             if !dead && !increment_counter && !was_running {
                 process.restarts = 0;
                 process.errored = false;
-                log::info!("Resetting restart counter and errored flag for stopped process {} (id={})", name, id);
+                log::info!(
+                    "Resetting restart counter and errored flag for stopped process {} (id={})",
+                    name,
+                    id
+                );
             }
 
             // Increment restart counter for manual restart/reload:
@@ -827,6 +842,8 @@ impl Runner {
             process.pid = result.pid;
             process.shell_pid = result.shell_pid;
             process.session_id = result.session_id;
+            process.process_start_time = result.start_time;
+            process.is_process_tree = result.shell_pid.is_some();
             process.running = true;
             process.started = Utc::now();
             // Clear crashed flag after successful restart
@@ -1056,6 +1073,8 @@ impl Runner {
             process.pid = result.pid;
             process.shell_pid = result.shell_pid;
             process.session_id = result.session_id;
+            process.process_start_time = result.start_time;
+            process.is_process_tree = result.shell_pid.is_some();
             process.running = true;
             process.children = vec![];
             process.started = Utc::now();
@@ -1447,7 +1466,7 @@ impl Runner {
     }
 
     /// Save state after restart/reload failure to persist counter increments and state changes
-    /// 
+    ///
     /// # Arguments
     /// * `dead` - True if this is a daemon-initiated restart (process already dead/crashed),
     ///           False if this is a user-initiated manual restart/reload.
@@ -2077,6 +2096,81 @@ pub fn get_process_cpu_usage_with_children(pid: i64) -> f64 {
     parent_cpu + children_cpu
 }
 
+/// Get recursive CPU/Memory aggregation for entire process tree using sysinfo
+/// This is the PM2-style aggregation that shows total resources for bash wrappers
+/// Returns (cpu_percent, rss_bytes, vms_bytes) or None if process not found
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+pub fn get_aggregate_process_tree_usage_sysinfo(root_pid: i64) -> Option<(f64, u64, u64)> {
+    use std::collections::HashSet;
+    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
+
+    if root_pid <= 0 {
+        return None;
+    }
+
+    let mut system = System::new();
+    system.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::new());
+
+    let mut total_cpu: f64 = 0.0;
+    let mut total_rss: u64 = 0;
+    let mut total_vms: u64 = 0;
+    let mut found_root = false;
+
+    // Build parent-child map for recursive traversal
+    let mut parent_map: std::collections::HashMap<i64, Vec<i64>> = std::collections::HashMap::new();
+    for (pid, process) in system.processes() {
+        let pid_i64 = pid.as_u32() as i64;
+        if let Some(parent) = process.parent() {
+            let parent_i64 = parent.as_u32() as i64;
+            parent_map
+                .entry(parent_i64)
+                .or_insert_with(Vec::new)
+                .push(pid_i64);
+        }
+    }
+
+    // Recursively aggregate resources for root and all descendants
+    let mut to_process = vec![root_pid];
+    let mut processed = HashSet::new();
+
+    while let Some(current_pid) = to_process.pop() {
+        if processed.contains(&current_pid) {
+            continue;
+        }
+        processed.insert(current_pid);
+
+        let sysinfo_pid = sysinfo::Pid::from_u32(current_pid as u32);
+        if let Some(process) = system.process(sysinfo_pid) {
+            if current_pid == root_pid {
+                found_root = true;
+            }
+
+            // Aggregate CPU and memory
+            total_cpu += process.cpu_usage() as f64;
+            total_rss += process.memory();
+            total_vms += process.virtual_memory();
+
+            // Add children to processing queue
+            if let Some(children) = parent_map.get(&current_pid) {
+                for &child_pid in children {
+                    to_process.push(child_pid);
+                }
+            }
+        }
+    }
+
+    if found_root {
+        Some((total_cpu, total_rss, total_vms))
+    } else {
+        None
+    }
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+pub fn get_aggregate_process_tree_usage_sysinfo(_root_pid: i64) -> Option<(f64, u64, u64)> {
+    None
+}
+
 /// Get the total memory usage of the process and its children
 pub fn get_process_memory_with_children(pid: i64) -> Option<MemoryInfo> {
     let parent_memory = unix::NativeProcess::new_fast(pid as u32)
@@ -2240,29 +2334,25 @@ pub fn is_any_descendant_alive(root_pid: i64, children: &[i64]) -> bool {
 /// This checks if the process or any of its descendants are alive, using sysinfo
 /// for better cross-platform process tree traversal.
 pub fn is_process_or_children_alive_sysinfo(root_pid: i64, tracked_children: &[i64]) -> bool {
-    use sysinfo::{ProcessRefreshKind, System, ProcessesToUpdate};
-    
+    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
+
     // Quick check first - if root PID is alive, return immediately
     if is_pid_alive(root_pid) {
         return true;
     }
-    
+
     // Quick check for tracked children
     for &child_pid in tracked_children {
         if is_pid_alive(child_pid) {
             return true;
         }
     }
-    
+
     // Use sysinfo to discover any untracked descendants that might still be alive
     // This is useful when the shell wrapper exits but children are still running
     let mut system = System::new();
-    system.refresh_processes_specifics(
-        ProcessesToUpdate::All,
-        true,
-        ProcessRefreshKind::new(),
-    );
-    
+    system.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::new());
+
     // Check for any children of the root PID that might not be tracked yet
     // This handles the case where bash -c spawns a child that we haven't discovered yet
     if root_pid > 0 {
@@ -2282,28 +2372,24 @@ pub fn is_process_or_children_alive_sysinfo(root_pid: i64, tracked_children: &[i
             }
         }
     }
-    
+
     false
 }
 
 /// Check if any process in the same session is alive (using session ID)
 /// This is more robust than tracking individual PIDs as it handles process forking
-/// 
+///
 /// Note: This function refreshes all processes which is expensive, but:
 /// 1. It's only called when the main PID is dead (rare case)
 /// 2. Session-based checks are critical for correct process tracking
 /// 3. The monitoring interval (default 1s) limits how often this runs
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 pub fn is_session_alive(session_id: i64) -> bool {
-    use sysinfo::{ProcessRefreshKind, System, ProcessesToUpdate};
-    
+    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
+
     let mut system = System::new();
-    system.refresh_processes_specifics(
-        ProcessesToUpdate::All,
-        true,
-        ProcessRefreshKind::new(),
-    );
-    
+    system.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::new());
+
     // Check all processes to see if any have matching session ID
     for (sysinfo_pid, _process) in system.processes() {
         let pid = sysinfo_pid.as_u32() as i32;
@@ -2316,7 +2402,7 @@ pub fn is_session_alive(session_id: i64) -> bool {
             }
         }
     }
-    
+
     false
 }
 
@@ -2327,42 +2413,47 @@ pub fn is_session_alive(_session_id: i64) -> bool {
 
 /// Search for a process by command pattern
 /// Returns the PID of the first matching process, or None if not found
-/// 
+///
 /// Note: This function refreshes all processes which is expensive, but:
 /// 1. It's only called when attempting process adoption (rare case, after crash)
 /// 2. Process adoption is critical to prevent duplicate processes
 /// 3. The cost is acceptable given it prevents severe issues like multiple service instances
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 pub fn find_process_by_command(command_pattern: &str) -> Option<i64> {
-    use sysinfo::{ProcessRefreshKind, System, ProcessesToUpdate};
-    
+    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
+
     let mut system = System::new();
-    system.refresh_processes_specifics(
-        ProcessesToUpdate::All,
-        true,
-        ProcessRefreshKind::new(),
-    );
-    
+    system.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::new());
+
     // Search all processes for command line match
     for (sysinfo_pid, process) in system.processes() {
         let pid = sysinfo_pid.as_u32() as i32;
-        
+
         // Try to get full command line first
         if let Some(cmdline) = unix::get_process_cmdline(pid) {
             if cmdline.contains(command_pattern) {
-                log::info!("Found process by cmdline: PID {} matches pattern '{}'", pid, command_pattern);
+                log::info!(
+                    "Found process by cmdline: PID {} matches pattern '{}'",
+                    pid,
+                    command_pattern
+                );
                 return Some(pid as i64);
             }
         }
-        
+
         // Fallback to process name if cmdline not available
         let proc_name = process.name().to_string_lossy().to_string();
         if proc_name.contains(command_pattern) || command_pattern.contains(&proc_name) {
-            log::info!("Found process by name: PID {} ({}) matches pattern '{}'", pid, proc_name, command_pattern);
+            log::info!(
+                "Found process by name: PID {} ({}) matches pattern '{}'",
+                pid,
+                proc_name,
+                command_pattern
+            );
             return Some(pid as i64);
         }
     }
-    
+
     None
 }
 
@@ -2370,7 +2461,6 @@ pub fn find_process_by_command(command_pattern: &str) -> Option<i64> {
 pub fn find_process_by_command(_command_pattern: &str) -> Option<i64> {
     None
 }
-
 
 /// Check if PID info is missing/incomplete for crash detection purposes
 /// Returns true if pid <= 0 and no tracked descendants
@@ -2391,6 +2481,107 @@ pub fn is_process_actually_alive(pid: i64, shell_pid: Option<i64>) -> bool {
     }
 }
 
+/// Validate process state using sysinfo with PID reuse detection
+/// Returns (is_valid, Option<start_time>) where:
+/// - is_valid: true if process exists and matches expected parameters
+/// - start_time: current process start time if found, for PID reuse detection
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+pub fn validate_process_with_sysinfo(
+    pid: i64,
+    expected_command_pattern: Option<&str>,
+    expected_start_time: Option<u64>,
+) -> (bool, Option<u64>) {
+    use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
+
+    if pid <= 0 {
+        return (false, None);
+    }
+
+    let mut system = System::new();
+    system.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::new());
+
+    let sysinfo_pid = Pid::from_u32(pid as u32);
+    if let Some(process) = system.process(sysinfo_pid) {
+        let current_start_time = process.start_time();
+
+        // Check if PID has been reused by comparing start times
+        if let Some(expected_time) = expected_start_time {
+            if current_start_time != expected_time {
+                log::warn!(
+                    "PID {} has been reused (expected start time: {}, actual: {})",
+                    pid,
+                    expected_time,
+                    current_start_time
+                );
+                return (false, Some(current_start_time));
+            }
+        }
+
+        // Validate command pattern if provided
+        if let Some(pattern) = expected_command_pattern {
+            // Try to get full command line
+            #[cfg(any(target_os = "linux", target_os = "macos"))]
+            {
+                if let Some(cmdline) = unix::get_process_cmdline(pid as i32) {
+                    if !cmdline.contains(pattern) {
+                        let proc_name = process.name().to_string_lossy().to_string();
+                        if !proc_name.contains(pattern) && !pattern.contains(&proc_name) {
+                            log::warn!(
+                                "PID {} command mismatch (pattern: '{}', cmdline: '{}', name: '{}')",
+                                pid, pattern, cmdline, proc_name
+                            );
+                            return (false, Some(current_start_time));
+                        }
+                    }
+                }
+            }
+        }
+
+        // Process is valid and matches expected parameters
+        return (true, Some(current_start_time));
+    }
+
+    // Process not found
+    (false, None)
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+pub fn validate_process_with_sysinfo(
+    _pid: i64,
+    _expected_command_pattern: Option<&str>,
+    _expected_start_time: Option<u64>,
+) -> (bool, Option<u64>) {
+    (false, None)
+}
+
+/// Get comprehensive process metrics using sysinfo
+/// Returns None if process not found or metrics unavailable
+/// This is used to properly display "0b" memory and "offline" status
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+pub fn get_process_metrics_sysinfo(pid: i64) -> Option<(f64, u64, u64)> {
+    use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
+
+    if pid <= 0 {
+        return None;
+    }
+
+    let mut system = System::new();
+    system.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::new());
+
+    let sysinfo_pid = Pid::from_u32(pid as u32);
+    system.process(sysinfo_pid).map(|process| {
+        let cpu = process.cpu_usage() as f64;
+        let memory = process.memory();
+        let virtual_memory = process.virtual_memory();
+        (cpu, memory, virtual_memory)
+    })
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+pub fn get_process_metrics_sysinfo(_pid: i64) -> Option<(f64, u64, u64)> {
+    None
+}
+
 #[cfg(target_os = "linux")]
 pub fn find_alive_process_in_group(pid: i64) -> Option<i64> {
     unix::find_alive_process_in_group_for_pid(pid)
@@ -2407,33 +2598,36 @@ pub struct ProcessRunResult {
     pub pid: i64,
     pub shell_pid: Option<i64>,
     pub session_id: Option<i64>,
+    pub start_time: Option<u64>,
 }
 
 /// Check if a command contains shell-specific features that require shell interpretation
 /// Returns true if the command needs to be run through a shell (sh/bash)
 /// Returns false if the command can be spawned directly for PM2-like behavior
-/// 
+///
 /// Note: This is a heuristic check and may have false positives for complex edge cases
 /// (e.g., backticks in quoted strings, & in URLs). For critical use cases where direct
 /// execution must be guaranteed, prefer explicit command construction.
 fn command_needs_shell(command: &str) -> bool {
     // Shell operators and features that require shell interpretation
     let shell_features = [
-        "&&", "||", "|",  // Logical operators and pipes
-        ">", ">>", "<",   // Redirection
-        ";",              // Command separator
-        "`", "$(",        // Command substitution
-        "~",              // Home directory expansion
-        "*", "?", "[",    // Glob patterns
+        "&&", "||", "|", // Logical operators and pipes
+        ">", ">>", "<", // Redirection
+        ";", // Command separator
+        "`", "$(", // Command substitution
+        "~",  // Home directory expansion
+        "*", "?", "[", // Glob patterns
         "export ", "source ", "alias ", // Shell built-ins
     ];
-    
-    shell_features.iter().any(|feature| command.contains(feature))
+
+    shell_features
+        .iter()
+        .any(|feature| command.contains(feature))
 }
 
 /// Parse command into program and arguments for direct execution
 /// Returns None if parsing fails or command is complex
-/// 
+///
 /// Note: This uses simple whitespace-based splitting and does NOT handle:
 /// - Quoted arguments with spaces (e.g., program "arg with spaces")
 /// - Escaped characters
@@ -2445,17 +2639,15 @@ fn parse_direct_command(command: &str) -> Option<(String, Vec<String>)> {
     if trimmed.is_empty() {
         return None;
     }
-    
+
     // Simple whitespace-based splitting
     // This handles basic cases like "node server.js" or "python app.py"
-    let mut parts: Vec<String> = trimmed.split_whitespace()
-        .map(|s| s.to_string())
-        .collect();
-    
+    let mut parts: Vec<String> = trimmed.split_whitespace().map(|s| s.to_string()).collect();
+
     if parts.is_empty() {
         return None;
     }
-    
+
     let program = parts.remove(0);
     Some((program, parts))
 }
@@ -2477,7 +2669,8 @@ pub fn process_run(metadata: ProcessMetadata) -> Result<ProcessRunResult, String
             format!(
                 "Failed to create log directory '{}': {}. \
                 Check that you have write permissions.",
-                parent.display(), err
+                parent.display(),
+                err
             )
         })?;
     }
@@ -2510,7 +2703,7 @@ pub fn process_run(metadata: ProcessMetadata) -> Result<ProcessRunResult, String
     // PM2-like execution strategy: spawn directly if possible, otherwise use shell
     // This eliminates the intermediate shell PID problem for simple commands
     let use_direct_spawn = !command_needs_shell(&metadata.command);
-    
+
     let mut cmd = if use_direct_spawn {
         // Try to parse and spawn directly without shell wrapper
         if let Some((program, args)) = parse_direct_command(&metadata.command) {
@@ -2520,7 +2713,10 @@ pub fn process_run(metadata: ProcessMetadata) -> Result<ProcessRunResult, String
             command
         } else {
             // Parsing failed, fall back to shell
-            log::debug!("Direct spawn parsing failed, using shell: {}", metadata.shell);
+            log::debug!(
+                "Direct spawn parsing failed, using shell: {}",
+                metadata.shell
+            );
             let mut command = Command::new(&metadata.shell);
             command.args(&metadata.args).arg(&metadata.command);
             command
@@ -2528,23 +2724,26 @@ pub fn process_run(metadata: ProcessMetadata) -> Result<ProcessRunResult, String
     } else {
         // Command needs shell features (pipes, redirects, etc.)
         // Use the configured shell from config.toml (sh or bash)
-        log::debug!("Using configured shell '{}' for command with shell operators", metadata.shell);
+        log::debug!(
+            "Using configured shell '{}' for command with shell operators",
+            metadata.shell
+        );
         let mut command = Command::new(&metadata.shell);
         command.args(&metadata.args).arg(&metadata.command);
         command
     };
-    
+
     cmd.envs(metadata.env.iter().map(|env_var| {
-            let parts: Vec<&str> = env_var.splitn(2, '=').collect();
-            if parts.len() == 2 {
-                (parts[0], parts[1])
-            } else {
-                (env_var.as_str(), "")
-            }
-        }))
-        .stdout(Stdio::from(stdout_file))
-        .stderr(Stdio::from(stderr_file))
-        .stdin(Stdio::null());
+        let parts: Vec<&str> = env_var.splitn(2, '=').collect();
+        if parts.len() == 2 {
+            (parts[0], parts[1])
+        } else {
+            (env_var.as_str(), "")
+        }
+    }))
+    .stdout(Stdio::from(stdout_file))
+    .stderr(Stdio::from(stderr_file))
+    .stdin(Stdio::null());
 
     // Create a new session for better process tree management
     // This uses setsid() to create a new session where this process is the session leader
@@ -2628,14 +2827,14 @@ pub fn process_run(metadata: ProcessMetadata) -> Result<ProcessRunResult, String
     })?;
 
     let shell_pid = child.id() as i64;
-    
+
     // For shell-wrapped processes, wait briefly to allow OS to register process tree
     // This ensures sysinfo can discover child processes during PID stability checks
     // For direct spawns, no wait needed as there's no shell wrapper to track
     if !use_direct_spawn {
         std::thread::sleep(std::time::Duration::from_millis(200));
     }
-    
+
     let actual_pid = unix::get_actual_child_pid(shell_pid);
 
     // Store child handle in global state to prevent it from being dropped and becoming a zombie
@@ -2649,18 +2848,23 @@ pub fn process_run(metadata: ProcessMetadata) -> Result<ProcessRunResult, String
     } else {
         (shell_pid != actual_pid).then_some(shell_pid)
     };
-    
+
     // Get session ID of the spawned process for session-based tracking
     #[cfg(any(target_os = "linux", target_os = "macos"))]
     let session_id = unix::get_session_id(actual_pid as i32);
-    
+
     #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     let session_id: Option<i64> = None;
+
+    // Capture process start time for PID reuse detection
+    // validate_process_with_sysinfo will refresh process list from OS
+    let start_time = validate_process_with_sysinfo(actual_pid, None, None).1;
 
     Ok(ProcessRunResult {
         pid: actual_pid,
         shell_pid: shell_pid_opt,
         session_id,
+        start_time,
     })
 }
 
@@ -2697,10 +2901,7 @@ mod tests {
             script: "echo 'hello world'".to_string(),
             restarts: 0,
             running: true,
-            crash: Crash {
-                crashed: false,
-
-            },
+            crash: Crash { crashed: false },
             watch: Watch {
                 enabled: false,
                 path: String::new(),
@@ -2713,10 +2914,12 @@ mod tests {
             frozen_until: None,
             last_action_at: Utc::now(),
             manual_stop: false,
-                errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -2755,10 +2958,7 @@ mod tests {
             script: "echo 'hello world'".to_string(),
             restarts: 0,
             running: true,
-            crash: Crash {
-                crashed: false,
-
-            },
+            crash: Crash { crashed: false },
             watch: Watch {
                 enabled: false,
                 path: String::new(),
@@ -2771,10 +2971,12 @@ mod tests {
             frozen_until: None,
             last_action_at: Utc::now(),
             manual_stop: false,
-                errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -2850,7 +3052,6 @@ mod tests {
             running: true,
             crash: Crash {
                 crashed: true, // Set to crashed
-
             },
             watch: Watch {
                 enabled: false,
@@ -2864,10 +3065,12 @@ mod tests {
             frozen_until: None,
             last_action_at: Utc::now(),
             manual_stop: false,
-                errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -3017,10 +3220,7 @@ mod tests {
             script: "echo 'hello'".to_string(),
             restarts: 0,
             running: false, // Start with not running
-            crash: Crash {
-                crashed: false,
-
-            },
+            crash: Crash { crashed: false },
             watch: Watch {
                 enabled: false,
                 path: String::new(),
@@ -3033,10 +3233,12 @@ mod tests {
             frozen_until: None,
             last_action_at: Utc::now(),
             manual_stop: false,
-                errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -3072,10 +3274,7 @@ mod tests {
             script: "echo 'hello'".to_string(),
             restarts: 0,
             running: true, // Marked as running
-            crash: Crash {
-                crashed: false,
-
-            },
+            crash: Crash { crashed: false },
             watch: Watch {
                 enabled: false,
                 path: String::new(),
@@ -3088,10 +3287,12 @@ mod tests {
             frozen_until: None,
             last_action_at: Utc::now(),
             manual_stop: false,
-                errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -3127,10 +3328,7 @@ mod tests {
             script: "echo 'hello'".to_string(),
             restarts: 0,
             running: true, // Marked as running but PID doesn't exist
-            crash: Crash {
-                crashed: false,
-
-            },
+            crash: Crash { crashed: false },
             watch: Watch {
                 enabled: false,
                 path: String::new(),
@@ -3143,10 +3341,12 @@ mod tests {
             frozen_until: None,
             last_action_at: Utc::now(),
             manual_stop: false,
-                errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -3184,10 +3384,7 @@ mod tests {
             script: "echo 'hello'".to_string(),
             restarts: 0,
             running: true,
-            crash: Crash {
-                crashed: false,
-
-            },
+            crash: Crash { crashed: false },
             watch: Watch {
                 enabled: false,
                 path: String::new(),
@@ -3200,10 +3397,12 @@ mod tests {
             frozen_until: None,
             last_action_at: Utc::now(),
             manual_stop: false,
-                errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -3235,10 +3434,7 @@ mod tests {
             script: "echo 'hello'".to_string(),
             restarts: 0,
             running: false, // Explicitly stopped
-            crash: Crash {
-                crashed: false,
-
-            },
+            crash: Crash { crashed: false },
             watch: Watch {
                 enabled: false,
                 path: String::new(),
@@ -3251,10 +3447,12 @@ mod tests {
             frozen_until: None,
             last_action_at: Utc::now(),
             manual_stop: false,
-                errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -3294,10 +3492,7 @@ mod tests {
             script: "echo 'hello'".to_string(),
             restarts: 0,
             running: true,
-            crash: Crash {
-                crashed: false,
-
-            },
+            crash: Crash { crashed: false },
             watch: Watch {
                 enabled: false,
                 path: String::new(),
@@ -3310,10 +3505,12 @@ mod tests {
             frozen_until: None,
             last_action_at: Utc::now(),
             manual_stop: false,
-                errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -3359,10 +3556,7 @@ mod tests {
             script: "echo 'test'".to_string(),
             restarts: 9,
             running: true,
-            crash: Crash {
-                crashed: false,
-
-            },
+            crash: Crash { crashed: false },
             watch: Watch {
                 enabled: false,
                 path: String::new(),
@@ -3375,10 +3569,12 @@ mod tests {
             frozen_until: None,
             last_action_at: Utc::now(),
             manual_stop: false,
-                errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process.clone());
@@ -3433,10 +3629,7 @@ mod tests {
             script: "echo 'test'".to_string(),
             restarts: 15, // Set to 15 to test display beyond limit
             running: false,
-            crash: Crash {
-                crashed: true,
-
-            },
+            crash: Crash { crashed: true },
             watch: Watch {
                 enabled: false,
                 path: String::new(),
@@ -3449,10 +3642,12 @@ mod tests {
             frozen_until: None,
             last_action_at: Utc::now(),
             manual_stop: false,
-                errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process.clone());
@@ -3482,10 +3677,7 @@ mod tests {
             script: "echo 'test'".to_string(),
             restarts: 5, // Start with 5 restarts
             running: true,
-            crash: Crash {
-                crashed: false,
-
-            },
+            crash: Crash { crashed: false },
             watch: Watch {
                 enabled: false,
                 path: String::new(),
@@ -3498,10 +3690,12 @@ mod tests {
             frozen_until: None,
             last_action_at: Utc::now(),
             manual_stop: false,
-                errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -3539,10 +3733,7 @@ mod tests {
             script: "echo 'test'".to_string(),
             restarts: 5, // Start with 5 restarts
             running: true,
-            crash: Crash {
-                crashed: false,
-
-            },
+            crash: Crash { crashed: false },
             watch: Watch {
                 enabled: false,
                 path: String::new(),
@@ -3555,10 +3746,12 @@ mod tests {
             frozen_until: None,
             last_action_at: Utc::now(),
             manual_stop: false,
-                errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -3599,10 +3792,7 @@ mod tests {
             script: "echo 'test'".to_string(),
             restarts: 2, // Start with 2 restarts already
             running: false,
-            crash: Crash {
-                crashed: true,
-
-            },
+            crash: Crash { crashed: true },
             watch: Watch {
                 enabled: false,
                 path: String::new(),
@@ -3615,10 +3805,12 @@ mod tests {
             frozen_until: None,
             last_action_at: Utc::now(),
             manual_stop: false,
-                errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -3662,10 +3854,7 @@ mod tests {
             script: "echo 'test'".to_string(),
             restarts: 5, // Start with 5 restarts
             running: true,
-            crash: Crash {
-                crashed: false,
-
-            },
+            crash: Crash { crashed: false },
             watch: Watch {
                 enabled: false,
                 path: String::new(),
@@ -3678,10 +3867,12 @@ mod tests {
             frozen_until: None,
             last_action_at: Utc::now(),
             manual_stop: false,
-                errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -3724,10 +3915,7 @@ mod tests {
             script: "echo 'test'".to_string(),
             restarts: 0,
             running: true, // Was running before restore
-            crash: Crash {
-                crashed: false,
-
-            },
+            crash: Crash { crashed: false },
             watch: Watch {
                 enabled: false,
                 path: String::new(),
@@ -3740,10 +3928,12 @@ mod tests {
             frozen_until: None,
             last_action_at: Utc::now(),
             manual_stop: false,
-                errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -3791,7 +3981,6 @@ mod tests {
             running: true, // Marked as running by restore command
             crash: Crash {
                 crashed: false, // Reset by restore command
-
             },
             watch: Watch {
                 enabled: false,
@@ -3805,10 +3994,12 @@ mod tests {
             frozen_until: None,
             last_action_at: Utc::now(),
             manual_stop: false,
-                errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -3935,7 +4126,6 @@ mod tests {
             running: true,
             crash: Crash {
                 crashed: true, // Already marked as crashed, so restart will be attempted
-
             },
             watch: Watch {
                 enabled: false,
@@ -3949,10 +4139,12 @@ mod tests {
             frozen_until: None,
             last_action_at: Utc::now(),
             manual_stop: false,
-                errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -4046,7 +4238,6 @@ mod tests {
             running: false, // Stopped after reaching limit
             crash: Crash {
                 crashed: true, // Marked as crashed
-
             },
             watch: Watch {
                 enabled: false,
@@ -4060,10 +4251,12 @@ mod tests {
             frozen_until: None,
             last_action_at: Utc::now(),
             manual_stop: false,
-                errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -4147,10 +4340,7 @@ mod tests {
             script: "echo 'test'".to_string(),
             restarts: 0,
             running: true,
-            crash: Crash {
-                crashed: false,
-
-            },
+            crash: Crash { crashed: false },
             watch: Watch {
                 enabled: false,
                 path: String::new(),
@@ -4163,10 +4353,12 @@ mod tests {
             frozen_until: None,
             last_action_at: Utc::now(),
             manual_stop: false,
-                errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -4327,10 +4519,7 @@ mod tests {
                 script: "echo 'test'".to_string(),
                 restarts: 0,
                 running: true,
-                crash: Crash {
-                    crashed: false,
-
-                },
+                crash: Crash { crashed: false },
                 watch: Watch {
                     enabled: false,
                     path: String::new(),
@@ -4344,9 +4533,11 @@ mod tests {
                 last_action_at: Utc::now(),
                 manual_stop: false,
                 errored: false,
-            last_restart_attempt: None,
-            failed_restart_attempts: 0,
-        session_id: None,
+                last_restart_attempt: None,
+                failed_restart_attempts: 0,
+                session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
             };
             runner.list.insert(id, process);
         }
@@ -4436,10 +4627,7 @@ mod tests {
             script: "echo 'test'".to_string(),
             restarts: 10,
             running: false,
-            crash: Crash {
-                crashed: true,
-
-            },
+            crash: Crash { crashed: true },
             watch: Watch {
                 enabled: false,
                 path: String::new(),
@@ -4452,10 +4640,12 @@ mod tests {
             frozen_until: None,
             last_action_at: Utc::now(),
             manual_stop: false,
-                errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process.clone());
@@ -4532,10 +4722,7 @@ mod tests {
                 script: "echo 'test'".to_string(),
                 restarts: 0,
                 running: true,
-                crash: Crash {
-                    crashed: false,
-
-                },
+                crash: Crash { crashed: false },
                 watch: Watch {
                     enabled: false,
                     path: String::new(),
@@ -4549,9 +4736,11 @@ mod tests {
                 last_action_at: Utc::now(),
                 manual_stop: false,
                 errored: false,
-            last_restart_attempt: None,
-            failed_restart_attempts: 0,
-        session_id: None,
+                last_restart_attempt: None,
+                failed_restart_attempts: 0,
+                session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
             };
             runner.list.insert(id, process);
         }
@@ -4637,10 +4826,7 @@ mod tests {
             script: "echo 'test'".to_string(),
             restarts: 0,
             running: true, // Process is running
-            crash: Crash {
-                crashed: false,
-
-            },
+            crash: Crash { crashed: false },
             watch: Watch {
                 enabled: false,
                 path: String::new(),
@@ -4653,10 +4839,12 @@ mod tests {
             frozen_until: None,
             last_action_at: Utc::now(),
             manual_stop: false,
-                errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -4705,11 +4893,10 @@ mod tests {
             name: "test_crashed_process".to_string(),
             path: PathBuf::from("/tmp"),
             script: "exit 1".to_string(),
-            restarts: 1, // Had crashed once
+            restarts: 1,    // Had crashed once
             running: false, // Not running
             crash: Crash {
                 crashed: true, // Marked as crashed
-
             },
             watch: Watch {
                 enabled: false,
@@ -4723,10 +4910,12 @@ mod tests {
             frozen_until: None,
             last_action_at: Utc::now(),
             manual_stop: false,
-                errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -4772,11 +4961,10 @@ mod tests {
             name: "tets".to_string(), // Using same name as in the issue report
             path: PathBuf::from("/tmp"),
             script: "tets".to_string(), // Non-existent command
-            restarts: 10, // Had restarted 10 times and hit limit
-            running: false, // Daemon marked as not running after max restarts
+            restarts: 10,               // Had restarted 10 times and hit limit
+            running: false,             // Daemon marked as not running after max restarts
             crash: Crash {
                 crashed: true, // Marked as crashed
-
             },
             watch: Watch {
                 enabled: false,
@@ -4790,10 +4978,12 @@ mod tests {
             frozen_until: None,
             last_action_at: Utc::now(),
             manual_stop: false,
-                errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -4853,11 +5043,10 @@ mod tests {
             name: "test_clean_exit".to_string(),
             path: PathBuf::from("/tmp"),
             script: "exit 0".to_string(),
-            restarts: 5, // Had restarted 5 times
+            restarts: 5,    // Had restarted 5 times
             running: false, // Stopped cleanly
             crash: Crash {
                 crashed: true, // Was previously marked as crashed
-
             },
             watch: Watch {
                 enabled: false,
@@ -4871,10 +5060,12 @@ mod tests {
             frozen_until: None,
             last_action_at: Utc::now(),
             manual_stop: false,
-                errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process.clone());
@@ -4941,10 +5132,7 @@ mod tests {
             script: "echo 'test'".to_string(),
             restarts: 0,
             running: true,
-            crash: Crash {
-                crashed: false,
-
-            },
+            crash: Crash { crashed: false },
             watch: Watch {
                 enabled: false,
                 path: String::new(),
@@ -4957,10 +5145,12 @@ mod tests {
             frozen_until: None,
             last_action_at: Utc::now(),
             manual_stop: false,
-                errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -5032,10 +5222,7 @@ mod tests {
             script: "node server.js".to_string(),
             restarts: 0,
             running: true, // Marked as running
-            crash: Crash {
-                crashed: false,
-
-            },
+            crash: Crash { crashed: false },
             watch: Watch {
                 enabled: false,
                 path: String::new(),
@@ -5048,10 +5235,12 @@ mod tests {
             frozen_until: None,
             last_action_at: Utc::now(),
             manual_stop: false,
-                errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -5123,10 +5312,7 @@ mod tests {
             script: "echo 'hello'".to_string(),
             restarts: 0,
             running: true, // Process was just started, so running=true
-            crash: Crash {
-                crashed: false,
-
-            },
+            crash: Crash { crashed: false },
             watch: Watch {
                 enabled: false,
                 path: String::new(),
@@ -5139,10 +5325,12 @@ mod tests {
             frozen_until: None,
             last_action_at: Utc::now(),
             manual_stop: false,
-                errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -5189,10 +5377,7 @@ mod tests {
             script: "start.sh".to_string(),
             restarts: 0,
             running: true,
-            crash: Crash {
-                crashed: false,
-
-            },
+            crash: Crash { crashed: false },
             watch: Watch {
                 enabled: false,
                 path: String::new(),
@@ -5205,10 +5390,12 @@ mod tests {
             frozen_until: None,
             last_action_at: Utc::now(),
             manual_stop: false,
-                errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -5257,10 +5444,7 @@ mod tests {
             script: "a.sh".to_string(),
             restarts: 0,
             running: true,
-            crash: Crash {
-                crashed: false,
-
-            },
+            crash: Crash { crashed: false },
             watch: Watch {
                 enabled: false,
                 path: String::new(),
@@ -5273,10 +5457,12 @@ mod tests {
             frozen_until: None,
             last_action_at: Utc::now(),
             manual_stop: false,
-                errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -5309,10 +5495,7 @@ mod tests {
             script: "echo test".to_string(),
             restarts: 0,
             running: true,
-            crash: Crash {
-                crashed: false,
-
-            },
+            crash: Crash { crashed: false },
             watch: Watch {
                 enabled: false,
                 path: String::new(),
@@ -5325,10 +5508,12 @@ mod tests {
             frozen_until: None,
             last_action_at: Utc::now(),
             manual_stop: false,
-                errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -5366,10 +5551,7 @@ mod tests {
             script: "echo test".to_string(),
             restarts: 0,
             running: true,
-            crash: Crash {
-                crashed: false,
-
-            },
+            crash: Crash { crashed: false },
             watch: Watch {
                 enabled: false,
                 path: String::new(),
@@ -5382,10 +5564,12 @@ mod tests {
             frozen_until: None,
             last_action_at: Utc::now(),
             manual_stop: false,
-                errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -5444,10 +5628,7 @@ mod tests {
             script: "node server/server.js".to_string(),
             restarts: 0,
             running: true, // Was running before daemon restart
-            crash: Crash {
-                crashed: false,
-
-            },
+            crash: Crash { crashed: false },
             watch: Watch {
                 enabled: false,
                 path: String::new(),
@@ -5460,10 +5641,12 @@ mod tests {
             frozen_until: None,
             last_action_at: unix_epoch,
             manual_stop: false,
-                errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process_from_dump.clone());
@@ -5576,7 +5759,7 @@ mod tests {
             name: "test_retry_counter".to_string(),
             path: PathBuf::from("/tmp"),
             script: "echo 'test'".to_string(),
-            restarts: 1, // Counter was already incremented once
+            restarts: 1,   // Counter was already incremented once
             running: true, // Auto-restart enabled
             crash: Crash { crashed: true },
             watch: Watch {
@@ -5592,9 +5775,11 @@ mod tests {
             last_action_at: Utc::now() - chrono::Duration::seconds(10),
             manual_stop: false,
             errored: false,
-        last_restart_attempt: None,
-        failed_restart_attempts: 0,
-        session_id: None,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
         };
 
         runner.list.insert(id, process);
@@ -5630,25 +5815,73 @@ mod tests {
     #[test]
     fn test_command_needs_shell_detection() {
         // Test shell operator detection
-        assert!(command_needs_shell("echo hello | grep world"), "Pipe should need shell");
-        assert!(command_needs_shell("echo hello && echo world"), "AND operator should need shell");
-        assert!(command_needs_shell("echo hello || echo world"), "OR operator should need shell");
-        assert!(command_needs_shell("echo hello > output.txt"), "Redirect should need shell");
-        assert!(command_needs_shell("echo hello >> output.txt"), "Append redirect should need shell");
-        assert!(command_needs_shell("cat < input.txt"), "Input redirect should need shell");
-        assert!(command_needs_shell("echo hello; echo world"), "Semicolon should need shell");
+        assert!(
+            command_needs_shell("echo hello | grep world"),
+            "Pipe should need shell"
+        );
+        assert!(
+            command_needs_shell("echo hello && echo world"),
+            "AND operator should need shell"
+        );
+        assert!(
+            command_needs_shell("echo hello || echo world"),
+            "OR operator should need shell"
+        );
+        assert!(
+            command_needs_shell("echo hello > output.txt"),
+            "Redirect should need shell"
+        );
+        assert!(
+            command_needs_shell("echo hello >> output.txt"),
+            "Append redirect should need shell"
+        );
+        assert!(
+            command_needs_shell("cat < input.txt"),
+            "Input redirect should need shell"
+        );
+        assert!(
+            command_needs_shell("echo hello; echo world"),
+            "Semicolon should need shell"
+        );
         // Note: Single & removed from detection to avoid false positives with URLs/hex values
-        assert!(command_needs_shell("echo `date`"), "Command substitution (backticks) should need shell");
-        assert!(command_needs_shell("echo $(date)"), "Command substitution ($()) should need shell");
-        assert!(command_needs_shell("cd ~/projects"), "Tilde expansion should need shell");
-        assert!(command_needs_shell("ls *.txt"), "Glob pattern should need shell");
-        assert!(command_needs_shell("export PATH=/usr/bin"), "Export should need shell");
-        
+        assert!(
+            command_needs_shell("echo `date`"),
+            "Command substitution (backticks) should need shell"
+        );
+        assert!(
+            command_needs_shell("echo $(date)"),
+            "Command substitution ($()) should need shell"
+        );
+        assert!(
+            command_needs_shell("cd ~/projects"),
+            "Tilde expansion should need shell"
+        );
+        assert!(
+            command_needs_shell("ls *.txt"),
+            "Glob pattern should need shell"
+        );
+        assert!(
+            command_needs_shell("export PATH=/usr/bin"),
+            "Export should need shell"
+        );
+
         // Test simple commands that don't need shell
-        assert!(!command_needs_shell("node server.js"), "Simple node command should not need shell");
-        assert!(!command_needs_shell("python app.py"), "Simple python command should not need shell");
-        assert!(!command_needs_shell("./binary --flag value"), "Binary with flags should not need shell");
-        assert!(!command_needs_shell("echo hello"), "Simple echo should not need shell");
+        assert!(
+            !command_needs_shell("node server.js"),
+            "Simple node command should not need shell"
+        );
+        assert!(
+            !command_needs_shell("python app.py"),
+            "Simple python command should not need shell"
+        );
+        assert!(
+            !command_needs_shell("./binary --flag value"),
+            "Binary with flags should not need shell"
+        );
+        assert!(
+            !command_needs_shell("echo hello"),
+            "Simple echo should not need shell"
+        );
     }
 
     #[test]
@@ -5659,21 +5892,21 @@ mod tests {
         let (program, args) = result.unwrap();
         assert_eq!(program, "node");
         assert_eq!(args, vec!["server.js"]);
-        
+
         let result = parse_direct_command("python app.py --port 8080");
         assert!(result.is_some());
         let (program, args) = result.unwrap();
         assert_eq!(program, "python");
         assert_eq!(args, vec!["app.py", "--port", "8080"]);
-        
+
         // Test empty command
         let result = parse_direct_command("");
         assert!(result.is_none());
-        
+
         // Test whitespace only
         let result = parse_direct_command("   ");
         assert!(result.is_none());
-        
+
         // Test single program with no args
         let result = parse_direct_command("node");
         assert!(result.is_some());
