@@ -2267,6 +2267,35 @@ pub struct ProcessRunResult {
     pub shell_pid: Option<i64>,
 }
 
+/// Check if a command contains shell-specific features that require wrapping in a shell
+/// Returns true if the command contains pipes, redirects, or other shell operators
+fn command_needs_shell(command: &str) -> bool {
+    // Shell metacharacters that indicate the command needs shell interpretation
+    const SHELL_CHARS: &[char] = &['|', '&', ';', '<', '>', '(', ')', '$', '`', '\\', '"', '\'', '\n', '*', '?', '[', ']', '~', '{', '}', '!'];
+    
+    command.chars().any(|c| SHELL_CHARS.contains(&c))
+}
+
+/// Parse a command into a binary and arguments for direct execution
+/// Returns None if the command is too complex for simple parsing
+fn parse_simple_command(command: &str) -> Option<(String, Vec<String>)> {
+    let trimmed = command.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    
+    // Split on whitespace
+    let parts: Vec<&str> = trimmed.split_whitespace().collect();
+    if parts.is_empty() {
+        return None;
+    }
+    
+    let binary = parts[0].to_string();
+    let args: Vec<String> = parts[1..].iter().map(|s| s.to_string()).collect();
+    
+    Some((binary, args))
+}
+
 /// Run the process
 pub fn process_run(metadata: ProcessMetadata) -> Result<ProcessRunResult, String> {
     use std::fs::{self, OpenOptions};
@@ -2314,11 +2343,32 @@ pub fn process_run(metadata: ProcessMetadata) -> Result<ProcessRunResult, String
             )
         })?;
 
-    // Execute process
-    let mut cmd = Command::new(&metadata.shell);
-    cmd.args(&metadata.args)
-        .arg(&metadata.command)
-        .envs(metadata.env.iter().map(|env_var| {
+    // PM2-like execution strategy:
+    // - Try direct execution for simple commands (no shell metacharacters)
+    // - Fall back to shell execution for complex commands with pipes, redirects, etc.
+    let needs_shell = command_needs_shell(&metadata.command);
+    
+    let mut cmd = if !needs_shell {
+        // Try direct execution without shell wrapper
+        if let Some((binary, args)) = parse_simple_command(&metadata.command) {
+            let mut direct_cmd = Command::new(&binary);
+            direct_cmd.args(&args);
+            direct_cmd
+        } else {
+            // Fallback to shell if parsing fails
+            let mut shell_cmd = Command::new(&metadata.shell);
+            shell_cmd.args(&metadata.args).arg(&metadata.command);
+            shell_cmd
+        }
+    } else {
+        // Use shell for commands with shell features
+        let mut shell_cmd = Command::new(&metadata.shell);
+        shell_cmd.args(&metadata.args).arg(&metadata.command);
+        shell_cmd
+    };
+    
+    // Set environment variables and I/O redirection
+    cmd.envs(metadata.env.iter().map(|env_var| {
             let parts: Vec<&str> = env_var.splitn(2, '=').collect();
             if parts.len() == 2 {
                 (parts[0], parts[1])
@@ -2331,7 +2381,7 @@ pub fn process_run(metadata: ProcessMetadata) -> Result<ProcessRunResult, String
         .stdin(Stdio::null());
 
     // Create a new process group for better process tree management
-    // This ensures the shell wrapper and its children are in the same process group
+    // This ensures the process and its children are in the same process group
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
@@ -2341,39 +2391,71 @@ pub fn process_run(metadata: ProcessMetadata) -> Result<ProcessRunResult, String
     let child = cmd.spawn().map_err(|err| {
         // Provide more helpful error messages based on error kind
         match err.kind() {
-            std::io::ErrorKind::NotFound => format!(
-                "Failed to spawn process: Command '{}' not found. \
-                Please ensure '{}' is installed and in your PATH. \
-                Error: {:?}",
-                metadata.shell, metadata.shell, err
-            ),
+            std::io::ErrorKind::NotFound => {
+                if needs_shell {
+                    format!(
+                        "Failed to spawn process: Shell '{}' not found. \
+                        Please ensure '{}' is installed and in your PATH. \
+                        Error: {:?}",
+                        metadata.shell, metadata.shell, err
+                    )
+                } else {
+                    format!(
+                        "Failed to spawn process: Command not found in '{}'. \
+                        This may be because the binary is not in PATH or doesn't exist. \
+                        Error: {:?}",
+                        metadata.command, err
+                    )
+                }
+            },
             std::io::ErrorKind::PermissionDenied => format!(
-                "Failed to spawn process: Permission denied for '{}'. \
-                Check that the shell has execute permissions. \
+                "Failed to spawn process: Permission denied. \
+                Check that the command has execute permissions. \
                 Error: {:?}",
-                metadata.shell, err
+                err
             ),
-            _ => format!(
-                "Failed to spawn process with shell '{}': {:?}. \
-                Command attempted: {} {} '{}'",
-                metadata.shell,
-                err,
-                metadata.shell,
-                metadata.args.join(" "),
-                metadata.command
-            ),
+            _ => {
+                if needs_shell {
+                    format!(
+                        "Failed to spawn process with shell '{}': {:?}. \
+                        Command attempted: {} {} '{}'",
+                        metadata.shell,
+                        err,
+                        metadata.shell,
+                        metadata.args.join(" "),
+                        metadata.command
+                    )
+                } else {
+                    format!(
+                        "Failed to spawn process: {:?}. \
+                        Command attempted: '{}'",
+                        err,
+                        metadata.command
+                    )
+                }
+            },
         }
     })?;
 
-    let shell_pid = child.id() as i64;
-    let actual_pid = unix::get_actual_child_pid(shell_pid);
+    let parent_pid = child.id() as i64;
+    
+    // Add stabilization delay before checking for child PID
+    // This gives the OS time to register the process tree (200ms)
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    
+    let actual_pid = unix::get_actual_child_pid(parent_pid);
 
     // Store child handle in global state to prevent it from being dropped and becoming a zombie
     // This is critical for PM2-like daemon functionality
-    PROCESS_HANDLES.insert(shell_pid, Arc::new(Mutex::new(child)));
+    PROCESS_HANDLES.insert(parent_pid, Arc::new(Mutex::new(child)));
 
-    // If shell and actual PIDs differ, store the shell PID for CPU monitoring
-    let shell_pid_opt = (shell_pid != actual_pid).then_some(shell_pid);
+    // For direct execution, parent_pid IS the actual process, so no shell_pid tracking needed
+    // For shell execution, parent_pid is the shell wrapper, actual_pid is the real process
+    let shell_pid_opt = if needs_shell && parent_pid != actual_pid {
+        Some(parent_pid)
+    } else {
+        None
+    };
 
     Ok(ProcessRunResult {
         pid: actual_pid,

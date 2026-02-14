@@ -1431,80 +1431,102 @@ impl<'i> Internal<'i> {
             return;
         }
 
-        for (id, name, _was_running, _was_crashed) in &processes_to_restore {
-            // All processes in this list have running=true and need to be restarted
-            // This includes both clean processes and those that were previously crashed
-            runner = Internal {
-                id: *id,
-                server_name,
-                kind: kind.clone(),
-                runner: runner.clone(),
+        // Parallel restoration: spawn all processes concurrently
+        use std::sync::{Arc, Mutex};
+        let restored_ids_shared = Arc::new(Mutex::new(Vec::new()));
+        let failed_ids_shared = Arc::new(Mutex::new(Vec::new()));
+        
+        // Use scoped threads to spawn all processes in parallel
+        std::thread::scope(|scope| {
+            let mut handles = Vec::new();
+            
+            for (id, name, _was_running, _was_crashed) in &processes_to_restore {
+                let id = *id;
+                let name = name.clone();
+                let server_name = server_name.clone();
+                let kind = kind.clone();
+                let runner_clone = runner.clone();
+                let restored_ids_clone = Arc::clone(&restored_ids_shared);
+                let failed_ids_clone = Arc::clone(&failed_ids_shared);
+                
+                let handle = scope.spawn(move || {
+                    // Restart the process
+                    let updated_runner = Internal {
+                        id,
+                        server_name: &server_name,
+                        kind: kind.clone(),
+                        runner: runner_clone.clone(),
+                    }
+                    .restart(&None, &None, false, true, false);
+
+                    // Create timestamp file for this restore action to prevent daemon from
+                    // immediately marking process as crashed during its startup grace period
+                    // This gives the process time to initialize without daemon interference
+                    // Write with fsync to ensure timestamp is durably written before daemon checks
+                    if let Err(e) = opm::process::write_action_timestamp(id) {
+                        ::log::warn!(
+                            "Failed to create action timestamp file for process {}: {}",
+                            id,
+                            e
+                        );
+                    }
+
+                    // Wait briefly for process to stabilize after spawn
+                    // Increased to 500ms for better stabilization
+                    std::thread::sleep(std::time::Duration::from_millis(500));
+
+                    // Check if the restart was successful
+                    if let Some(process) = updated_runner.info(id) {
+                        // Verify the process is actually running using the same logic as daemon
+                        // Check the actual process PID first (long-running), then shell_pid (transient)
+                        // This ensures consistent behavior between restore and daemon monitoring
+                        // The daemon checks: is_pid_alive(item.pid) || shell_alive
+                        // So we should also check pid first, then shell_pid
+                        let process_alive = if process.pid > 0 {
+                            opm::process::is_pid_alive(process.pid)
+                        } else if let Some(shell_pid) = process.shell_pid {
+                            shell_pid > 0 && opm::process::is_pid_alive(shell_pid)
+                        } else {
+                            false
+                        };
+
+                        // Small startup grace period to avoid falsely reporting as crashed
+                        let recently_started =
+                            (chrono::Utc::now() - process.started) < chrono::Duration::seconds(2);
+
+                        if process.running && process_alive {
+                            restored_ids_clone.lock().unwrap().push(id);
+                        } else if process.running && recently_started {
+                            // Still starting up; tentatively count as restored
+                            restored_ids_clone.lock().unwrap().push(id);
+                        } else {
+                            failed_ids_clone.lock().unwrap().push((id, name.clone()));
+                        }
+                    } else {
+                        failed_ids_clone.lock().unwrap().push((id, name.clone()));
+                    }
+                    
+                    updated_runner
+                });
+                
+                handles.push(handle);
             }
-            .restart(&None, &None, false, true, false);
-
-            // Create timestamp file for this restore action to prevent daemon from
-            // immediately marking process as crashed during its startup grace period
-            // This gives the process time to initialize without daemon interference
-            // Write with fsync to ensure timestamp is durably written before daemon checks
-            if let Err(e) = opm::process::write_action_timestamp(*id) {
-                ::log::warn!(
-                    "Failed to create action timestamp file for process {}: {}",
-                    id,
-                    e
-                );
-            }
-
-            // Wait for process to start up before checking PID
-            // This prevents false crash detection for processes that take time to initialize
-            // Shell scripts in particular need time for the shell to spawn the actual process
-            // Increased to 1000ms (1 second) to give processes more time to start
-            std::thread::sleep(std::time::Duration::from_millis(1000));
-
-            // Check if the restart was successful
-            if let Some(process) = runner.info(*id) {
-                // Verify the process is actually running using the same logic as daemon
-                // Check the actual process PID first (long-running), then shell_pid (transient)
-                // This ensures consistent behavior between restore and daemon monitoring
-                // The daemon checks: is_pid_alive(item.pid) || shell_alive
-                // So we should also check pid first, then shell_pid
-                let process_alive = if process.pid > 0 {
-                    opm::process::is_pid_alive(process.pid)
-                } else if let Some(shell_pid) = process.shell_pid {
-                    shell_pid > 0 && opm::process::is_pid_alive(shell_pid)
-                } else {
-                    false
-                };
-
-                // Small startup grace period to avoid falsely reporting as crashed
-                let recently_started =
-                    (chrono::Utc::now() - process.started) < chrono::Duration::seconds(2);
-
-                if process.running && process_alive {
-                    restored_ids.push(*id);
-                } else if process.running && recently_started {
-                    // Still starting up; do not mark as crashed yet
-                } else {
-                    failed_ids.push((*id, name.clone()));
-                    // Mark process as crashed so daemon can pick it up for auto-restart
-                    // Keep running=true (set_crashed doesn't change it) so daemon will attempt restart
-                    // Don't increment crash counter here - let the daemon do it when it detects the crash
-                    runner.set_crashed(*id);
-                    // Don't auto-save here - save will happen at the end of restore
+            
+            // Wait for all parallel spawns to complete
+            for handle in handles {
+                if let Ok(updated_runner) = handle.join() {
+                    runner = updated_runner;
                 }
-            } else {
-                failed_ids.push((*id, name.clone()));
-                println!(
-                    "{} Failed to restore process '{}' (id={}) - process not found",
-                    *helpers::FAIL,
-                    name,
-                    id
-                );
-                // Mark process as crashed so daemon can pick it up for auto-restart
-                // Keep running=true (set_crashed doesn't change it) so daemon will attempt restart
-                // Don't increment crash counter here - let the daemon do it when it detects the crash
-                runner.set_crashed(*id);
-                // Don't auto-save here - save will happen at the end of restore
             }
+        });
+        
+        // Extract results from shared state
+        restored_ids = Arc::try_unwrap(restored_ids_shared).unwrap().into_inner().unwrap();
+        failed_ids = Arc::try_unwrap(failed_ids_shared).unwrap().into_inner().unwrap();
+        
+        // Mark failed processes as crashed after all parallel spawns complete
+        for (id, _name) in &failed_ids {
+            runner.set_crashed(*id);
         }
 
         // Save final state after restore attempts to persist crashed process states
@@ -1515,6 +1537,10 @@ impl<'i> Internal<'i> {
         // Clear restore in progress flag to allow daemon to resume normal operations
         // This must be done after all processes have been started to prevent duplicates
         crate::daemon::clear_restore_in_progress();
+
+        // Wait for processes to stabilize before displaying status
+        // This gives time for PID tracking to complete
+        std::thread::sleep(std::time::Duration::from_millis(1000));
 
         // Print final success message with count of restored processes
         let restored_count = restored_ids.len();
