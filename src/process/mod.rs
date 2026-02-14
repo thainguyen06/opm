@@ -2193,6 +2193,74 @@ pub fn is_any_descendant_alive(root_pid: i64, children: &[i64]) -> bool {
     false
 }
 
+/// Enhanced process tree check using sysinfo for more robust detection
+/// This checks if the process or any of its descendants are alive, using sysinfo
+/// for better cross-platform process tree traversal.
+pub fn is_process_or_children_alive_sysinfo(root_pid: i64, tracked_children: &[i64]) -> bool {
+    use sysinfo::{ProcessRefreshKind, System, ProcessesToUpdate};
+    
+    // Quick check first - if root PID is alive, return immediately
+    if is_pid_alive(root_pid) {
+        return true;
+    }
+    
+    // Quick check for tracked children
+    for &child_pid in tracked_children {
+        if is_pid_alive(child_pid) {
+            return true;
+        }
+    }
+    
+    // Use sysinfo to do a more thorough check of the process tree
+    // This is useful when the shell wrapper exits but children are still running
+    let mut system = System::new();
+    system.refresh_processes_specifics(
+        ProcessesToUpdate::All,
+        true,
+        ProcessRefreshKind::new(),
+    );
+    
+    // Create a set of PIDs to check
+    let mut pids_to_check: HashSet<i64> = HashSet::new();
+    pids_to_check.insert(root_pid);
+    for &child in tracked_children {
+        pids_to_check.insert(child);
+    }
+    
+    // Check if any process in our tracked set exists in sysinfo
+    for pid in pids_to_check {
+        if pid > 0 {
+            let sysinfo_pid = sysinfo::Pid::from_u32(pid as u32);
+            if system.process(sysinfo_pid).is_some() {
+                return true;
+            }
+        }
+    }
+    
+    // Also check for any children of the root PID that might not be tracked yet
+    // This handles the case where bash -c spawns a child that we haven't discovered yet
+    if root_pid > 0 {
+        // Find all descendants of root_pid
+        for (_pid, process) in system.processes() {
+            if let Some(parent_pid) = process.parent() {
+                // Convert parent_pid to i64 for comparison
+                let parent_pid_i64 = parent_pid.as_u32() as i64;
+                if parent_pid_i64 == root_pid {
+                    // Found a direct child of root_pid that's alive
+                    return true;
+                }
+                // Also check if parent is any of our tracked children
+                if tracked_children.contains(&parent_pid_i64) {
+                    return true;
+                }
+            }
+        }
+    }
+    
+    false
+}
+
+
 /// Check if PID info is missing/incomplete for crash detection purposes
 /// Returns true if pid <= 0 and no tracked descendants
 pub fn is_pid_info_missing(pid: i64, children: &[i64]) -> bool {
@@ -2278,6 +2346,14 @@ pub fn process_run(metadata: ProcessMetadata) -> Result<ProcessRunResult, String
         .stdout(Stdio::from(stdout_file))
         .stderr(Stdio::from(stderr_file))
         .stdin(Stdio::null());
+
+    // Create a new process group for better process tree management
+    // This ensures the shell wrapper and its children are in the same process group
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
+    }
 
     let child = cmd.spawn().map_err(|err| {
         // Provide more helpful error messages based on error kind

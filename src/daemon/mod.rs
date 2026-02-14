@@ -163,8 +163,10 @@ fn restart_process() {
         // PID 0 is reserved for the kernel scheduler and should never be assigned to user processes
         let has_valid_pid = item.pid > 0;
         
+        // Use enhanced sysinfo-based detection for more robust process tree checking
+        // This handles cases where shell wrapper exits but children are still running
         let any_descendant_alive = has_valid_pid 
-            && (opm::process::is_any_descendant_alive(item.pid, &item.children) || shell_alive);
+            && (opm::process::is_process_or_children_alive_sysinfo(item.pid, &item.children) || shell_alive);
 
         // Check if the main process (PID or shell_pid) is alive
         // This is the primary indicator of process health

@@ -618,7 +618,7 @@ impl<'i> Internal<'i> {
         let render_info = |data: Vec<Info>| {
             let table = Table::new(data.clone())
                 .with(Rotate::Left)
-                .with(Style::rounded().remove_horizontals())
+                .with(Style::modern().remove_horizontals())
                 .with(Colorization::exact([Color::FG_CYAN], Columns::first()))
                 .with(
                     Modify::new(Segment::all()).with(BorderColor::filled(Color::new(
@@ -1518,7 +1518,11 @@ impl<'i> Internal<'i> {
 
         // Print final success message with count of restored processes
         let restored_count = restored_ids.len();
-        println!("{} Success: {} processes restored.", *helpers::SUCCESS, restored_count);
+        println!("[OPM] Success: {} processes restored.", restored_count);
+        
+        // Display the process list immediately after restore
+        // This allows users to see the current status without manually running 'opm ls'
+        Internal::list(&"default".to_string(), &"local".to_string());
         
         // Restore operation is complete - exit the restore process
         // The daemon is now running in a separate PID and will continue independently
@@ -1683,7 +1687,7 @@ impl<'i> Internal<'i> {
                 }
 
                 let table = Table::new(&processes)
-                    .with(Style::rounded().remove_verticals())
+                    .with(Style::modern().remove_verticals())
                     .with(
                         Modify::new(Segment::all()).with(BorderColor::filled(Color::new(
                             "\x1b[38;2;45;55;72m",
@@ -1909,7 +1913,7 @@ impl<'i> Internal<'i> {
 
                     let table =
                         Table::new(&processes)
-                            .with(Style::rounded().remove_verticals())
+                            .with(Style::modern().remove_verticals())
                             .with(Modify::new(Segment::all()).with(BorderColor::filled(
                                 Color::new("\x1b[38;2;45;55;72m", "\x1b[39m"),
                             )))
