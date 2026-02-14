@@ -360,40 +360,51 @@ fn restart_process() {
                         "pattern" => &command_pattern);
                     
                     if let Some(found_pid) = opm::process::find_process_by_command(&command_pattern) {
-                        // Found a matching process - adopt it instead of restarting
-                        log!("[daemon] ADOPTING existing process instead of restarting", 
-                            "name" => &item.name, 
-                            "id" => id,
-                            "old_pid" => item.pid,
-                            "new_pid" => found_pid,
-                            "pattern" => &command_pattern);
+                        // Validate the found process before adopting
+                        let (is_valid, start_time) = opm::process::validate_process_with_sysinfo(
+                            found_pid,
+                            Some(&command_pattern),
+                            None,
+                        );
                         
-                        if runner.exists(id) {
-                            let process = runner.process(id);
-                            let old_pid = process.pid;
-                            process.pid = found_pid;
-                            process.shell_pid = None; // Reset shell_pid as we're adopting the real process
-                            process.crash.crashed = false; // Not crashed - we found it!
-                            process.failed_restart_attempts = 0; // Reset failure count
-                            
-                            // Update session ID for the adopted process
-                            #[cfg(any(target_os = "linux", target_os = "macos"))]
-                            {
-                                process.session_id = opm::process::unix::get_session_id(found_pid as i32);
-                            }
-                            
-                            // Add to tracked children for monitoring
-                            if !process.children.contains(&found_pid) {
-                                process.children.push(found_pid);
-                            }
-                            
-                            runner.save_direct();
-                            log!("[daemon] successfully adopted process",
-                                "name" => &item.name,
+                        if is_valid {
+                            // Found a matching and valid process - adopt it instead of restarting
+                            log!("[daemon] ADOPTING existing process instead of restarting", 
+                                "name" => &item.name, 
                                 "id" => id,
-                                "old_pid" => old_pid,
-                                "new_pid" => found_pid);
-                            continue; // Skip crash detection and restart logic
+                                "old_pid" => item.pid,
+                                "new_pid" => found_pid,
+                                "pattern" => &command_pattern);
+                            
+                            if runner.exists(id) {
+                                let process = runner.process(id);
+                                let old_pid = process.pid;
+                                process.pid = found_pid;
+                                process.shell_pid = None; // Reset shell_pid as we're adopting the real process
+                                process.crash.crashed = false; // Not crashed - we found it!
+                                process.failed_restart_attempts = 0; // Reset failure count
+                                process.process_start_time = start_time; // Store start time for PID reuse detection
+                                process.is_process_tree = false; // Adopted process is not a wrapper
+                                
+                                // Update session ID for the adopted process
+                                #[cfg(any(target_os = "linux", target_os = "macos"))]
+                                {
+                                    process.session_id = opm::process::unix::get_session_id(found_pid as i32);
+                                }
+                                
+                                // Add to tracked children for monitoring
+                                if !process.children.contains(&found_pid) {
+                                    process.children.push(found_pid);
+                                }
+                                
+                                runner.save_direct();
+                                log!("[daemon] successfully adopted process",
+                                    "name" => &item.name,
+                                    "id" => id,
+                                    "old_pid" => old_pid,
+                                    "new_pid" => found_pid);
+                                continue; // Skip crash detection and restart logic
+                            }
                         }
                     }
                 }
@@ -479,12 +490,21 @@ fn restart_process() {
                                     use opm::process::unix::NativeProcess;
                                     // Try to create process handle - if successful, we can safely adopt
                                     if let Ok(_child_process) = NativeProcess::new(child_pid as u32) {
+                                        // Validate and capture start time
+                                        let (_is_valid, start_time) = opm::process::validate_process_with_sysinfo(
+                                            child_pid,
+                                            None,
+                                            None,
+                                        );
+                                        
                                         // Adopt the child PID
                                         if runner.exists(id) {
                                             let process = runner.process(id);
                                             let old_pid = process.pid;
                                             process.pid = child_pid;
                                             process.shell_pid = None; // Child is now the primary PID
+                                            process.process_start_time = start_time; // Store start time
+                                            process.is_process_tree = false; // No longer a wrapper
                                             // Add to tracked children for monitoring
                                             if !process.children.contains(&child_pid) {
                                                 process.children.push(child_pid);
@@ -510,6 +530,7 @@ fn restart_process() {
                                         let old_pid = process.pid;
                                         process.pid = child_pid;
                                         process.shell_pid = None;
+                                        process.is_process_tree = false; // No longer a wrapper
                                         if !process.children.contains(&child_pid) {
                                             process.children.push(child_pid);
                                         }

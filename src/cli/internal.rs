@@ -1534,27 +1534,44 @@ impl<'i> Internal<'i> {
                                 existing_pid
                             );
                             
-                            // Attach to the existing process instead of spawning new one
-                            process.pid = existing_pid;
-                            process.shell_pid = None; // No shell wrapper for existing process
-                            process.running = true;
-                            process.crash.crashed = false;
+                            // Validate and capture start time of existing process
+                            let (is_valid, start_time) = opm::process::validate_process_with_sysinfo(
+                                existing_pid,
+                                Some(&search_identifier),
+                                None,
+                            );
                             
-                            // Update session ID for the attached process
-                            #[cfg(any(target_os = "linux", target_os = "macos"))]
-                            {
-                                process.session_id = opm::process::unix::get_session_id(existing_pid as i32);
+                            if is_valid {
+                                // Attach to the existing process instead of spawning new one
+                                process.pid = existing_pid;
+                                process.shell_pid = None; // No shell wrapper for existing process
+                                process.running = true;
+                                process.crash.crashed = false;
+                                process.process_start_time = start_time; // Store start time for PID reuse detection
+                                process.is_process_tree = false; // Existing process is not a wrapper
+                                
+                                // Update session ID for the attached process
+                                #[cfg(any(target_os = "linux", target_os = "macos"))]
+                                {
+                                    process.session_id = opm::process::unix::get_session_id(existing_pid as i32);
+                                }
+                                
+                                // Save the state with attached PID
+                                runner_guard.save_direct();
+                                
+                                // Return early - no need to spawn
+                                return (id, name);
+                            } else {
+                                ::log::warn!(
+                                    "Found PID {} but validation failed for '{}' (id={}), will spawn new process",
+                                    existing_pid,
+                                    name,
+                                    id
+                                );
                             }
-                            
-                            // Save the state with attached PID
-                            runner_guard.save_direct();
-                            
-                            // Return early - no need to spawn
-                            return (id, name);
                         }
                     }
                 }
-                
                 // No existing process found, proceed with normal restart
                 *runner_guard = Internal {
                     id,
