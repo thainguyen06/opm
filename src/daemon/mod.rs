@@ -41,6 +41,14 @@ use tabled::{
 // Grace period for crash detection is now configurable via daemon.crash_grace_period in config.toml
 // Default is 2 seconds to prevent false crash detection when processes are initializing
 
+// Anti-spam restart cooldown constants
+// Minimum delay between restart attempts to prevent rapid restart loops
+const RESTART_COOLDOWN_SECS: u64 = 5;
+// Extended delay for failed restarts (e.g., port conflicts) to give time for issues to resolve
+const FAILED_RESTART_COOLDOWN_SECS: u64 = 10;
+// Interval for periodic cooldown logging to reduce log noise
+const COOLDOWN_LOG_INTERVAL_SECS: i64 = 5;
+
 static ENABLE_API: AtomicBool = AtomicBool::new(false);
 static ENABLE_WEBUI: AtomicBool = AtomicBool::new(false);
 // Flag to prevent daemon from auto-starting processes during restore operation
@@ -458,17 +466,17 @@ fn restart_process() {
                                 // Normal restart: 5 seconds minimum
                                 // Failed restart (port conflict, etc.): 10 seconds
                                 let base_delay = if proc.failed_restart_attempts > 0 {
-                                    10u64 // Failed restart - longer delay
+                                    FAILED_RESTART_COOLDOWN_SECS
                                 } else {
-                                    5u64  // Normal restart - standard delay
+                                    RESTART_COOLDOWN_SECS
                                 };
                                 
                                 let within_cooldown = seconds_since_last_attempt < base_delay as i64;
 
                                 if within_cooldown {
                                     // Process is in cooldown period - skip restart
-                                    // Only log once to reduce noise
-                                    if seconds_since_last_attempt == 0 || seconds_since_last_attempt % 5 == 0 {
+                                    // Only log periodically to reduce noise
+                                    if seconds_since_last_attempt == 0 || seconds_since_last_attempt % COOLDOWN_LOG_INTERVAL_SECS == 0 {
                                         log!("[daemon] process in restart cooldown", 
                                             "name" => &proc.name, 
                                             "id" => id, 

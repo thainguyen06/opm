@@ -256,6 +256,28 @@ pub struct Process {
     pub failed_restart_attempts: u32,
 }
 
+impl Process {
+    /// Check if the process is in restart cooldown period
+    /// Returns true if the process is waiting for cooldown to expire before next restart attempt
+    pub fn is_in_restart_cooldown(&self) -> bool {
+        // Cooldown delays (must match daemon constants)
+        const RESTART_COOLDOWN_SECS: u64 = 5;
+        const FAILED_RESTART_COOLDOWN_SECS: u64 = 10;
+        
+        self.last_restart_attempt
+            .map(|t| {
+                let secs_since = (Utc::now() - t).num_seconds();
+                let cooldown_delay = if self.failed_restart_attempts > 0 {
+                    FAILED_RESTART_COOLDOWN_SECS
+                } else {
+                    RESTART_COOLDOWN_SECS
+                };
+                secs_since < cooldown_delay as i64
+            })
+            .unwrap_or(false)
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Crash {
     pub crashed: bool,

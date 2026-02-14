@@ -1,5 +1,4 @@
 use colored::Colorize;
-use chrono::Utc;
 use lazy_static::lazy_static;
 use macros_rs::{crashln, string, ternary, then};
 #[cfg(any(target_os = "linux", target_os = "macos"))]
@@ -726,15 +725,7 @@ impl<'i> Internal<'i> {
                     "errored  ".red().bold()
                 } else if crashed_while_running || crashed_by_flag {
                     // Check if process is in restart cooldown period
-                    let in_cooldown = item.last_restart_attempt
-                        .map(|t| {
-                            let secs_since = (Utc::now() - t).num_seconds();
-                            let cooldown_delay = if item.failed_restart_attempts > 0 { 10 } else { 5 };
-                            secs_since < cooldown_delay
-                        })
-                        .unwrap_or(false);
-                    
-                    if in_cooldown {
+                    if item.is_in_restart_cooldown() {
                         // Process is in cooldown - show as waiting/restarting
                         "waiting  ".yellow().bold()
                     } else {
@@ -1708,15 +1699,7 @@ impl<'i> Internal<'i> {
                         "errored  ".red().bold()
                     } else if item.running {
                         // Check if process is in restart cooldown period
-                        let in_cooldown = item.last_restart_attempt
-                            .map(|t| {
-                                let secs_since = (Utc::now() - t).num_seconds();
-                                let cooldown_delay = if item.failed_restart_attempts > 0 { 10 } else { 5 };
-                                secs_since < cooldown_delay
-                            })
-                            .unwrap_or(false);
-                        
-                        if in_cooldown {
+                        if item.is_in_restart_cooldown() {
                             // Process is in cooldown - show as waiting/restarting
                             "waiting  ".yellow().bold()
                         } else if crash_detection_enabled {
@@ -1953,15 +1936,7 @@ impl<'i> Internal<'i> {
                             "errored  ".red().bold()
                         } else if item.running {
                             // Check if process is in restart cooldown period
-                            let in_cooldown = item.last_restart_attempt
-                                .map(|t| {
-                                    let secs_since = (Utc::now() - t).num_seconds();
-                                    let cooldown_delay = if item.failed_restart_attempts > 0 { 10 } else { 5 };
-                                    secs_since < cooldown_delay
-                                })
-                                .unwrap_or(false);
-                            
-                            if in_cooldown {
+                            if item.is_in_restart_cooldown() {
                                 // Process is in cooldown - show as waiting/restarting
                                 "waiting  ".yellow().bold()
                             } else {
