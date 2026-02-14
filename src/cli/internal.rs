@@ -39,7 +39,10 @@ lazy_static! {
 
 /// Extract a search pattern from a command for process adoption during restore
 /// Looks for distinctive parts like JAR files, script names, executables
-/// This is a copy of the logic from daemon/mod.rs to avoid circular dependencies
+/// 
+/// NOTE: This is a copy of the logic from daemon/mod.rs::extract_search_pattern to avoid circular dependencies.
+/// TODO: Consider moving this to a shared utility module (e.g., opm::process::search_pattern) that both
+/// daemon and cli can import, eliminating the duplication while avoiding circular dependencies.
 fn extract_search_pattern_for_restore(command: &str) -> String {
     // Look for patterns that uniquely identify the process
     // Priority: JAR files, then .py/.js/.sh files, then first word

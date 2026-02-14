@@ -18,6 +18,14 @@ pub use process_list::native_processes;
 
 pub const PROCESS_OPERATION_DELAY_MS: u64 = 500;
 
+// Shell names to skip when searching for long-running child processes
+// Used in orphan detection and child search logic
+const SHELL_NAMES: &[&str] = &["sh", "bash", "zsh", "fish", "dash", "opm"];
+
+// Time window (in seconds) for detecting orphaned child processes
+// Processes created within this window are considered potential orphans
+const ORPHAN_DETECTION_WINDOW_SECS: u64 = 2;
+
 #[derive(Debug, Clone)]
 pub struct NativeProcess {
     pub pid: u32,
@@ -108,8 +116,6 @@ fn find_orphaned_children_by_parent_trace(dead_parent_pid: i64) -> Option<i64> {
     use sysinfo::{ProcessRefreshKind, System, ProcessesToUpdate};
     use std::time::{SystemTime, Duration};
     
-    let shell_names = ["sh", "bash", "zsh", "fish", "dash", "opm"];
-    
     // Refresh all processes using sysinfo
     let mut system = System::new();
     system.refresh_processes_specifics(
@@ -120,7 +126,7 @@ fn find_orphaned_children_by_parent_trace(dead_parent_pid: i64) -> Option<i64> {
     
     // Look for processes that might have been spawned by the dead parent
     // We can't check parent PID directly since parent is dead (children get re-parented to init)
-    // Instead, look for recently created processes (within last 2 seconds)
+    // Instead, look for recently created processes (within orphan detection window)
     let now_secs = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap_or(Duration::from_secs(0))
@@ -135,7 +141,7 @@ fn find_orphaned_children_by_parent_trace(dead_parent_pid: i64) -> Option<i64> {
             continue;
         }
         
-        // Check if process was created recently (within last 2 seconds)
+        // Check if process was created recently (within orphan detection window)
         // start_time() returns seconds since UNIX epoch
         let process_start = process.start_time();
         if now_secs < process_start {
@@ -149,10 +155,10 @@ fn find_orphaned_children_by_parent_trace(dead_parent_pid: i64) -> Option<i64> {
         
         let process_age = now_secs - process_start;
             
-        if process_age <= 2 {
+        if process_age <= ORPHAN_DETECTION_WINDOW_SECS {
             let name = process.name().to_string_lossy().to_string();
             let name_lower = name.to_lowercase();
-            let is_shell = shell_names.iter().any(|s| name_lower.contains(s));
+            let is_shell = SHELL_NAMES.iter().any(|s| name_lower.contains(s));
             
             // Prefer non-shell processes
             if !is_shell {
@@ -179,8 +185,6 @@ fn find_orphaned_children_by_parent_trace(dead_parent_pid: i64) -> Option<i64> {
 // Find the first long-running child (skip shells, find actual service process)
 #[cfg(target_os = "linux")]
 fn find_first_long_running_child_linux(parent_pid: i64) -> Option<i64> {
-    let shell_names = ["sh", "bash", "zsh", "fish", "dash"];
-
     let children = find_immediate_children_linux(parent_pid);
     if children.is_empty() {
         return None;
@@ -190,7 +194,7 @@ fn find_first_long_running_child_linux(parent_pid: i64) -> Option<i64> {
     for &child in &children {
         if let Ok(exe) = get_process_name(child as u32) {
             let exe_lower = exe.to_lowercase();
-            let is_shell = shell_names.iter().any(|s| exe_lower.contains(s));
+            let is_shell = SHELL_NAMES.iter().any(|s| exe_lower.contains(s));
 
             if !is_shell {
                 log::debug!("Found long-running process: {} (PID {})", exe, child);
@@ -510,7 +514,6 @@ pub fn get_actual_child_pid(shell_pid: i64) -> i64 {
 fn find_orphaned_children_macos(dead_parent_pid: i64) -> Option<i64> {
     use std::time::SystemTime;
     
-    let shell_names = ["sh", "bash", "zsh", "fish", "dash", "opm"];
     let processes = native_processes().ok()?;
     
     let now = SystemTime::now();
@@ -524,7 +527,7 @@ fn find_orphaned_children_macos(dead_parent_pid: i64) -> Option<i64> {
             continue;
         }
         
-        // Check if process was created recently (within last 2 seconds)
+        // Check if process was created recently (within orphan detection window)
         let process_age = match now.duration_since(process.create_time) {
             Ok(duration) => duration.as_secs(),
             Err(e) => {
@@ -537,9 +540,9 @@ fn find_orphaned_children_macos(dead_parent_pid: i64) -> Option<i64> {
             }
         };
             
-        if process_age <= 2 {
+        if process_age <= ORPHAN_DETECTION_WINDOW_SECS {
             let name = process.name.to_lowercase();
-            let is_shell = shell_names.iter().any(|s| name.contains(s));
+            let is_shell = SHELL_NAMES.iter().any(|s| name.contains(s));
             
             // Prefer non-shell processes
             if !is_shell {
