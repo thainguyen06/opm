@@ -804,14 +804,9 @@ impl<'i> Internal<'i> {
                     // Process reached restart limit - show as errored
                     "errored  ".red().bold()
                 } else if crashed_while_running || crashed_by_flag {
-                    // Check if process is in restart cooldown period
-                    if item.is_in_restart_cooldown() {
-                        // Process is in cooldown - show as waiting/restarting
-                        "waiting  ".yellow().bold()
-                    } else {
-                        // Process crashed: either marked as running but not alive, or crash flag set
-                        "crashed   ".red().bold()
-                    }
+                    // Process crashed: either marked as running but not alive, or crash flag set
+                    // No waiting state - always show as crashed during restart cooldown
+                    "crashed   ".red().bold()
                 } else {
                     // Process is not running (running=false) - always show as stopped
                     // This ensures stopped processes display correctly even if they have
@@ -930,7 +925,7 @@ impl<'i> Internal<'i> {
             let uptime_value = if item.running && !item.crash.crashed {
                 format!("{}", helpers::format_duration(item.started))
             } else {
-                string!("none")
+                string!("0s")
             };
 
             if let Ok(info) = info {
@@ -1940,11 +1935,8 @@ impl<'i> Internal<'i> {
                     } else if item.errored {
                         "errored  ".red().bold()
                     } else if item.running {
-                        // Check if process is in restart cooldown period
-                        if item.is_in_restart_cooldown() {
-                            // Process is in cooldown - show as waiting/restarting
-                            "waiting  ".yellow().bold()
-                        } else if crash_detection_enabled {
+                        // No waiting state - always show as crashed during restart cooldown
+                        if crash_detection_enabled {
                             // Process is marked as running but PID doesn't exist
                             "crashed   ".red().bold()
                         } else {
@@ -2200,14 +2192,9 @@ impl<'i> Internal<'i> {
                         } else if item.errored {
                             "errored  ".red().bold()
                         } else if item.running {
-                            // Check if process is in restart cooldown period
-                            if item.is_in_restart_cooldown() {
-                                // Process is in cooldown - show as waiting/restarting
-                                "waiting  ".yellow().bold()
-                            } else {
-                                // Process is marked as running but PID doesn't exist - it crashed
-                                "crashed   ".red().bold()
-                            }
+                            // No waiting state - always show as crashed during restart cooldown
+                            // Process is marked as running but PID doesn't exist - it crashed
+                            "crashed   ".red().bold()
                         } else {
                             // Process is not running (running=false) - always show as stopped
                             // This ensures stopped processes display correctly even if they have
