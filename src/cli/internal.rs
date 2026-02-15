@@ -16,7 +16,7 @@ use opm::{
     helpers::{self, ColoredString},
     log,
     process::{
-        get_process_cpu_usage_with_children_from_process, get_process_memory_with_children, http,
+        get_process_cpu_usage_with_children_from_process, http,
         is_any_descendant_alive, is_pid_alive, ItemSingle, Runner,
     },
 };
@@ -731,8 +731,10 @@ impl<'i> Internal<'i> {
                         None
                     };
 
+                    // Validate the shell wrapper PID if present, otherwise validate main PID
+                    let pid_to_validate = item.shell_pid.unwrap_or(item.pid);
                     let (is_valid, _) = opm::process::validate_process_with_sysinfo(
-                        item.pid,
+                        pid_to_validate,
                         expected_pattern,
                         item.process_start_time,
                     );
@@ -768,11 +770,17 @@ impl<'i> Internal<'i> {
                 // Only fetch CPU and memory stats if process is actually running
                 // Stopped or crashed processes should always show 0% CPU and 0b memory
                 if process_actually_running {
-                    // For shell scripts, use shell_pid to capture the entire process tree
+                    // For shell scripts, use comprehensive tree memory aggregation
+                    // This includes shell_pid, main pid, and all tracked children
+                    // For CPU, still use shell_pid as the root for tree traversal
                     let pid_for_monitoring = item.shell_pid.unwrap_or(item.pid);
 
                     if let Ok(process) = Process::new(pid_for_monitoring as u32) {
-                        memory_usage = get_process_memory_with_children(pid_for_monitoring);
+                        memory_usage = opm::process::get_process_tree_memory(
+                            item.pid,
+                            item.shell_pid,
+                            &item.children,
+                        );
                         cpu_percent = Some(get_process_cpu_usage_with_children_from_process(
                             &process,
                             pid_for_monitoring,
@@ -820,8 +828,10 @@ impl<'i> Internal<'i> {
                 // Only count uptime when the process is actually running
                 // Use OS-level uptime from sysinfo for accurate uptime calculation
                 // Crashed or stopped processes should show "none" uptime
+                // For shell scripts, use shell_pid to track the wrapper process
                 let uptime = if process_actually_running {
-                    let uptime_secs = opm::process::get_process_uptime_sysinfo(item.pid);
+                    let pid_for_uptime = item.shell_pid.unwrap_or(item.pid);
+                    let uptime_secs = opm::process::get_process_uptime_sysinfo(pid_for_uptime);
                     if uptime_secs > 0 {
                         helpers::format_uptime_seconds(uptime_secs)
                     } else {
@@ -1819,6 +1829,7 @@ impl<'i> Internal<'i> {
 
                     // PM2-STYLE VALIDATION: Validate PID with sysinfo
                     // This prevents showing "online" status for ghost/reused PIDs
+                    // For shell-wrapped processes, validate the shell_pid (the wrapper process)
                     let has_valid_pid = item.pid > 0;
                     let pid_validated = if has_valid_pid && item.running {
                         let search_pattern = extract_search_pattern_for_restore(&item.script);
@@ -1828,8 +1839,10 @@ impl<'i> Internal<'i> {
                             None
                         };
 
+                        // Validate the shell wrapper PID if present, otherwise validate main PID
+                        let pid_to_validate = item.shell_pid.unwrap_or(item.pid);
                         let (is_valid, _) = opm::process::validate_process_with_sysinfo(
-                            item.pid,
+                            pid_to_validate,
                             expected_pattern,
                             item.process_start_time,
                         );
@@ -1862,16 +1875,23 @@ impl<'i> Internal<'i> {
                             let mut usage_internals: (Option<f64>, Option<MemoryInfo>) =
                                 (None, None);
 
-                            // For shell scripts, use shell_pid to capture the entire process tree
-                            let pid_for_monitoring = item.shell_pid.unwrap_or(item.pid);
+                            // For shell scripts, use comprehensive tree memory aggregation
+                            // This includes shell_pid, main pid, and all tracked children
+                            let memory = opm::process::get_process_tree_memory(
+                                item.pid,
+                                item.shell_pid,
+                                &item.children,
+                            );
 
+                            // For CPU, still use shell_pid as the root for tree traversal
+                            let pid_for_monitoring = item.shell_pid.unwrap_or(item.pid);
                             if let Ok(process) = Process::new(pid_for_monitoring as u32) {
                                 usage_internals = (
                                     Some(get_process_cpu_usage_with_children_from_process(
                                         &process,
                                         pid_for_monitoring,
                                     )),
-                                    get_process_memory_with_children(pid_for_monitoring),
+                                    memory,
                                 );
                             }
 
@@ -1928,8 +1948,10 @@ impl<'i> Internal<'i> {
                     // Only count uptime when the process is actually running
                     // Use OS-level uptime from sysinfo for accurate uptime calculation
                     // This prevents ghost data after daemon restarts
+                    // For shell scripts, use shell_pid to track the wrapper process
                     let uptime = if process_actually_running {
-                        let uptime_secs = opm::process::get_process_uptime_sysinfo(item.pid);
+                        let pid_for_uptime = item.shell_pid.unwrap_or(item.pid);
+                        let uptime_secs = opm::process::get_process_uptime_sysinfo(pid_for_uptime);
                         if uptime_secs > 0 {
                             format!("{}  ", helpers::format_uptime_seconds(uptime_secs))
                         } else {
@@ -2113,16 +2135,23 @@ impl<'i> Internal<'i> {
                                 let mut usage_internals: (Option<f64>, Option<MemoryInfo>) =
                                     (None, None);
 
-                                // For shell scripts, use shell_pid to capture the entire process tree
-                                let pid_for_monitoring = item.shell_pid.unwrap_or(item.pid);
+                                // For shell scripts, use comprehensive tree memory aggregation
+                                // This includes shell_pid, main pid, and all tracked children
+                                let memory = opm::process::get_process_tree_memory(
+                                    item.pid,
+                                    item.shell_pid,
+                                    &item.children,
+                                );
 
+                                // For CPU, still use shell_pid as the root for tree traversal
+                                let pid_for_monitoring = item.shell_pid.unwrap_or(item.pid);
                                 if let Ok(process) = Process::new(pid_for_monitoring as u32) {
                                     usage_internals = (
                                         Some(get_process_cpu_usage_with_children_from_process(
                                             &process,
                                             pid_for_monitoring,
                                         )),
-                                        get_process_memory_with_children(pid_for_monitoring),
+                                        memory,
                                     );
                                 }
 
@@ -2177,8 +2206,10 @@ impl<'i> Internal<'i> {
                         // Only count uptime when the process is actually running
                         // Use OS-level uptime from sysinfo for accurate uptime calculation
                         // Crashed or stopped processes should show "none" uptime
+                        // For shell scripts, use shell_pid to track the wrapper process
                         let uptime = if process_actually_running {
-                            let uptime_secs = opm::process::get_process_uptime_sysinfo(item.pid);
+                            let pid_for_uptime = item.shell_pid.unwrap_or(item.pid);
+                            let uptime_secs = opm::process::get_process_uptime_sysinfo(pid_for_uptime);
                             if uptime_secs > 0 {
                                 format!("{}  ", helpers::format_uptime_seconds(uptime_secs))
                             } else {
