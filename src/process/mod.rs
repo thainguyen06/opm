@@ -2370,7 +2370,7 @@ pub fn kill_old_processes_before_restore(processes: &[(usize, String)]) -> Resul
 /// Looks for distinctive parts like JAR files, script names, executables
 ///
 /// # Examples
-/// ```
+/// ```ignore
 /// // JAR file extraction
 /// extract_search_pattern_from_command("java -jar Stirling-PDF.jar") // => "Stirling-PDF.jar"
 ///
