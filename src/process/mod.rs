@@ -478,6 +478,75 @@ pub fn is_pid_alive(pid: i64) -> bool {
     true
 }
 
+/// Check if a PID would conflict with any existing tracked processes
+/// Returns (has_duplicate, error_message) tuple
+/// - has_duplicate: true if PID conflicts with an existing process
+/// - error_message: human-readable description of the conflict
+fn check_duplicate_pid(
+    runner_list: &BTreeMap<usize, Process>,
+    current_id: usize,
+    new_pid: i64,
+    new_shell_pid: Option<i64>,
+    _process_name: &str,
+) -> (bool, String) {
+    for (existing_id, existing_process) in runner_list {
+        // Skip the current process (for restart case)
+        if *existing_id == current_id {
+            continue;
+        }
+        
+        // Check if the new process PID matches an existing process's main PID or shell_pid
+        if existing_process.pid == new_pid && existing_process.pid > 0 {
+            return (
+                true,
+                format!(
+                    "PID {} is already tracked by process '{}' (id={})",
+                    new_pid, existing_process.name, existing_id
+                ),
+            );
+        }
+        
+        if let Some(existing_shell_pid) = existing_process.shell_pid {
+            if existing_shell_pid == new_pid {
+                return (
+                    true,
+                    format!(
+                        "PID {} is already tracked as shell wrapper by process '{}' (id={})",
+                        new_pid, existing_process.name, existing_id
+                    ),
+                );
+            }
+        }
+        
+        // Also check if the new shell_pid matches existing PIDs
+        if let Some(new_shell_pid_val) = new_shell_pid {
+            if existing_process.pid == new_shell_pid_val {
+                return (
+                    true,
+                    format!(
+                        "shell wrapper PID {} is already tracked as main PID by process '{}' (id={})",
+                        new_shell_pid_val, existing_process.name, existing_id
+                    ),
+                );
+            }
+            
+            if let Some(existing_shell_pid) = existing_process.shell_pid {
+                if existing_shell_pid == new_shell_pid_val {
+                    return (
+                        true,
+                        format!(
+                            "shell wrapper PID {} is already tracked by process '{}' (id={})",
+                            new_shell_pid_val, existing_process.name, existing_id
+                        ),
+                    );
+                }
+            }
+        }
+    }
+    
+    (false, String::new())
+}
+
 impl Runner {
     pub fn new() -> Self {
         // Read merged state (permanent + temporary)
@@ -609,68 +678,28 @@ impl Runner {
             // Check for duplicate PIDs before inserting new process
             // This prevents tracking the same process multiple times
             // (unless it's a PM2-like multi-worker setup with legitimate parent-child relationships)
-            for (existing_id, existing_process) in &self.list {
-                // Skip if same process ID (restart/update case)
-                if *existing_id == id {
-                    continue;
-                }
-                
-                // Check if the new process PID matches an existing process's main PID or shell_pid
-                if existing_process.pid == result.pid && existing_process.pid > 0 {
-                    log::warn!(
-                        "[process] Duplicate PID detected: new process '{}' (id={}) has PID {} which is already tracked by process '{}' (id={})",
-                        name, id, result.pid, existing_process.name, existing_id
-                    );
-                    // Don't insert the duplicate - just return
-                    println!(
-                        "{} Process '{}' not started: PID {} is already tracked by process '{}' (id={})",
-                        *helpers::FAIL, name, result.pid, existing_process.name, existing_id
-                    );
-                    return self;
-                }
-                
-                if let Some(existing_shell_pid) = existing_process.shell_pid {
-                    if existing_shell_pid == result.pid {
-                        log::warn!(
-                            "[process] Duplicate PID detected: new process '{}' (id={}) has PID {} which is the shell_pid of process '{}' (id={})",
-                            name, id, result.pid, existing_process.name, existing_id
-                        );
-                        println!(
-                            "{} Process '{}' not started: PID {} is already tracked as shell wrapper by process '{}' (id={})",
-                            *helpers::FAIL, name, result.pid, existing_process.name, existing_id
-                        );
-                        return self;
-                    }
-                }
-                
-                // Also check if the new shell_pid matches existing PIDs
-                if let Some(new_shell_pid) = result.shell_pid {
-                    if existing_process.pid == new_shell_pid {
-                        log::warn!(
-                            "[process] Duplicate shell_pid detected: new process '{}' (id={}) has shell_pid {} which is the main PID of process '{}' (id={})",
-                            name, id, new_shell_pid, existing_process.name, existing_id
-                        );
-                        println!(
-                            "{} Process '{}' not started: shell wrapper PID {} is already tracked as main PID by process '{}' (id={})",
-                            *helpers::FAIL, name, new_shell_pid, existing_process.name, existing_id
-                        );
-                        return self;
-                    }
-                    
-                    if let Some(existing_shell_pid) = existing_process.shell_pid {
-                        if existing_shell_pid == new_shell_pid {
-                            log::warn!(
-                                "[process] Duplicate shell_pid detected: new process '{}' (id={}) has shell_pid {} which is already tracked by process '{}' (id={})",
-                                name, id, new_shell_pid, existing_process.name, existing_id
-                            );
-                            println!(
-                                "{} Process '{}' not started: shell wrapper PID {} is already tracked by process '{}' (id={})",
-                                *helpers::FAIL, name, new_shell_pid, existing_process.name, existing_id
-                            );
-                            return self;
-                        }
-                    }
-                }
+            let (has_duplicate, error_msg) = check_duplicate_pid(
+                &self.list,
+                id,
+                result.pid,
+                result.shell_pid,
+                &name,
+            );
+            
+            if has_duplicate {
+                log::warn!(
+                    "[process] Duplicate PID detected: new process '{}' (id={}). {}",
+                    name,
+                    id,
+                    error_msg
+                );
+                println!(
+                    "{} Process '{}' not started: {}",
+                    *helpers::FAIL,
+                    name,
+                    error_msg
+                );
+                return self;
             }
 
             self.list.insert(
@@ -754,7 +783,11 @@ impl Runner {
                 name,
                 running: was_running,
                 ..
-            } = self.list.get(&id).expect("Process must exist").clone();
+            } = self
+                .list
+                .get(&id)
+                .unwrap_or_else(|| panic!("Process with id {} must exist", id))
+                .clone();
 
             // Save the current working directory so we can restore it after restart
             // This is critical for the daemon - changing the working directory affects the daemon process
@@ -918,83 +951,33 @@ impl Runner {
 
             // Check for duplicate PIDs before updating process
             // This prevents tracking the same process multiple times after restart
-            for (existing_id, existing_process) in &self.list {
-                // Skip the current process being restarted
-                if *existing_id == id {
-                    continue;
+            let (has_duplicate, error_msg) = check_duplicate_pid(
+                &self.list,
+                id,
+                result.pid,
+                result.shell_pid,
+                &name,
+            );
+            
+            if has_duplicate {
+                log::warn!(
+                    "[process] Duplicate PID detected on restart: process '{}' (id={}). {}",
+                    name,
+                    id,
+                    error_msg
+                );
+                println!(
+                    "{} Process '{}' (id={}) restart aborted: {}",
+                    *helpers::FAIL,
+                    name,
+                    id,
+                    error_msg
+                );
+                // Restore working directory before returning
+                if let Some(ref dir) = original_dir {
+                    let _ = std::env::set_current_dir(dir);
                 }
-                
-                // Check if the restarted process PID matches an existing process's main PID or shell_pid
-                if existing_process.pid == result.pid && existing_process.pid > 0 {
-                    log::warn!(
-                        "[process] Duplicate PID detected on restart: process '{}' (id={}) has PID {} which is already tracked by process '{}' (id={})",
-                        name, id, result.pid, existing_process.name, existing_id
-                    );
-                    println!(
-                        "{} Process '{}' (id={}) restart aborted: PID {} is already tracked by process '{}' (id={})",
-                        *helpers::FAIL, name, id, result.pid, existing_process.name, existing_id
-                    );
-                    // Restore working directory before returning
-                    if let Some(ref dir) = original_dir {
-                        let _ = std::env::set_current_dir(dir);
-                    }
-                    return self;
-                }
-                
-                if let Some(existing_shell_pid) = existing_process.shell_pid {
-                    if existing_shell_pid == result.pid {
-                        log::warn!(
-                            "[process] Duplicate PID detected on restart: process '{}' (id={}) has PID {} which is the shell_pid of process '{}' (id={})",
-                            name, id, result.pid, existing_process.name, existing_id
-                        );
-                        println!(
-                            "{} Process '{}' (id={}) restart aborted: PID {} is already tracked as shell wrapper by process '{}' (id={})",
-                            *helpers::FAIL, name, id, result.pid, existing_process.name, existing_id
-                        );
-                        // Restore working directory before returning
-                        if let Some(ref dir) = original_dir {
-                            let _ = std::env::set_current_dir(dir);
-                        }
-                        return self;
-                    }
-                }
-                
-                // Also check if the new shell_pid matches existing PIDs
-                if let Some(new_shell_pid) = result.shell_pid {
-                    if existing_process.pid == new_shell_pid {
-                        log::warn!(
-                            "[process] Duplicate shell_pid detected on restart: process '{}' (id={}) has shell_pid {} which is the main PID of process '{}' (id={})",
-                            name, id, new_shell_pid, existing_process.name, existing_id
-                        );
-                        println!(
-                            "{} Process '{}' (id={}) restart aborted: shell wrapper PID {} is already tracked as main PID by process '{}' (id={})",
-                            *helpers::FAIL, name, id, new_shell_pid, existing_process.name, existing_id
-                        );
-                        // Restore working directory before returning
-                        if let Some(ref dir) = original_dir {
-                            let _ = std::env::set_current_dir(dir);
-                        }
-                        return self;
-                    }
-                    
-                    if let Some(existing_shell_pid) = existing_process.shell_pid {
-                        if existing_shell_pid == new_shell_pid {
-                            log::warn!(
-                                "[process] Duplicate shell_pid detected on restart: process '{}' (id={}) has shell_pid {} which is already tracked by process '{}' (id={})",
-                                name, id, new_shell_pid, existing_process.name, existing_id
-                            );
-                            println!(
-                                "{} Process '{}' (id={}) restart aborted: shell wrapper PID {} is already tracked by process '{}' (id={})",
-                                *helpers::FAIL, name, id, new_shell_pid, existing_process.name, existing_id
-                            );
-                            // Restore working directory before returning
-                            if let Some(ref dir) = original_dir {
-                                let _ = std::env::set_current_dir(dir);
-                            }
-                            return self;
-                        }
-                    }
-                }
+                return self;
             }
 
             // Get mutable reference to process after duplicate check
