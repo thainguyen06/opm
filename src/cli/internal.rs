@@ -1685,11 +1685,29 @@ impl<'i> Internal<'i> {
         // marked as crashed in permanent storage for daemon monitoring
         runner.save_permanent();
 
-        // CRITICAL: Update memory cache so daemon sees the new state immediately
+        // CRITICAL: Update daemon's memory cache via socket so it sees the new state immediately
         // This prevents daemon from spawning duplicate processes when it reads from cache
-        // The daemon uses Runner::new_direct() which reads from memory cache, not disk
+        // The daemon runs in a separate process, so we must use socket IPC to update its state
         // Without this update, daemon would see stale cache with pid=0 and spawn duplicates
-        opm::process::dump::write_memory_direct(&runner);
+        let socket_path = global!("opm.sock");
+        match opm::socket::send_request(&socket_path, opm::socket::SocketRequest::SetState(runner.clone())) {
+            Ok(opm::socket::SocketResponse::Success) => {}
+            Ok(opm::socket::SocketResponse::Error(message)) => {
+                ::log::warn!(
+                    "Failed to update daemon state via socket: {}. Daemon may spawn duplicates.",
+                    message
+                );
+            }
+            Ok(_) => {
+                ::log::warn!("Unexpected response when updating daemon state. Daemon may spawn duplicates.");
+            }
+            Err(e) => {
+                ::log::warn!(
+                    "Failed to communicate with daemon to update state: {}. Daemon may spawn duplicates.",
+                    e
+                );
+            }
+        }
 
         // Clear restore in progress flag to allow daemon to resume normal operations
         // This must be done after all processes have been started to prevent duplicates
