@@ -52,12 +52,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build Docker image (Linux only)
-        if: matrix.use_docker == true
+        if: matrix.use_docker
         run: |
           docker build -t opm-builder-debian10 -f Dockerfile.debian10 .
 
       - name: Build release binary (Linux with Docker)
-        if: matrix.use_docker == true
+        if: matrix.use_docker
         run: |
           docker run --rm \
             -v $PWD:/build \
@@ -70,13 +70,13 @@ jobs:
             bash -c "rustup target add ${{ matrix.target }} && cargo build --release --target ${{ matrix.target }} ${{ matrix.features && format('--features {0}', matrix.features) || '' }}"
 
       - name: Setup Rust (macOS)
-        if: matrix.use_docker == false
+        if: ${{ !matrix.use_docker }}
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
       - name: Build release binary (macOS)
-        if: matrix.use_docker == false
+        if: ${{ !matrix.use_docker }}
         run: cargo build --release --target ${{ matrix.target }} ${{ matrix.features && format('--features {0}', matrix.features) || '' }}
 
       - name: Prepare artifact
