@@ -722,8 +722,8 @@ impl<'i> Internal<'i> {
                 let crash_detection_enabled = full_config.daemon.crash_detection;
                 let pid_valid = item.pid > 0;
 
-                // Validate PID to prevent ghost processes
-                let pid_validated = if pid_valid && item.running {
+                // Validate PID to prevent ghost processes (kept for potential future use)
+                let _pid_validated = if pid_valid && item.running {
                     let search_pattern = extract_search_pattern_for_restore(&item.script);
                     let expected_pattern = if !search_pattern.is_empty() {
                         Some(search_pattern.as_str())
@@ -746,7 +746,9 @@ impl<'i> Internal<'i> {
                 let main_pid_alive = pid_valid && is_pid_alive(item.pid);
                 let shell_pid_alive = item.shell_pid.map_or(false, |pid| is_pid_alive(pid));
                 let pid_alive = main_pid_alive || shell_pid_alive;
-                let process_actually_running = item.running && pid_validated && pid_alive;
+                // Process is running if marked as running AND any PID is alive
+                // PID validation is for detecting reuse, but shouldn't block uptime display
+                let process_actually_running = item.running && pid_alive;
                 // Process is crashed if:
                 // 1. It's marked as running but not actually running (consistent with opm ls)
                 // 2. The crash.crashed flag is explicitly set by the daemon
@@ -1838,7 +1840,7 @@ impl<'i> Internal<'i> {
                     // This prevents showing "online" status for ghost/reused PIDs
                     // For shell-wrapped processes, validate the shell_pid (the wrapper process)
                     let has_valid_pid = item.pid > 0;
-                    let pid_validated = if has_valid_pid && item.running {
+                    let _pid_validated = if has_valid_pid && item.running {
                         let search_pattern = extract_search_pattern_for_restore(&item.script);
                         let expected_pattern = if !search_pattern.is_empty() {
                             Some(search_pattern.as_str())
@@ -1865,12 +1867,11 @@ impl<'i> Internal<'i> {
                             .shell_pid
                             .map_or(false, |pid| is_any_descendant_alive(pid, &item.children));
 
-                    // Process is actually running ONLY if:
+                    // Process is actually running if:
                     // 1. It's marked as running
-                    // 2. PID validation passed (or not required)
-                    // 3. Descendants are alive
-                    let process_actually_running =
-                        item.running && pid_validated && any_descendant_alive;
+                    // 2. Any descendant is alive (main PID, shell PID, or tracked children)
+                    // PID validation is for detecting reuse, but shouldn't block uptime display
+                    let process_actually_running = item.running && any_descendant_alive;
 
                     let mut cpu_percent: String = string!("0.00%");
                     let mut memory_usage: String = string!("0b");
