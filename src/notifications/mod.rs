@@ -61,15 +61,22 @@ impl NotificationManager {
         title: &str,
         message: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        Notification::new()
+        let mut notification = Notification::new();
+        notification
             .summary(title)
             .body(message)
-            .urgency(event.urgency())
             .appname("OPM")
             .icon("application-x-executable")
             .hint(Hint::Category("network".to_string()))
-            .timeout(5000)
-            .show()?;
+            .timeout(5000);
+
+        // urgency() method is only available on Linux/BSD, not on macOS
+        #[cfg(all(unix, not(target_os = "macos")))]
+        {
+            notification.urgency(event.urgency());
+        }
+
+        notification.show()?;
 
         Ok(())
     }

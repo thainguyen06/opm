@@ -16,6 +16,9 @@ use std::{
     time::Duration,
 };
 
+#[cfg(not(target_os = "linux"))]
+use std::collections::HashMap;
+
 use home;
 
 use dashmap::DashMap;
