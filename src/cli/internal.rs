@@ -1586,16 +1586,8 @@ impl<'i> Internal<'i> {
                 // This prevents false positives from matching unrelated system processes
                 // Call restart directly on the shared runner without cloning to avoid lost updates
                 // Parameters: id, dead=false (user-initiated), increment_counter=false (counters reset later)
+                // Note: restart() already creates the action timestamp file internally
                 runner_guard.restart(id, false, false);
-
-                // Create timestamp file for this restore action
-                if let Err(e) = opm::process::write_action_timestamp(id) {
-                    ::log::warn!(
-                        "Failed to create action timestamp file for process {}: {}",
-                        id,
-                        e
-                    );
-                }
 
                 // Return (id, name)
                 (id, name)
@@ -1692,6 +1684,30 @@ impl<'i> Internal<'i> {
         // This ensures processes that failed to restore (via set_crashed() calls) are properly
         // marked as crashed in permanent storage for daemon monitoring
         runner.save_permanent();
+
+        // CRITICAL: Update daemon's memory cache via socket so it sees the new state immediately
+        // This prevents daemon from spawning duplicate processes when it reads from cache
+        // The daemon runs in a separate process, so we must use socket IPC to update its state
+        // Without this update, daemon would see stale cache with pid=0 and spawn duplicates
+        let socket_path = global!("opm.sock");
+        match opm::socket::send_request(&socket_path, opm::socket::SocketRequest::SetState(runner.clone())) {
+            Ok(opm::socket::SocketResponse::Success) => {}
+            Ok(opm::socket::SocketResponse::Error(message)) => {
+                ::log::warn!(
+                    "Failed to update daemon state via socket: {}. Daemon may spawn duplicates.",
+                    message
+                );
+            }
+            Ok(_) => {
+                ::log::warn!("Unexpected response when updating daemon state. Daemon may spawn duplicates.");
+            }
+            Err(e) => {
+                ::log::warn!(
+                    "Failed to communicate with daemon to update state: {}. Daemon may spawn duplicates.",
+                    e
+                );
+            }
+        }
 
         // Clear restore in progress flag to allow daemon to resume normal operations
         // This must be done after all processes have been started to prevent duplicates
