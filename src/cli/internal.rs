@@ -1708,14 +1708,25 @@ impl<'i> Internal<'i> {
         let stopped_count = stopped_ids.len();
         let errored_count = failed_ids.len();
 
-        // Show restore results: started, stopped, and errored counts only
-        println!(
-            "{} Restore complete: {} started, {} stopped, {} errored.",
-            *helpers::SUCCESS,
-            started_count,
-            stopped_count,
-            errored_count
-        );
+        // Build restore message with only non-zero counts
+        let mut parts = Vec::new();
+        if started_count > 0 {
+            parts.push(format!("{} started", started_count));
+        }
+        if stopped_count > 0 {
+            parts.push(format!("{} stopped", stopped_count));
+        }
+        if errored_count > 0 {
+            parts.push(format!("{} errored", errored_count));
+        }
+
+        // Show restore results with only non-zero statistics
+        let message = if parts.is_empty() {
+            "no processes".to_string()
+        } else {
+            parts.join(", ")
+        };
+        println!("{} Restore complete: {}.", *helpers::SUCCESS, message);
 
         // Display the process list immediately after restore
         // This allows users to see the current status without manually running 'opm ls'
