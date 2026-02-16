@@ -1585,7 +1585,7 @@ impl<'i> Internal<'i> {
                 // Always start fresh process during restore (no re-attachment)
                 // This prevents false positives from matching unrelated system processes
                 // Call restart directly on the shared runner without cloning to avoid lost updates
-                // increment_counter=false for restore operations (counters are reset later)
+                // Parameters: id, dead=false (user-initiated), increment_counter=false (counters reset later)
                 runner_guard.restart(id, false, false);
 
                 // Create timestamp file for this restore action
