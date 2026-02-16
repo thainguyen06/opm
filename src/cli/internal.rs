@@ -1586,16 +1586,8 @@ impl<'i> Internal<'i> {
                 // This prevents false positives from matching unrelated system processes
                 // Call restart directly on the shared runner without cloning to avoid lost updates
                 // Parameters: id, dead=false (user-initiated), increment_counter=false (counters reset later)
+                // Note: restart() already creates the action timestamp file internally
                 runner_guard.restart(id, false, false);
-
-                // Create timestamp file for this restore action
-                if let Err(e) = opm::process::write_action_timestamp(id) {
-                    ::log::warn!(
-                        "Failed to create action timestamp file for process {}: {}",
-                        id,
-                        e
-                    );
-                }
 
                 // Return (id, name)
                 (id, name)
@@ -1692,6 +1684,12 @@ impl<'i> Internal<'i> {
         // This ensures processes that failed to restore (via set_crashed() calls) are properly
         // marked as crashed in permanent storage for daemon monitoring
         runner.save_permanent();
+
+        // CRITICAL: Update memory cache so daemon sees the new state immediately
+        // This prevents daemon from spawning duplicate processes when it reads from cache
+        // The daemon uses Runner::new_direct() which reads from memory cache, not disk
+        // Without this update, daemon would see stale cache with pid=0 and spawn duplicates
+        opm::process::dump::write_memory_direct(&runner);
 
         // Clear restore in progress flag to allow daemon to resume normal operations
         // This must be done after all processes have been started to prevent duplicates
