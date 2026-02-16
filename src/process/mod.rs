@@ -7,7 +7,7 @@ pub mod unix;
 use crate::{config, config::structs::Server, file, helpers};
 
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashSet},
     env,
     fs::File,
     path::PathBuf,
@@ -15,6 +15,9 @@ use std::{
     thread,
     time::Duration,
 };
+
+#[cfg(not(target_os = "linux"))]
+use std::collections::HashMap;
 
 use home;
 
