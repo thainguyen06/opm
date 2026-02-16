@@ -487,7 +487,6 @@ fn check_duplicate_pid(
     current_id: usize,
     new_pid: i64,
     new_shell_pid: Option<i64>,
-    _process_name: &str,
 ) -> (bool, String) {
     for (existing_id, existing_process) in runner_list {
         // Skip the current process (for restart case)
@@ -683,7 +682,6 @@ impl Runner {
                 id,
                 result.pid,
                 result.shell_pid,
-                &name,
             );
             
             if has_duplicate {
@@ -956,7 +954,6 @@ impl Runner {
                 id,
                 result.pid,
                 result.shell_pid,
-                &name,
             );
             
             if has_duplicate {
