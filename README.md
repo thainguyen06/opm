@@ -367,3 +367,26 @@ Note: Installing with the `webui` feature requires Node.js to be available on yo
   - Without Web UI: `cargo build --release`
   - With Web UI: `cargo build --release --features webui` (requires Node.js)
 - Put the executable into one of your PATH entries, usually `/bin/` or `/usr/bin/`
+
+#### Building with Docker (Debian 10)
+
+For maximum compatibility with older Linux distributions, you can build using the provided Debian 10 Docker image:
+
+```bash
+# Build the Docker image
+docker build -t opm-builder-debian10 -f Dockerfile.debian10 .
+
+# Build for x86_64
+docker run --rm -v $PWD:/build -w /build opm-builder-debian10 \
+  bash -c "rustup target add x86_64-unknown-linux-gnu && cargo build --release --target x86_64-unknown-linux-gnu"
+
+# Build for aarch64 (ARM64)
+docker run --rm -v $PWD:/build -w /build opm-builder-debian10 \
+  bash -c "rustup target add aarch64-unknown-linux-gnu && cargo build --release --target aarch64-unknown-linux-gnu"
+
+# Build with WebUI feature
+docker run --rm -v $PWD:/build -w /build opm-builder-debian10 \
+  bash -c "rustup target add x86_64-unknown-linux-gnu && cargo build --release --target x86_64-unknown-linux-gnu --features webui"
+```
+
+The built binaries will be in `target/<target>/release/opm`.
