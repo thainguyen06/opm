@@ -3184,11 +3184,16 @@ pub fn process_run(metadata: ProcessMetadata) -> Result<ProcessRunResult, String
     // For shell-wrapped processes, wait briefly to allow OS to register process tree
     // This ensures sysinfo can discover child processes during PID stability checks
     // For direct spawns, no wait needed as there's no shell wrapper to track
-    if !use_direct_spawn {
+    let actual_pid = if use_direct_spawn {
+        // For direct spawns, child.id() is already the actual application PID
+        // No need to search for children since there's no shell wrapper
+        shell_pid
+    } else {
+        // For shell-wrapped spawns, wait for process tree to stabilize
         std::thread::sleep(std::time::Duration::from_millis(200));
-    }
-
-    let actual_pid = unix::get_actual_child_pid(shell_pid);
+        // Find the actual application PID from the shell wrapper's children
+        unix::get_actual_child_pid(shell_pid)
+    };
 
     // Store child handle in global state to prevent it from being dropped and becoming a zombie
     // This is critical for PM2-like daemon functionality
