@@ -7,7 +7,7 @@ pub mod unix;
 use crate::{config, config::structs::Server, file, helpers};
 
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     env,
     fs::File,
     path::PathBuf,
