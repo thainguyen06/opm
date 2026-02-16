@@ -2916,20 +2916,18 @@ pub fn get_process_uptime_sysinfo(pid: i64) -> u64 {
     );
 
     if let Some(process) = system.process(sysinfo_pid) {
-        // Get system boot time to calculate absolute uptime
-        let boot_time = System::boot_time();
+        // In sysinfo 0.30+, process.start_time() returns seconds since UNIX epoch
+        // (not seconds since boot as in older versions)
         let process_start_time = process.start_time();
         
-        // Calculate uptime: current_time - (boot_time + process_start_time)
-        // process.start_time() returns seconds since boot
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0);
         
-        let absolute_start_time = boot_time + process_start_time;
-        if current_time > absolute_start_time {
-            return current_time - absolute_start_time;
+        // Calculate uptime: current_time - process_start_time
+        if current_time > process_start_time {
+            return current_time - process_start_time;
         }
     }
 
