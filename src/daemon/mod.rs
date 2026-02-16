@@ -359,73 +359,30 @@ fn restart_process() {
         } else {
             // --- PROCESS IS DEAD (no root, no children alive) ---
 
-            // MANDATORY: NAME-BASED DOUBLE CHECK (Process Adoption)
-            // Before marking as crashed or restarting, search for processes by command pattern
-            // If a process matching the command is found, adopt it instead of restarting
-            // This prevents duplicate processes when the PID changes due to forking
-            if item.running && item.pid > 0 {
-                // Extract key parts of the command for searching
-                // Look for unique identifiers like JAR files, script names, etc.
-                let command_pattern = extract_search_pattern(&item.script);
-
-                if !command_pattern.is_empty() {
-                    log!("[daemon] searching for existing process before restart", 
-                        "name" => &item.name, 
-                        "id" => id,
-                        "pattern" => &command_pattern);
-
-                    if let Some(found_pid) = opm::process::find_process_by_command(&command_pattern)
-                    {
-                        // Validate the found process before adopting
-                        let (is_valid, start_time) = opm::process::validate_process_with_sysinfo(
-                            found_pid,
-                            Some(&command_pattern),
-                            None,
-                        );
-
-                        if is_valid {
-                            // Found a matching and valid process - adopt it instead of restarting
-                            log!("[daemon] ADOPTING existing process instead of restarting", 
-                                "name" => &item.name, 
-                                "id" => id,
-                                "old_pid" => item.pid,
-                                "new_pid" => found_pid,
-                                "pattern" => &command_pattern);
-
-                            if runner.exists(id) {
-                                let process = runner.process(id);
-                                let old_pid = process.pid;
-                                process.pid = found_pid;
-                                process.shell_pid = None; // Reset shell_pid as we're adopting the real process
-                                process.crash.crashed = false; // Not crashed - we found it!
-                                process.failed_restart_attempts = 0; // Reset failure count
-                                process.process_start_time = start_time; // Store start time for PID reuse detection
-                                process.is_process_tree = false; // Adopted process is not a wrapper
-
-                                // Update session ID for the adopted process
-                                #[cfg(any(target_os = "linux", target_os = "macos"))]
-                                {
-                                    process.session_id =
-                                        opm::process::unix::get_session_id(found_pid as i32);
-                                }
-
-                                // Add to tracked children for monitoring
-                                if !process.children.contains(&found_pid) {
-                                    process.children.push(found_pid);
-                                }
-
-                                runner.save_direct();
-                                log!("[daemon] successfully adopted process",
-                                    "name" => &item.name,
-                                    "id" => id,
-                                    "old_pid" => old_pid,
-                                    "new_pid" => found_pid);
-                                continue; // Skip crash detection and restart logic
-                            }
-                        }
-                    }
-                }
-            }
+            // DISABLED: Process Adoption logic has been removed to fix restart bug
+            // The adoption logic was searching ALL system processes and adopting unrelated processes,
+            // causing the restart mechanism to attach to wrong PIDs and show incorrect metrics.
+            // 
+            // Original issue: When a process crashes and needs restart, the daemon would search for
+            // any process matching the command pattern and adopt it, even if it was:
+            // - Started by a different user
+            // - Started by a different process manager
+            // - Not related to OPM at all
+            // 
+            // This caused the bug where instead of restarting the crashed process, OPM would
+            // attach to another process and display its uptime, RAM, CPU, and PID.
+            //
+            // The proper behavior is to always restart crashed processes, not try to adopt
+            // unrelated processes. Process forking scenarios are already handled by:
+            // 1. Session-based tracking (process.session_id)
+            // 2. Process tree monitoring (process.children)
+            // 3. Shell wrapper child adoption (in the crash detection section below)
+            //
+            // If process adoption is needed in the future, it must include strict validation:
+            // - Session ID must match (process was spawned by OPM)
+            // - Parent process must be OPM or daemon
+            // - Start time must be recent (within seconds of expected start)
+            // - Command line must match exactly, not just contain pattern
 
             // Check per-process 5s delay after last action (start/restart/reload/restore)
             // This delay prevents immediate crash detection for newly started processes
