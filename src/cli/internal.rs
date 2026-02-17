@@ -1618,18 +1618,19 @@ impl<'i> Internal<'i> {
             },
         };
 
-        // Wait 1 second for all processes to stabilize after parallel spawning
+        // Wait 2 seconds for all processes to stabilize after parallel spawning
         // This gives the OS time to register all process trees before verification
-        std::thread::sleep(std::time::Duration::from_secs(1));
+        // Increased from 1 to 2 seconds to account for slower process startups
+        std::thread::sleep(std::time::Duration::from_secs(2));
 
         // FIX #3: Apply synchronized start time to all successfully restored processes
         // This ensures processes started in the same batch show consistent uptimes
         for (id, _name) in &spawn_results {
-            if runner.exists(*id) {
-                let process = runner.process(*id);
-                if process.running && process.pid > 0 {
-                    // Only update start time for successfully running processes
-                    process.started = batch_start_time;
+            if let Some(process) = runner.info(*id) {
+                // Only update start time for successfully running processes
+                // Check if the process appears to be running based on PID existence
+                if process.running && (process.pid > 0 || opm::process::is_process_actually_alive(process.pid, process.shell_pid)) {
+                    runner.set_started(*id, batch_start_time);
                 }
             }
         }
@@ -1646,9 +1647,10 @@ impl<'i> Internal<'i> {
                 let process_alive =
                     opm::process::is_process_actually_alive(process.pid, process.shell_pid);
 
-                // Small startup grace period to avoid falsely reporting as crashed
+                // Extended startup grace period to avoid falsely reporting as crashed
+                // Account for the fact that processes may take time to fully initialize after restore
                 let recently_started =
-                    (chrono::Utc::now() - process.started) < chrono::Duration::seconds(2);
+                    (chrono::Utc::now() - process.started) < chrono::Duration::seconds(5);
 
                 if process.running && process_alive {
                     restored_ids.push(id);
@@ -1657,12 +1659,27 @@ impl<'i> Internal<'i> {
                     // The daemon will verify and handle any issues during its monitoring cycle
                     restored_ids.push(id);
                 } else {
-                    failed_ids.push((id, name.clone()));
-                    // Mark process as crashed so daemon can pick it up for auto-restart
-                    // Keep running=true (set_crashed doesn't change it) so daemon will attempt restart
-                    // Don't increment crash counter here - let the daemon do it when it detects the crash
-                    runner.set_crashed(id);
-                    // Don't auto-save here - save will happen at the end of restore
+                    // Before marking as failed, do a final check after a short delay
+                    // This helps handle cases where processes are slow to register with the system
+                    std::thread::sleep(std::time::Duration::from_millis(500));
+                    let final_process_alive = 
+                        opm::process::is_process_actually_alive(process.pid, process.shell_pid);
+                    let final_recently_started =
+                        (chrono::Utc::now() - process.started) < chrono::Duration::seconds(5);
+                    
+                    if process.running && final_process_alive {
+                        restored_ids.push(id);
+                    } else if process.running && final_recently_started {
+                        // Still starting up - give it the benefit of the doubt for initial report
+                        restored_ids.push(id);
+                    } else {
+                        failed_ids.push((id, name.clone()));
+                        // Mark process as crashed so daemon can pick it up for auto-restart
+                        // Keep running=true (set_crashed doesn't change it) so daemon will attempt restart
+                        // Don't increment crash counter here - let the daemon do it when it detects the crash
+                        runner.set_crashed(id);
+                        // Don't auto-save here - save will happen at the end of restore
+                    }
                 }
             } else {
                 failed_ids.push((id, name.clone()));

@@ -1575,6 +1575,11 @@ impl Runner {
         return self;
     }
 
+    pub fn set_started(&mut self, id: usize, started: DateTime<Utc>) -> &mut Self {
+        self.process(id).started = started;
+        return self;
+    }
+
     pub fn set_env(&mut self, id: usize, env: Env) -> &mut Self {
         self.process(id).env.extend(env);
         return self;
