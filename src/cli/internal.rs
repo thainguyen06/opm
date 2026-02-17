@@ -1689,7 +1689,7 @@ impl<'i> Internal<'i> {
         // This prevents daemon from spawning duplicate processes when it reads from cache
         // The daemon runs in a separate process, so we must use socket IPC to update its state
         // Without this update, daemon would see stale cache with pid=0 and spawn duplicates
-        let socket_path = global!("opm.sock");
+        let socket_path = global!("opm.socket");
         match opm::socket::send_request(&socket_path, opm::socket::SocketRequest::SetState(runner.clone())) {
             Ok(opm::socket::SocketResponse::Success) => {}
             Ok(opm::socket::SocketResponse::Error(message)) => {

@@ -2554,6 +2554,14 @@ pub fn kill_old_processes_before_restore(processes: &[(usize, String, Option<i64
         })
         .collect();
     
+    // SAFETY: If no valid session IDs are available, skip all killing to prevent
+    // accidentally terminating unrelated processes. This is safer than trying to
+    // match only by command pattern, which could match user processes.
+    if opm_session_ids.is_empty() {
+        ::log::debug!("No valid OPM session IDs found in dump - skipping process cleanup");
+        return Ok(());
+    }
+    
     for (_id, script, _session_id) in processes {
         // Extract search pattern from command (same logic as daemon adoption)
         let pattern = extract_search_pattern_from_command(script);
@@ -2573,38 +2581,26 @@ pub fn kill_old_processes_before_restore(processes: &[(usize, String, Option<i64
             
             // SAFETY CHECK: Only kill if process belongs to an OPM-managed session
             // This prevents killing user shells and unrelated processes
-            let should_kill = if !opm_session_ids.is_empty() {
-                // Check if this PID belongs to any OPM-managed session
-                if let Some(proc_session_id) = unix::get_session_id(pid as i32) {
-                    if opm_session_ids.contains(&proc_session_id) {
-                        ::log::info!(
-                            "Process PID {} belongs to OPM session {} - will kill", 
-                            pid, proc_session_id
-                        );
-                        true
-                    } else {
-                        ::log::info!(
-                            "Process PID {} session {} is not OPM-managed - skipping", 
-                            pid, proc_session_id
-                        );
-                        false
-                    }
-                } else {
-                    // If we can't get session ID, be conservative and skip
-                    ::log::debug!(
-                        "get_session_id returned None for PID {} - process may not exist or be inaccessible", 
-                        pid
+            // We check if this PID belongs to any OPM-managed session
+            let should_kill = if let Some(proc_session_id) = unix::get_session_id(pid as i32) {
+                if opm_session_ids.contains(&proc_session_id) {
+                    ::log::info!(
+                        "Process PID {} belongs to OPM session {} - will kill", 
+                        pid, proc_session_id
                     );
-                    ::log::warn!(
-                        "Could not get session ID for PID {}, skipping to avoid killing unrelated processes", 
-                        pid
+                    true
+                } else {
+                    ::log::debug!(
+                        "Process PID {} session {} is not OPM-managed - skipping", 
+                        pid, proc_session_id
                     );
                     false
                 }
             } else {
-                // No session IDs available - skip killing to be safe
-                ::log::warn!(
-                    "No OPM session IDs available, skipping kill for PID {} to avoid killing unrelated processes",
+                // If we can't get session ID, be conservative and skip
+                // Process may not exist, may be inaccessible, or may be a kernel thread
+                ::log::debug!(
+                    "Could not get session ID for PID {} - skipping to avoid killing unrelated processes", 
                     pid
                 );
                 false
@@ -6412,5 +6408,28 @@ mod tests {
         let (program, args) = result.unwrap();
         assert_eq!(program, "node");
         assert_eq!(args.len(), 0);
+    }
+
+    #[test]
+    fn test_kill_old_processes_before_restore_no_session_ids() {
+        // Test that kill_old_processes_before_restore safely skips killing when no session IDs are available
+        // This is critical to prevent killing unrelated processes
+        let processes = vec![
+            (1, "node server.js".to_string(), None),
+            (2, "python app.py".to_string(), None),
+            (3, "java -jar app.jar".to_string(), None),
+        ];
+
+        // Should return Ok and not panic or kill anything
+        let result = kill_old_processes_before_restore(&processes);
+        assert!(result.is_ok(), "Should succeed without session IDs");
+    }
+
+    #[test]
+    fn test_kill_old_processes_before_restore_empty_list() {
+        // Test that an empty process list is handled correctly
+        let processes = vec![];
+        let result = kill_old_processes_before_restore(&processes);
+        assert!(result.is_ok(), "Should succeed with empty list");
     }
 }
