@@ -6411,4 +6411,27 @@ mod tests {
         assert_eq!(program, "node");
         assert_eq!(args.len(), 0);
     }
+
+    #[test]
+    fn test_kill_old_processes_before_restore_no_session_ids() {
+        // Test that kill_old_processes_before_restore safely skips killing when no session IDs are available
+        // This is critical to prevent killing unrelated processes
+        let processes = vec![
+            (1, "node server.js".to_string(), None),
+            (2, "python app.py".to_string(), None),
+            (3, "java -jar app.jar".to_string(), None),
+        ];
+
+        // Should return Ok and not panic or kill anything
+        let result = kill_old_processes_before_restore(&processes);
+        assert!(result.is_ok(), "Should succeed without session IDs");
+    }
+
+    #[test]
+    fn test_kill_old_processes_before_restore_empty_list() {
+        // Test that an empty process list is handled correctly
+        let processes = vec![];
+        let result = kill_old_processes_before_restore(&processes);
+        assert!(result.is_ok(), "Should succeed with empty list");
+    }
 }
