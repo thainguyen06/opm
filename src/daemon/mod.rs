@@ -403,7 +403,7 @@ fn restart_process() {
                 if !within_action_delay {
                     // Check if restore is in progress - if so, skip crash detection to prevent conflicts
                     // This prevents the daemon from restarting processes that are being restored
-                    if *RESTORE_IN_PROGRESS.read().unwrap() {
+                    if RESTORE_IN_PROGRESS.load(Ordering::SeqCst) {
                         continue; // Skip monitoring during restore operations
                     }
 
@@ -677,12 +677,12 @@ fn restart_process() {
                                         process.last_restart_attempt = Some(Utc::now());
                                     }
 
-                                     // Check if restore is in progress - if so, skip restart to prevent conflicts
-                                     // This prevents the daemon from restarting processes that are being restored
-                                     if *RESTORE_IN_PROGRESS.read().unwrap() {
-                                         log!("[daemon] skipping restart during restore operation", "id" => id, "name" => &proc.name);
-                                         continue; // Skip restart during restore operations
-                                     }
+                                      // Check if restore is in progress - if so, skip restart to prevent conflicts
+                                      // This prevents the daemon from restarting processes that are being restored
+                                      if RESTORE_IN_PROGRESS.load(Ordering::SeqCst) {
+                                          log!("[daemon] skipping restart during restore operation", "id" => id, "name" => &proc.name);
+                                          continue; // Skip restart during restore operations
+                                      }
 
                                      // Attempt restart
                                      runner.restart(id, true, true);
