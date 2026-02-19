@@ -180,6 +180,24 @@ fn extract_search_pattern(command: &str) -> String {
     String::new()
 }
 
+fn should_fail_process_validation(
+    is_valid: bool,
+    expected_start_time: Option<u64>,
+    current_start_time: Option<u64>,
+    pid_alive: bool,
+) -> bool {
+    if is_valid {
+        return false;
+    }
+
+    let start_time_mismatch = matches!(
+        (expected_start_time, current_start_time),
+        (Some(expected), Some(actual)) if expected != actual
+    );
+
+    start_time_mismatch || !pid_alive
+}
+
 fn restart_process() {
     log!("[DAEMON_V2_CHECK] Monitoring cycle initiated", "fingerprint" => "v2_fix");
 
@@ -249,20 +267,34 @@ fn restart_process() {
                 expected_pattern,
                 item.process_start_time,
             );
+            let pid_to_validate_alive = opm::process::is_pid_alive(pid_to_validate);
+            let should_fail = should_fail_process_validation(
+                is_valid,
+                item.process_start_time,
+                current_start_time,
+                pid_to_validate_alive,
+            );
 
-            if !is_valid && item.running {
+            if should_fail && item.running {
                 validation_failed = true;
                 // PID has been reused or command mismatch detected
                 ::log::warn!(
                     "[daemon] PID {} validation failed for process {} ({}). PID may have been reused or command mismatch.",
                     pid_to_validate, item.name, id
                 );
+            } else if !is_valid && item.running {
+                ::log::debug!(
+                    "[daemon] PID {} validation mismatch ignored for process {} ({}) because PID is still alive and no PID reuse detected.",
+                    pid_to_validate,
+                    item.name,
+                    id
+                );
+            }
 
-                // Update start time if process exists but with different start time
-                if let Some(new_start_time) = current_start_time {
-                    if runner.exists(id) {
-                        runner.process(id).process_start_time = Some(new_start_time);
-                    }
+            // Update start time if process exists but with different start time
+            if let Some(new_start_time) = current_start_time {
+                if runner.exists(id) {
+                    runner.process(id).process_start_time = Some(new_start_time);
                 }
             }
         }
@@ -1796,5 +1828,31 @@ mod tests {
             !is_restore_in_progress(),
             "Flag should be cleared after all operations"
         );
+    }
+
+    #[test]
+    fn test_should_fail_process_validation_when_start_time_mismatch() {
+        assert!(should_fail_process_validation(
+            false,
+            Some(100),
+            Some(200),
+            true
+        ));
+    }
+
+    #[test]
+    fn test_should_not_fail_process_validation_on_mismatch_if_pid_alive_and_no_reuse() {
+        assert!(!should_fail_process_validation(
+            false,
+            Some(100),
+            Some(100),
+            true
+        ));
+        assert!(!should_fail_process_validation(false, None, Some(100), true));
+    }
+
+    #[test]
+    fn test_should_fail_process_validation_when_pid_not_alive() {
+        assert!(should_fail_process_validation(false, None, None, false));
     }
 }
