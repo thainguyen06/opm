@@ -199,6 +199,8 @@ fn restart_process() {
     let process_ids: Vec<usize> = runner.process_ids().collect();
 
     for id in process_ids {
+        let restore_in_progress = is_restore_in_progress();
+
         let item = match runner.info(id) {
             Some(item) => item.clone(),
             None => continue, // Process was removed, skip it
@@ -404,7 +406,7 @@ fn restart_process() {
                 if !within_action_delay {
                     // Check if restore is in progress - if so, skip crash detection to prevent conflicts
                     // This prevents the daemon from restarting processes that are being restored
-                    if RESTORE_IN_PROGRESS.load(Ordering::SeqCst) {
+                    if restore_in_progress {
                         continue; // Skip monitoring during restore operations
                     }
 
@@ -680,7 +682,7 @@ fn restart_process() {
 
                                       // Check if restore is in progress - if so, skip restart to prevent conflicts
                                       // This prevents the daemon from restarting processes that are being restored
-                                      if RESTORE_IN_PROGRESS.load(Ordering::SeqCst) {
+                                      if restore_in_progress {
                                           log!("[daemon] skipping restart during restore operation", "id" => id, "name" => &proc.name);
                                           continue; // Skip restart during restore operations
                                       }
@@ -745,7 +747,7 @@ fn restart_process() {
         // Handle processes that need to be started (e.g. after restore or `opm start`)
         // Skip this during restore to prevent race condition where daemon restarts
         // processes that restore is already handling, which would create duplicates
-        if item.running && item.pid == 0 && !item.crash.crashed && !is_restore_in_progress() {
+        if item.running && item.pid == 0 && !item.crash.crashed && !restore_in_progress {
             log!("[daemon] starting process with no PID", "name" => &item.name, "id" => id);
             runner.restart(id, true, false); // is_daemon_op=true, increment_counter=false
                                              // Save state after restart to persist PID and state changes
@@ -1658,11 +1660,19 @@ fn has_recent_action_timestamp(id: usize) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
     use std::thread;
+
+    static RESTORE_FLAG_TEST_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn test_restore_in_progress_flag() {
+        let _guard = RESTORE_FLAG_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+
         // Initially should be false
+        clear_restore_in_progress();
         assert!(!is_restore_in_progress());
 
         // Set the flag
@@ -1682,6 +1692,10 @@ mod tests {
 
     #[test]
     fn test_restore_in_progress_flag_file_stale_pid_cleanup() {
+        let _guard = RESTORE_FLAG_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+
         clear_restore_in_progress();
 
         let flag_path = restore_in_progress_flag_path().expect("home directory should be available");
@@ -1702,6 +1716,10 @@ mod tests {
 
     #[test]
     fn test_restore_in_progress_flag_concurrent() {
+        let _guard = RESTORE_FLAG_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+
         // Test thread-safety of atomic flag operations under concurrent access
         // This verifies the flag works correctly when multiple threads check/set it simultaneously
 
