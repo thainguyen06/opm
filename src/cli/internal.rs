@@ -16,7 +16,7 @@ use opm::{
     helpers::{self, ColoredString},
     log,
     process::{
-        get_process_cpu_usage_with_children_from_process, http,
+        extract_search_pattern_from_command, get_process_cpu_usage_with_children_from_process, http,
         is_any_descendant_alive, is_pid_alive, ItemSingle, Runner,
     },
 };
@@ -37,54 +37,27 @@ lazy_static! {
     static ref SIMPLE_PATH_PATTERN: Regex = Regex::new(r"^[a-zA-Z0-9]+(/[a-zA-Z0-9]+)*$").unwrap();
 }
 
-/// Extract a search pattern from a command for process adoption during restore
-/// Looks for distinctive parts like JAR files, script names, executables
-///
-/// NOTE: This is a copy of the logic from daemon/mod.rs::extract_search_pattern to avoid circular dependencies.
-/// TODO: Consider moving this to a shared utility module (e.g., opm::process::search_pattern) that both
-/// daemon and cli can import, eliminating the duplication while avoiding circular dependencies.
-fn extract_search_pattern_for_restore(command: &str) -> String {
-    // Look for patterns that uniquely identify the process
-    // Priority: JAR files, then .py/.js/.sh files, then first word
+fn format_last_restart_attempt(item: &opm::process::Process) -> String {
+    item.last_restart_attempt
+        .map(|attempt| attempt.to_rfc3339())
+        .unwrap_or_else(|| "never".to_string())
+}
 
-    // Check for JAR files (e.g., "java -jar Stirling-PDF.jar")
-    if let Some(jar_pos) = command.find(".jar") {
-        // Find the start of the filename (after last space or slash)
-        let before_jar = &command[..jar_pos];
-        if let Some(start) = before_jar.rfind(|c: char| c == ' ' || c == '/') {
-            let end = (jar_pos + 4).min(command.len());
-            if start + 1 < end {
-                let jar_name = &command[start + 1..end];
-                return jar_name.trim().to_string();
-            }
-        }
+fn format_restart_backoff(item: &opm::process::Process) -> String {
+    if item.last_restart_attempt.is_none() {
+        return "idle".to_string();
     }
 
-    // Check for common script extensions
-    for ext in &[".py", ".js", ".sh", ".rb", ".pl"] {
-        if let Some(ext_pos) = command.find(ext) {
-            let before_ext = &command[..ext_pos];
-            if let Some(start) = before_ext.rfind(|c: char| c == ' ' || c == '/') {
-                let end = (ext_pos + ext.len()).min(command.len());
-                if start + 1 < end {
-                    let script_name = &command[start + 1..end];
-                    return script_name.trim().to_string();
-                }
-            }
-        }
-    }
+    let remaining_secs = item.restart_cooldown_remaining_secs();
+    let cooldown_secs = item.restart_cooldown_delay_secs();
 
-    // Fall back to the first word if it looks like an executable
-    let first_word = command.split_whitespace().next().unwrap_or("");
-    if !first_word.is_empty() && !first_word.starts_with('-') {
-        // Skip common shells
-        if !matches!(first_word, "sh" | "bash" | "zsh" | "fish" | "dash") {
-            return first_word.to_string();
-        }
+    if remaining_secs > 0 {
+        format!("{remaining_secs}s/{cooldown_secs}s")
+    } else if item.failed_restart_attempts > 0 {
+        format!("ready (fails={})", item.failed_restart_attempts)
+    } else {
+        "ready".to_string()
     }
-
-    // If all else fails, return empty (no adoption will occur)
-    String::new()
 }
 
 fn ensure_daemon_running() {
@@ -634,6 +607,12 @@ impl<'i> Internal<'i> {
             #[tabled(rename = "script id")]
             id: String,
             restarts: u64,
+            #[tabled(rename = "restart backoff")]
+            restart_backoff: String,
+            #[tabled(rename = "failed restarts")]
+            failed_restart_attempts: u32,
+            #[tabled(rename = "last restart attempt")]
+            last_restart_attempt: String,
             uptime: String,
             pid: String,
             name: String,
@@ -648,6 +627,9 @@ impl<'i> Internal<'i> {
                      "name": &self.name.trim(),
                      "path": &self.path.trim(),
                      "restarts": &self.restarts,
+                     "restart_backoff": &self.restart_backoff.trim(),
+                     "failed_restart_attempts": &self.failed_restart_attempts,
+                     "last_restart_attempt": &self.last_restart_attempt.trim(),
                      "hash": &self.hash.trim(),
                      "watch": &self.watch.trim(),
                      "children": &self.children,
@@ -724,7 +706,7 @@ impl<'i> Internal<'i> {
 
                 // Validate PID to prevent ghost processes (kept for potential future use)
                 let _pid_validated = if pid_valid && item.running {
-                    let search_pattern = extract_search_pattern_for_restore(&item.script);
+                    let search_pattern = extract_search_pattern_from_command(&item.script);
                     let expected_pattern = if !search_pattern.is_empty() {
                         Some(search_pattern.as_str())
                     } else {
@@ -848,6 +830,9 @@ impl<'i> Internal<'i> {
                     // Always show restarts counter
                     // restarts is persisted and provides accurate restart count
                     restarts: item.restarts,
+                    restart_backoff: format_restart_backoff(item),
+                    failed_restart_attempts: item.failed_restart_attempts,
+                    last_restart_attempt: format_last_restart_attempt(item),
                     name: item.name.clone(),
                     log_out: item.logs().out,
                     path: format!("{} ", path),
@@ -965,6 +950,9 @@ impl<'i> Internal<'i> {
                     // Always show restarts counter
                     // restarts is persisted and provides accurate restart count
                     restarts: item.restarts,
+                    restart_backoff: format_restart_backoff(&item),
+                    failed_restart_attempts: item.failed_restart_attempts,
+                    last_restart_attempt: format_last_restart_attempt(&item),
                     name: item.name.clone(),
                     pid: ternary!(
                         item.running && !item.crash.crashed,
@@ -1803,6 +1791,8 @@ impl<'i> Internal<'i> {
                 uptime: String,
                 #[tabled(rename = "↺")]
                 restarts: String,
+                #[tabled(rename = "backoff")]
+                backoff: String,
                 status: ColoredString,
                 cpu: String,
                 mem: String,
@@ -1825,6 +1815,7 @@ impl<'i> Internal<'i> {
                         "uptime": &self.uptime.trim(),
                         "status": &self.status.0.trim(),
                         "restarts": &self.restarts.trim(),
+                        "backoff": &self.backoff.trim(),
                     });
                     trimmed_json.serialize(serializer)
                 }
@@ -1841,7 +1832,7 @@ impl<'i> Internal<'i> {
                     // For shell-wrapped processes, validate the shell_pid (the wrapper process)
                     let has_valid_pid = item.pid > 0;
                     let _pid_validated = if has_valid_pid && item.running {
-                        let search_pattern = extract_search_pattern_for_restore(&item.script);
+                        let search_pattern = extract_search_pattern_from_command(&item.script);
                         let expected_pattern = if !search_pattern.is_empty() {
                             Some(search_pattern.as_str())
                         } else {
@@ -1970,6 +1961,7 @@ impl<'i> Internal<'i> {
                     // Always show restarts counter
                     // restarts is persisted and provides accurate restart count
                     let restarts_value = item.restarts;
+                    let restart_backoff = format_restart_backoff(&item);
 
                     // Add tree indicator for process wrappers
                     let name_display = if item.is_process_tree {
@@ -1984,6 +1976,7 @@ impl<'i> Internal<'i> {
                         mem: format!("{memory_usage}   "),
                         id: id.to_string().cyan().bold().into(),
                         restarts: format!("{}  ", restarts_value),
+                        backoff: format!("{restart_backoff}  "),
                         name: name_display,
                         pid: ternary!(
                             process_actually_running,
@@ -2091,6 +2084,8 @@ impl<'i> Internal<'i> {
                     uptime: String,
                     #[tabled(rename = "↺")]
                     restarts: String,
+                    #[tabled(rename = "backoff")]
+                    backoff: String,
                     status: ColoredString,
                     cpu: String,
                     mem: String,
@@ -2113,6 +2108,7 @@ impl<'i> Internal<'i> {
                             "uptime": &self.uptime.trim(),
                             "status": &self.status.0.trim(),
                             "restarts": &self.restarts.trim(),
+                            "backoff": &self.backoff.trim(),
                         });
                         trimmed_json.serialize(serializer)
                     }
@@ -2232,6 +2228,7 @@ impl<'i> Internal<'i> {
                             mem: format!("{memory_usage}   "),
                             id: id.to_string().cyan().bold().into(),
                             restarts: format!("{}  ", item.restarts),
+                            backoff: format!("{}  ", format_restart_backoff(&item)),
                             name: name_display,
                             pid: ternary!(
                                 process_actually_running,

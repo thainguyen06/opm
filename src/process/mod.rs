@@ -288,20 +288,28 @@ pub struct Process {
 }
 
 impl Process {
+    pub fn restart_cooldown_delay_secs(&self) -> u64 {
+        if self.failed_restart_attempts > 0 {
+            FAILED_RESTART_COOLDOWN_SECS
+        } else {
+            RESTART_COOLDOWN_SECS
+        }
+    }
+
+    pub fn restart_cooldown_remaining_secs(&self) -> u64 {
+        self.last_restart_attempt
+            .map(|t| {
+                let elapsed_secs = (Utc::now() - t).num_seconds().max(0) as u64;
+                self.restart_cooldown_delay_secs()
+                    .saturating_sub(elapsed_secs)
+            })
+            .unwrap_or(0)
+    }
+
     /// Check if the process is in restart cooldown period
     /// Returns true if the process is waiting for cooldown to expire before next restart attempt
     pub fn is_in_restart_cooldown(&self) -> bool {
-        self.last_restart_attempt
-            .map(|t| {
-                let secs_since = (Utc::now() - t).num_seconds();
-                let cooldown_delay = if self.failed_restart_attempts > 0 {
-                    FAILED_RESTART_COOLDOWN_SECS
-                } else {
-                    RESTART_COOLDOWN_SECS
-                };
-                secs_since < cooldown_delay as i64
-            })
-            .unwrap_or(false)
+        self.restart_cooldown_remaining_secs() > 0
     }
 }
 
@@ -1923,8 +1931,10 @@ impl Runner {
         let mut runner = self.clone();
 
         if !matches!(&**server_name, "internal" | "local") {
-            let Some(servers) = config::servers().servers else {
-                crashln!("{} Failed to read servers", *helpers::FAIL)
+            let servers = if let Some(servers) = config::servers().servers {
+                servers
+            } else {
+                crashln!("{} Failed to read servers", *helpers::FAIL);
             };
 
             if let Some(server) = servers.get(server_name) {
@@ -2785,7 +2795,7 @@ pub fn kill_old_processes_before_restore(processes: &[(usize, String, Option<i64
 /// // Shell commands are skipped
 /// extract_search_pattern_from_command("bash start.sh") // => "start.sh" (not "bash")
 /// ```
-fn extract_search_pattern_from_command(command: &str) -> String {
+pub fn extract_search_pattern_from_command(command: &str) -> String {
     // Look for patterns that uniquely identify the process
     // Priority: JAR files, then .py/.js/.sh files, then first word
 
@@ -3519,6 +3529,145 @@ mod tests {
 
     // Use a PID value that's unlikely to exist in the test environment
     const UNLIKELY_PID: i64 = i32::MAX as i64 - 1000;
+
+    #[test]
+    fn test_extract_search_pattern_from_command_jar() {
+        let pattern = extract_search_pattern_from_command("java -jar Stirling-PDF.jar");
+        assert_eq!(pattern, "Stirling-PDF.jar");
+    }
+
+    #[test]
+    fn test_extract_search_pattern_from_command_script_extension() {
+        let pattern = extract_search_pattern_from_command("python /opt/app/server.py --port 3000");
+        assert_eq!(pattern, "server.py");
+    }
+
+    #[test]
+    fn test_extract_search_pattern_from_command_skip_shell() {
+        let pattern = extract_search_pattern_from_command("bash -c 'echo hello'");
+        assert_eq!(pattern, "");
+    }
+
+    #[test]
+    fn test_extract_search_pattern_from_command_first_word_executable() {
+        let pattern = extract_search_pattern_from_command("caddy run --config /etc/caddy/Caddyfile");
+        assert_eq!(pattern, "caddy");
+    }
+
+    #[test]
+    fn test_restart_cooldown_remaining_none_when_never_attempted() {
+        let process = Process {
+            id: 1,
+            pid: 0,
+            shell_pid: None,
+            env: BTreeMap::new(),
+            name: "test_process".to_string(),
+            path: PathBuf::from("/tmp"),
+            script: "echo 'hello world'".to_string(),
+            restarts: 0,
+            running: true,
+            crash: Crash { crashed: false },
+            watch: Watch {
+                enabled: false,
+                path: String::new(),
+                hash: String::new(),
+            },
+            children: vec![],
+            started: Utc::now(),
+            max_memory: 0,
+            agent_id: None,
+            frozen_until: None,
+            last_action_at: Utc::now(),
+            manual_stop: false,
+            errored: false,
+            last_restart_attempt: None,
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
+        };
+
+        assert_eq!(process.restart_cooldown_remaining_secs(), 0);
+        assert!(!process.is_in_restart_cooldown());
+    }
+
+    #[test]
+    fn test_restart_cooldown_remaining_when_recent_attempt_exists() {
+        let process = Process {
+            id: 1,
+            pid: 0,
+            shell_pid: None,
+            env: BTreeMap::new(),
+            name: "test_process".to_string(),
+            path: PathBuf::from("/tmp"),
+            script: "echo 'hello world'".to_string(),
+            restarts: 0,
+            running: true,
+            crash: Crash { crashed: false },
+            watch: Watch {
+                enabled: false,
+                path: String::new(),
+                hash: String::new(),
+            },
+            children: vec![],
+            started: Utc::now(),
+            max_memory: 0,
+            agent_id: None,
+            frozen_until: None,
+            last_action_at: Utc::now(),
+            manual_stop: false,
+            errored: false,
+            last_restart_attempt: Some(Utc::now() - chrono::Duration::seconds(1)),
+            failed_restart_attempts: 1,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
+        };
+
+        let remaining = process.restart_cooldown_remaining_secs();
+        assert!(remaining > 0);
+        assert!(remaining <= FAILED_RESTART_COOLDOWN_SECS);
+        assert!(process.is_in_restart_cooldown());
+    }
+
+    #[test]
+    fn test_restart_cooldown_expired_after_delay() {
+        let process = Process {
+            id: 1,
+            pid: 0,
+            shell_pid: None,
+            env: BTreeMap::new(),
+            name: "test_process".to_string(),
+            path: PathBuf::from("/tmp"),
+            script: "echo 'hello world'".to_string(),
+            restarts: 0,
+            running: true,
+            crash: Crash { crashed: false },
+            watch: Watch {
+                enabled: false,
+                path: String::new(),
+                hash: String::new(),
+            },
+            children: vec![],
+            started: Utc::now(),
+            max_memory: 0,
+            agent_id: None,
+            frozen_until: None,
+            last_action_at: Utc::now(),
+            manual_stop: false,
+            errored: false,
+            last_restart_attempt: Some(
+                Utc::now() - chrono::Duration::seconds(RESTART_COOLDOWN_SECS as i64 + 1),
+            ),
+            failed_restart_attempts: 0,
+            session_id: None,
+            process_start_time: None,
+            is_process_tree: false,
+        };
+
+        assert_eq!(process.restart_cooldown_remaining_secs(), 0);
+        assert!(!process.is_in_restart_cooldown());
+    }
 
     #[test]
     fn test_environment_variables() {

@@ -26,7 +26,7 @@ use opm::{
     config,
     helpers::{self, ColoredString},
     process::{
-        dump, get_process_cpu_usage_with_children_from_process, hash, Runner,
+        dump, extract_search_pattern_from_command, get_process_cpu_usage_with_children_from_process, hash, Runner,
         COOLDOWN_LOG_INTERVAL_SECS, PROCESS_CLEANUP_WAIT_MS,
         RESTART_COOLDOWN_SECS,
     },
@@ -134,52 +134,6 @@ fn reap_zombie_processes() {
     }
 }
 
-/// Extract a search pattern from a command for process adoption
-/// Looks for distinctive parts like JAR files, script names, executables
-fn extract_search_pattern(command: &str) -> String {
-    // Look for patterns that uniquely identify the process
-    // Priority: JAR files, then .py/.js/.sh files, then quoted strings, then first word
-
-    // Check for JAR files (e.g., "java -jar Stirling-PDF.jar")
-    if let Some(jar_pos) = command.find(".jar") {
-        // Find the start of the filename (after last space or slash)
-        let before_jar = &command[..jar_pos];
-        if let Some(start) = before_jar.rfind(|c: char| c == ' ' || c == '/') {
-            let end = (jar_pos + 4).min(command.len());
-            if start + 1 < end {
-                let jar_name = &command[start + 1..end];
-                return jar_name.trim().to_string();
-            }
-        }
-    }
-
-    // Check for common script extensions
-    for ext in &[".py", ".js", ".sh", ".rb", ".pl"] {
-        if let Some(ext_pos) = command.find(ext) {
-            let before_ext = &command[..ext_pos];
-            if let Some(start) = before_ext.rfind(|c: char| c == ' ' || c == '/') {
-                let end = (ext_pos + ext.len()).min(command.len());
-                if start + 1 < end {
-                    let script_name = &command[start + 1..end];
-                    return script_name.trim().to_string();
-                }
-            }
-        }
-    }
-
-    // Fall back to the first word if it looks like an executable
-    let first_word = command.split_whitespace().next().unwrap_or("");
-    if !first_word.is_empty() && !first_word.starts_with('-') {
-        // Skip common shells
-        if !matches!(first_word, "sh" | "bash" | "zsh" | "fish" | "dash") {
-            return first_word.to_string();
-        }
-    }
-
-    // If all else fails, return empty (no adoption will occur)
-    String::new()
-}
-
 fn should_fail_process_validation(
     is_valid: bool,
     expected_start_time: Option<u64>,
@@ -253,7 +207,7 @@ fn restart_process() {
         // For direct processes, validate the main pid
         let mut validation_failed = false;
         if has_valid_pid {
-            let search_pattern = extract_search_pattern(&item.script);
+            let search_pattern = extract_search_pattern_from_command(&item.script);
             let expected_pattern = if !search_pattern.is_empty() {
                 Some(search_pattern.as_str())
             } else {

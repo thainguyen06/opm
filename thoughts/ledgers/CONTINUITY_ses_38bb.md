@@ -1,72 +1,68 @@
 ---
 session: ses_38bb
-updated: 2026-02-19T07:00:00.318Z
+updated: 2026-02-19T13:14:44.134Z
 ---
 
 # Session Summary
 
 ## Goal
-Fix duplicate process spawning during `opm restore` (especially on fresh container start) so each managed app is started exactly once, while keeping daemon behavior stable and tests passing.
+Centralize duplicated command search-pattern extraction logic and continue reliability hardening by unblocking builds/tests and adding restart/backoff observability improvements.
 
 ## Constraints & Preferences
-User reported issue happens right after container startup (no prior processes) and asked to reduce unnecessary disk writes, prioritizing RAM-based behavior where possible.
+Continue without pausing for permission, preserve existing daemon/CLI behavior while reducing drift, avoid destructive git operations, and include concrete validation (tests/build) after changes.
 
 ## Progress
 ### Done
-- [x] Investigated restore/daemon flow and identified root cause: `RESTORE_IN_PROGRESS` used `AtomicBool` only, which is process-local, so CLI `opm restore` could not reliably signal daemon process.
-- [x] Implemented cross-process restore marker support in `src/daemon/mod.rs`:
-  - Added `RESTORE_IN_PROGRESS_FILE`
-  - Added `restore_in_progress_flag_path()`
-  - Updated `set_restore_in_progress()`, `clear_restore_in_progress()`, and `is_restore_in_progress()`
-- [x] Added early cleanup in `src/cli/internal.rs` so `clear_restore_in_progress()` is called before returning when `processes_to_restore.is_empty()`.
-- [x] Added test `test_restore_in_progress_flag_file_stale_pid_cleanup` in `src/daemon/mod.rs`.
-- [x] Ran diagnostics and builds:
-  - `cargo build` passed.
-  - Targeted tests passed after fixes:
-    - `test_restore_in_progress_flag`
-    - `test_restore_in_progress_flag_file_stale_pid_cleanup`
-    - `test_restore_in_progress_flag_concurrent`
-    - `test_kill_old_processes_before_restore_*`
-- [x] Identified a remaining logic gap: daemon loop still uses direct `RESTORE_IN_PROGRESS.load(...)` in some paths instead of `is_restore_in_progress()`, so cross-process marker may be bypassed there.
+- [x] Audited duplicated pattern-extraction logic across `extract_search_pattern_for_restore` in `/root/workspace/opm/src/cli/internal.rs`, `extract_search_pattern` in `/root/workspace/opm/src/daemon/mod.rs`, and `extract_search_pattern_from_command` in `/root/workspace/opm/src/process/mod.rs`.
+- [x] Promoted shared helper by changing `extract_search_pattern_from_command` to public in `/root/workspace/opm/src/process/mod.rs`.
+- [x] Refactored daemon to import/use `extract_search_pattern_from_command` and removed local `extract_search_pattern` in `/root/workspace/opm/src/daemon/mod.rs`.
+- [x] Refactored CLI to import/use `extract_search_pattern_from_command` and removed local `extract_search_pattern_for_restore` in `/root/workspace/opm/src/cli/internal.rs`.
+- [x] Added unit tests for shared extraction behavior in `/root/workspace/opm/src/process/mod.rs`:
+  - [x] `test_extract_search_pattern_from_command_jar`
+  - [x] `test_extract_search_pattern_from_command_script_extension`
+  - [x] `test_extract_search_pattern_from_command_skip_shell`
+  - [x] `test_extract_search_pattern_from_command_first_word_executable`
+- [x] Fixed an indentation/formatting issue introduced during refactor near the second CLI validation call site (around line ~1794 in `/root/workspace/opm/src/cli/internal.rs`).
 
 ### In Progress
-- [ ] Reworking restore guard checks in daemon loop to use cross-process-aware `is_restore_in_progress()` consistently.
-- [ ] Reducing unnecessary disk I/O from restore flag checks (favor in-memory reads within cycle where safe).
-- [ ] Stabilizing `test_restore_in_progress_flag_concurrent` against cross-test/shared-state interference.
+- [ ] Install missing `clang`/`clang++` toolchain to unblock Rust dependency compilation.
+- [ ] Re-run targeted tests and `cargo build` after toolchain install.
+- [ ] Start next hardening batch: restart/backoff observability improvements (requested by user: “tiến hành cả 2 đi”).
 
 ### Blocked
-- (none)
+- Build/test execution is blocked by missing C/C++ compiler tools:
+  - `failed to find tool "/usr/bin/clang": No such file or directory (os error 2)`
+  - `failed to find tool "/usr/bin/clang++": No such file or directory (os error 2)`
+  - Seen while building dependencies like `ring`, `blake3`, `link-cplusplus`, and `aws-lc-sys`.
 
 ## Key Decisions
-- **Use a file-backed restore marker in addition to atomic state**: Needed because CLI and daemon run in different processes; atomic alone cannot coordinate cross-process restore state.
-- **Keep stale-marker cleanup logic in `is_restore_in_progress()`**: Prevents dead/stale restore flags from permanently blocking daemon starts.
-- **Do not add arbitrary sleep-based fixes as primary solution**: Sleeps hide race symptoms and make tests flaky; deterministic synchronization and consistent state checks are preferred.
+- **Single shared extractor**: Use `extract_search_pattern_from_command` as the canonical implementation to eliminate drift between daemon and CLI restore/validation behavior.
+- **Keep behavior-compatible extraction path**: Reused existing process-module logic rather than inventing new matching rules to reduce regression risk.
+- **Add focused unit coverage at source of truth**: Tests were added in `/root/workspace/opm/src/process/mod.rs` to lock expected extraction behavior centrally.
 
 ## Next Steps
-1. Replace remaining `RESTORE_IN_PROGRESS.load(Ordering::SeqCst)` checks in daemon monitoring/restart paths with `is_restore_in_progress()`.
-2. Add minimal synchronization for tests (e.g., test-level global lock) so restore-flag tests don’t interfere via shared global/file state.
-3. Optimize `is_restore_in_progress()` for less disk churn (cache/short-circuit by atomic where safe, avoid repeated FS reads in tight loops).
-4. Re-run targeted tests for restore flag and daemon behavior.
-5. Run full `cargo build` and relevant daemon/restore test subset to confirm no regressions.
+1. Install `clang` and `clang++` in the environment (the current blocker).
+2. Re-run: `cargo test extract_search_pattern_from_command -- --nocapture`, `cargo test daemon::tests -- --nocapture`, and `cargo build`.
+3. Implement restart/backoff observability improvements (likely in CLI info/list output paths) using existing `failed_restart_attempts`, `last_restart_attempt`, and cooldown fields.
+4. Add/update tests for observability output logic where feasible.
+5. Re-run diagnostics/tests/build and report final diff + verification results.
 
 ## Critical Context
-- User still reports duplicate-process issue and a failing CI test: `test_restore_in_progress_flag_concurrent` in `src/daemon/mod.rs` (assertion `assert!(!is_restore_in_progress())`).
-- The failing behavior suggests race or shared-state contamination, not necessarily business logic failure alone.
-- Current code has mixed restore checks:
-  - Some places use `RESTORE_IN_PROGRESS.load(...)` (process-local only).
-  - Some places use `is_restore_in_progress()` (cross-process-aware).
-- Important error encountered during setup/testing:
-  - Initially `rustup`/`cargo` missing in environment.
-  - Installed toolchain via `apt-get`.
-  - First test run failed because `/usr/bin/clang` didn’t exist (only `clang-19`), fixed by running with:
-    - `CC=/usr/bin/clang-19`
-    - `CXX=/usr/bin/clang++-19`
-- Explore-agent tooling attempts failed due to task JSON/session issues, so analysis proceeded with direct code inspection and tests.
+- Refactor removed duplicated helpers and replaced call sites with `extract_search_pattern_from_command` in both daemon and CLI.
+- Function names that must remain exact and are now central to this path:
+  - `extract_search_pattern_from_command`
+  - `extract_search_pattern_for_restore` (removed from CLI)
+  - `extract_search_pattern` (removed from daemon)
+- Cargo verification attempts failed due to environment toolchain absence, not Rust code errors.
+- `git status --short` showed modified files: `src/cli/internal.rs`, `src/daemon/mod.rs`, `src/process/mod.rs` (plus unrelated user ledger file `thoughts/ledgers/CONTINUITY_ses_38bb.md`).
 
 ## File Operations
 ### Read
+- `/root/workspace/opm/src/cli/internal.rs`
 - `/root/workspace/opm/src/daemon/mod.rs`
+- `/root/workspace/opm/src/process/mod.rs`
 
 ### Modified
-- `/root/workspace/opm/src/daemon/mod.rs`
 - `/root/workspace/opm/src/cli/internal.rs`
+- `/root/workspace/opm/src/daemon/mod.rs`
+- `/root/workspace/opm/src/process/mod.rs`
