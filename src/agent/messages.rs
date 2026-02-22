@@ -8,6 +8,22 @@ pub struct ActionResponse {
     pub message: String,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct LogResponse {
+    pub request_id: String,
+    pub success: bool,
+    pub message: String,
+    pub logs: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct FileResponse {
+    pub request_id: String,
+    pub success: bool,
+    pub message: String,
+    pub content: String,
+}
+
 /// Message protocol for agent-server WebSocket communication
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -37,11 +53,32 @@ pub enum AgentMessage {
         process_id: usize,
         method: String,
     },
+    LogRequest {
+        request_id: String,
+        process_id: usize,
+        kind: String,
+    },
+    FileRequest {
+        request_id: String,
+        path: String,
+    },
     /// Action response from agent to server
     ActionResponse {
         request_id: String,
         success: bool,
         message: String,
+    },
+    LogResponse {
+        request_id: String,
+        success: bool,
+        message: String,
+        logs: Vec<String>,
+    },
+    FileResponse {
+        request_id: String,
+        success: bool,
+        message: String,
+        content: String,
     },
     /// Save request from server to agent
     SaveRequest { request_id: String },

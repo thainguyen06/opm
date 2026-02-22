@@ -1,5 +1,5 @@
 use super::types::AgentInfo;
-use crate::agent::messages::ActionResponse;
+use crate::agent::messages::{ActionResponse, FileResponse, LogResponse};
 use crate::process::ProcessItem;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -15,6 +15,8 @@ pub struct AgentRegistry {
     agent_senders: Arc<RwLock<HashMap<String, mpsc::UnboundedSender<String>>>>,
     /// Pending action responses keyed by request_id
     pending_actions: Arc<RwLock<HashMap<String, oneshot::Sender<ActionResponse>>>>,
+    pending_logs: Arc<RwLock<HashMap<String, oneshot::Sender<LogResponse>>>>,
+    pending_files: Arc<RwLock<HashMap<String, oneshot::Sender<FileResponse>>>>,
 }
 
 impl AgentRegistry {
@@ -24,6 +26,8 @@ impl AgentRegistry {
             agent_processes: Arc::new(RwLock::new(HashMap::new())),
             agent_senders: Arc::new(RwLock::new(HashMap::new())),
             pending_actions: Arc::new(RwLock::new(HashMap::new())),
+            pending_logs: Arc::new(RwLock::new(HashMap::new())),
+            pending_files: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -149,6 +153,72 @@ impl AgentRegistry {
     /// Handle an action response from an agent
     pub fn handle_action_response(&self, response: ActionResponse) {
         let mut pending = self.pending_actions.write().unwrap();
+        if let Some(sender) = pending.remove(&response.request_id) {
+            let _ = sender.send(response);
+        }
+    }
+
+    pub fn send_log_request(
+        &self,
+        agent_id: &str,
+        request_id: String,
+        process_id: usize,
+        kind: String,
+    ) -> Result<oneshot::Receiver<LogResponse>, String> {
+        let log_request = super::messages::AgentMessage::LogRequest {
+            request_id: request_id.clone(),
+            process_id,
+            kind,
+        };
+
+        let log_json = serde_json::to_string(&log_request)
+            .map_err(|e| format!("Failed to serialize log request: {}", e))?;
+
+        let (tx, rx) = oneshot::channel();
+        {
+            let mut pending = self.pending_logs.write().unwrap();
+            pending.insert(request_id, tx);
+        }
+
+        self.send_to_agent(agent_id, log_json)?;
+
+        Ok(rx)
+    }
+
+    pub fn handle_log_response(&self, response: LogResponse) {
+        let mut pending = self.pending_logs.write().unwrap();
+        if let Some(sender) = pending.remove(&response.request_id) {
+            let _ = sender.send(response);
+        }
+    }
+
+    pub fn send_file_request(
+        &self,
+        agent_id: &str,
+        request_id: String,
+        path: String,
+    ) -> Result<oneshot::Receiver<FileResponse>, String> {
+        let file_request = super::messages::AgentMessage::FileRequest {
+            request_id: request_id.clone(),
+            path,
+        };
+
+        let file_json = serde_json::to_string(&file_request)
+            .map_err(|e| format!("Failed to serialize file request: {}", e))?;
+
+        let (tx, rx) = oneshot::channel();
+        {
+            let mut pending = self.pending_files.write().unwrap();
+            pending.insert(request_id, tx);
+        }
+
+        self.send_to_agent(agent_id, file_json)?;
+
+        Ok(rx)
+    }
+
+    pub fn handle_file_response(&self, response: FileResponse) {
+        let mut pending = self.pending_files.write().unwrap();
         if let Some(sender) = pending.remove(&response.request_id) {
             let _ = sender.send(response);
         }

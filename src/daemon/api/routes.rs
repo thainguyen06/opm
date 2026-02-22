@@ -2667,6 +2667,58 @@ pub async fn agent_process_logs_handler(
     registry: &State<opm::agent::registry::AgentRegistry>,
     _t: Token,
 ) -> Result<Json<LogResponse>, GenericError> {
+    async fn fetch_logs_via_websocket(
+        registry: &opm::agent::registry::AgentRegistry,
+        agent_id: &str,
+        process_id: usize,
+        kind: &str,
+    ) -> Result<Json<LogResponse>, GenericError> {
+        let request_id = format!("agent_logs_{}", uuid::Uuid::new_v4());
+
+        let receiver = registry
+            .send_log_request(agent_id, request_id.clone(), process_id, kind.to_string())
+            .map_err(|e| {
+                generic_error(
+                    Status::BadGateway,
+                    format!("Failed to send log request via WebSocket: {}", e),
+                )
+            })?;
+
+        match tokio::time::timeout(tokio::time::Duration::from_secs(5), receiver).await {
+            Ok(Ok(response)) => {
+                if response.success {
+                    Ok(Json(LogResponse {
+                        logs: response.logs,
+                    }))
+                } else {
+                    Err(generic_error(
+                        Status::NotFound,
+                        if response.message.is_empty() {
+                            format!(
+                                "Process {} not found in agent processes",
+                                process_id
+                            )
+                        } else {
+                            response.message
+                        },
+                    ))
+                }
+            }
+            Ok(Err(_)) => {
+                Err(generic_error(
+                    Status::BadGateway,
+                    "WebSocket log request was canceled".to_string(),
+                ))
+            }
+            Err(_) => {
+                Err(generic_error(
+                    Status::BadGateway,
+                    "Timed out while waiting for log response from agent".to_string(),
+                ))
+            }
+        }
+    }
+
     let timer = HTTP_REQ_HISTOGRAM
         .with_label_values(&["agent_process_logs"])
         .start_timer();
@@ -2724,8 +2776,7 @@ pub async fn agent_process_logs_handler(
         }
     }
 
-    // Get agent info to verify it exists and has API endpoint
-    let agent = match registry.get(&agent_id) {
+    let _agent = match registry.get(&agent_id) {
         Some(agent) => agent,
         None => {
             timer.observe_duration();
@@ -2733,118 +2784,9 @@ pub async fn agent_process_logs_handler(
         }
     };
 
-    // Get API endpoint from agent
-    let api_endpoint = match agent.api_endpoint {
-        Some(endpoint) => endpoint,
-        None => {
-            timer.observe_duration();
-            return Err(generic_error(
-                Status::ServiceUnavailable,
-                format!(
-                    "Agent '{}' does not have an API endpoint configured",
-                    agent_id
-                ),
-            ));
-        }
-    };
-
-    // Make HTTP request to agent API
-    let client = reqwest::Client::new();
-    let url = format!("{}/process/{}/logs/{}", api_endpoint, process_id, kind);
-    let headers = reqwest::header::HeaderMap::new();
-
-    log::debug!(
-        "Fetching logs from agent API: {} for process {} ({})",
-        url,
-        process_id,
-        kind
-    );
-
-    match client.get(&url).headers(headers).send().await {
-        Ok(response) => {
-            if response.status().is_success() {
-                match response.json::<LogResponse>().await {
-                    Ok(log_response) => {
-                        log::debug!(
-                            "Successfully fetched {} log lines from agent {}",
-                            log_response.logs.len(),
-                            agent_id
-                        );
-                        timer.observe_duration();
-                        Ok(Json(log_response))
-                    }
-                    Err(e) => {
-                        log::error!(
-                            "Failed to parse logs response from agent {} API: {}",
-                            agent_id,
-                            e
-                        );
-                        timer.observe_duration();
-                        Err(generic_error(
-                            Status::InternalServerError,
-                            format!("Failed to parse logs response from agent API: {}", e),
-                        ))
-                    }
-                }
-            } else {
-                let status_code = response.status();
-                let error_text = response.text().await.unwrap_or_default();
-                log::error!(
-                    "Agent {} API returned error status {} for process {} logs: {}",
-                    agent_id,
-                    status_code,
-                    process_id,
-                    error_text
-                );
-                timer.observe_duration();
-
-                // Use appropriate status code based on agent's response
-                let server_status = if status_code.is_client_error() {
-                    // 4xx errors from agent (e.g., 404 Not Found) - pass through
-                    Status::from_code(status_code.as_u16()).unwrap_or(Status::NotFound)
-                } else {
-                    // 5xx errors from agent - this is a Bad Gateway since upstream failed
-                    Status::BadGateway
-                };
-
-                Err(generic_error(
-                    server_status,
-                    format!(
-                        "Agent API returned error (status {}): {}. \
-                        Ensure the agent's local daemon API is running and accessible.",
-                        status_code,
-                        if error_text.is_empty() {
-                            "No error details provided"
-                        } else {
-                            &error_text
-                        }
-                    ),
-                ))
-            }
-        }
-        Err(e) => {
-            log::error!(
-                "Failed to connect to agent {} API at {}: {}. \
-                Check that the agent is online and its API endpoint is accessible from the server.",
-                agent_id,
-                api_endpoint,
-                e
-            );
-            timer.observe_duration();
-            Err(generic_error(
-                Status::BadGateway,
-                format!(
-                    "Failed to connect to agent API at {}: {}. \
-                    Verify that:\n\
-                    1. The agent is running and connected\n\
-                    2. The agent's local daemon API is enabled\n\
-                    3. The API endpoint {} is accessible from this server\n\
-                    4. No firewall is blocking the connection",
-                    api_endpoint, e, api_endpoint
-                ),
-            ))
-        }
-    }
+    let result = fetch_logs_via_websocket(registry.inner(), &agent_id, process_id, &kind).await;
+    timer.observe_duration();
+    result
 }
 
 /// Stream a file from an agent
@@ -2899,7 +2841,7 @@ pub async fn agent_file_stream_handler(
     }
 
     // Get agent info from registry
-    let agent = match registry.get(&agent_id) {
+    let _agent = match registry.get(&agent_id) {
         Some(agent) => agent,
         None => {
             log::warn!(
@@ -2914,94 +2856,47 @@ pub async fn agent_file_stream_handler(
         }
     };
 
-    // Get agent API endpoint
-    let api_endpoint = match &agent.api_endpoint {
-        Some(endpoint) => endpoint,
-        None => {
-            log::error!(
-                "[agent_file_stream] Agent {} does not have an API endpoint configured",
-                agent_id
-            );
+    let request_id = format!("agent_file_{}", uuid::Uuid::new_v4());
+    let receiver = match registry.send_file_request(&agent_id, request_id, path.clone()) {
+        Ok(rx) => rx,
+        Err(e) => {
             timer.observe_duration();
             return Err(generic_error(
-                Status::InternalServerError,
-                format!(
-                    "Agent {} does not have an API endpoint configured. \
-                    Make sure the agent's daemon was started with --api flag.",
-                    agent_id
-                ),
+                Status::ServiceUnavailable,
+                format!("Failed to send file request via WebSocket: {}", e),
             ));
         }
     };
 
-    // Forward request to agent API
-    let url = format!("{}/files?path={}", api_endpoint, path.replace(" ", "%20"));
-    log::debug!("Streaming file from agent API: {} for path {}", url, path);
+    match tokio::time::timeout(tokio::time::Duration::from_secs(10), receiver).await {
+        Ok(Ok(response)) => {
+            timer.observe_duration();
 
-    match reqwest::get(&url).await {
-        Ok(response) => {
-            if response.status().is_success() {
-                match response.text().await {
-                    Ok(content) => {
-                        timer.observe_duration();
-                        Ok(content)
-                    }
-                    Err(e) => {
-                        log::error!(
-                            "Failed to read file content from agent {} API: {}",
-                            agent_id,
-                            e
-                        );
-                        timer.observe_duration();
-                        Err(generic_error(
-                            Status::InternalServerError,
-                            format!("Failed to read file content from agent API: {}", e),
-                        ))
-                    }
-                }
+            if response.success {
+                Ok(response.content)
             } else {
-                let status_code = response.status();
-                let error_text = response
-                    .text()
-                    .await
-                    .unwrap_or_else(|_| String::from("No error details"));
-
-                log::error!(
-                    "Agent {} API returned error status {} for file {}: {}",
-                    agent_id,
-                    status_code,
-                    path,
-                    error_text
-                );
-                timer.observe_duration();
                 Err(generic_error(
-                    Status::from_code(status_code.as_u16()).unwrap_or(Status::InternalServerError),
-                    format!(
-                        "Agent API returned error: {}",
-                        if error_text.len() > 200 {
-                            &error_text[..200]
-                        } else {
-                            &error_text
-                        }
-                    ),
+                    Status::NotFound,
+                    if response.message.is_empty() {
+                        format!("Failed to read file from agent: {}", path)
+                    } else {
+                        response.message
+                    },
                 ))
             }
         }
-        Err(e) => {
-            log::error!(
-                "Failed to connect to agent {} API at {}: {}",
-                agent_id,
-                api_endpoint,
-                e
-            );
+        Ok(Err(_)) => {
             timer.observe_duration();
             Err(generic_error(
                 Status::BadGateway,
-                format!(
-                    "Failed to connect to agent API at {}: {}. \
-                    Verify that the agent is running and accessible.",
-                    api_endpoint, e
-                ),
+                "WebSocket file request was canceled".to_string(),
+            ))
+        }
+        Err(_) => {
+            timer.observe_duration();
+            Err(generic_error(
+                Status::GatewayTimeout,
+                "Timed out while waiting for file response from agent".to_string(),
             ))
         }
     }

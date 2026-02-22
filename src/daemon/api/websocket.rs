@@ -1,4 +1,4 @@
-use opm::agent::messages::{ActionResponse, AgentMessage};
+use opm::agent::messages::{ActionResponse, AgentMessage, FileResponse, LogResponse};
 use opm::agent::registry::AgentRegistry;
 use opm::agent::types::{AgentInfo, AgentStatus, ConnectionType};
 use opm::process::ProcessItem;
@@ -139,6 +139,41 @@ pub fn websocket_handler(ws: WebSocket, registry: &State<AgentRegistry>) -> Stre
                                         message: message.clone(),
                                     };
                                     registry.handle_action_response(response);
+                                }
+                                AgentMessage::LogResponse {
+                                    request_id,
+                                    success,
+                                    message,
+                                    logs,
+                                } => {
+                                    log::debug!(
+                                        "[WebSocket] Log response: request_id={}, success={}, logs={}",
+                                        request_id,
+                                        success,
+                                        logs.len()
+                                    );
+
+                                    let response = LogResponse {
+                                        request_id,
+                                        success,
+                                        message,
+                                        logs,
+                                    };
+                                    registry.handle_log_response(response);
+                                }
+                                AgentMessage::FileResponse {
+                                    request_id,
+                                    success,
+                                    message,
+                                    content,
+                                } => {
+                                    let response = FileResponse {
+                                        request_id,
+                                        success,
+                                        message,
+                                        content,
+                                    };
+                                    registry.handle_file_response(response);
                                 }
                                 AgentMessage::Pong => {
                                     log::debug!("[WebSocket] Pong received from agent");

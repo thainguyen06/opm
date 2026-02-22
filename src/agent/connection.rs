@@ -400,6 +400,103 @@ impl AgentConnection {
                                               }
                                           }
                                     }
+                                    AgentMessage::LogRequest {
+                                        request_id,
+                                        process_id,
+                                        kind,
+                                    } => {
+                                        use crate::process::Runner;
+                                        use std::io::BufRead;
+
+                                        let runner = Runner::new();
+                                        let mut success = false;
+                                        let mut message = format!("Process {} not found", process_id);
+                                        let mut logs: Vec<String> = Vec::new();
+
+                                        if let Some(process) = runner.info(process_id) {
+                                            let log_file = match kind.as_str() {
+                                                "out" | "stdout" => process.logs().out,
+                                                "error" | "stderr" => process.logs().error,
+                                                _ => process.logs().out,
+                                            };
+
+                                            match std::fs::File::open(log_file) {
+                                                Ok(file) => {
+                                                    let reader = std::io::BufReader::new(file);
+                                                    match reader
+                                                        .lines()
+                                                        .collect::<std::io::Result<Vec<String>>>()
+                                                    {
+                                                        Ok(collected) => {
+                                                            success = true;
+                                                            logs = collected;
+                                                            message = "Logs fetched".to_string();
+                                                        }
+                                                        Err(e) => {
+                                                            message =
+                                                                format!("Failed to read log lines: {}", e);
+                                                        }
+                                                    }
+                                                }
+                                                Err(e) => {
+                                                    message = format!("Failed to open log file: {}", e);
+                                                }
+                                            }
+                                        }
+
+                                        let response_msg = AgentMessage::LogResponse {
+                                            request_id,
+                                            success,
+                                            message,
+                                            logs,
+                                        };
+
+                                        if let Ok(response_json) = serde_json::to_string(&response_msg)
+                                        {
+                                            if let Err(e) = ws_sender
+                                                .send(Message::Text(response_json))
+                                                .await
+                                            {
+                                                log::error!(
+                                                    "[Agent] Failed to send log response: {}",
+                                                    e
+                                                );
+                                            }
+                                        }
+                                    }
+                                    AgentMessage::FileRequest { request_id, path } => {
+                                        let (success, message, content) =
+                                            match std::fs::read_to_string(&path) {
+                                                Ok(file_content) => {
+                                                    (true, "File fetched".to_string(), file_content)
+                                                }
+                                                Err(e) => (
+                                                    false,
+                                                    format!("Failed to read file: {}", e),
+                                                    String::new(),
+                                                ),
+                                            };
+
+                                        let response_msg = AgentMessage::FileResponse {
+                                            request_id,
+                                            success,
+                                            message,
+                                            content,
+                                        };
+
+                                        if let Ok(response_json) = serde_json::to_string(&response_msg)
+                                        {
+                                            if let Err(e) = ws_sender
+                                                .send(Message::Text(response_json))
+                                                .await
+                                            {
+                                                log::error!(
+                                                    "[Agent] Failed to send file response: {}",
+                                                    e
+                                                );
+                                            }
+                                        }
+                                    }
                                     AgentMessage::SaveRequest { request_id } => {
                                         log::info!("[Agent] Received save request");
 
