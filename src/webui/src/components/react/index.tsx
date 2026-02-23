@@ -41,7 +41,28 @@ const Index = (props: { base: string }) => {
 	const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 	const [showBulkActions, setShowBulkActions] = useState(false);
 	const [loading, setLoading] = useState(true);
+	const [updatingProcessKeys, setUpdatingProcessKeys] = useState<Set<string>>(new Set());
 	const renameRefs = useRef<Map<number, { triggerEdit: () => void }>>(new Map());
+
+	const processKey = (item: ProcessItem): string => {
+		if (item.agent_id) {
+			return `agent:${item.agent_id}:${item.id}`;
+		}
+		return `server:${item.server || 'local'}:${item.id}`;
+	};
+
+	const setProcessUpdating = (item: ProcessItem, updating: boolean) => {
+		const key = processKey(item);
+		setUpdatingProcessKeys((prev) => {
+			const next = new Set(prev);
+			if (updating) {
+				next.add(key);
+			} else {
+				next.delete(key);
+			}
+			return next;
+		});
+	};
 
 	const badge = {
 		online: 'bg-emerald-400',
@@ -133,6 +154,7 @@ const Index = (props: { base: string }) => {
 		const endpoint = getActionEndpoint(item);
 		
 		try {
+			setProcessUpdating(item, true);
 			await api.post(endpoint, { json: { method: name } });
 			if (item.agent_id) {
 				for (let attempt = 0; attempt < AGENT_PROCESS_REFRESH_RETRIES; attempt++) {
@@ -153,7 +175,29 @@ const Index = (props: { base: string }) => {
 			success(ACTION_MESSAGES[name] || `${name} action completed successfully`);
 		} catch (err) {
 			error(`Failed to ${name} process: ${(err as Error).message}`);
+		} finally {
+			setProcessUpdating(item, false);
 		}
+	};
+
+	const refreshUpdatedProcess = async (item: ProcessItem) => {
+		if (item.agent_id) {
+			for (let attempt = 0; attempt < AGENT_PROCESS_REFRESH_RETRIES; attempt++) {
+				await new Promise((resolve) => setTimeout(resolve, AGENT_PROCESS_UPDATE_DELAY_MS + attempt * AGENT_PROCESS_REFRESH_INTERVAL_MS));
+				await fetch();
+
+				const updated = items.value.find(
+					(current) => current.id === item.id && current.agent_id === item.agent_id
+				);
+
+				if (updated) {
+					return;
+				}
+			}
+			return;
+		}
+
+		await fetch();
 	};
 	
 	// Toggle selection
@@ -470,20 +514,26 @@ const Index = (props: { base: string }) => {
 										server={item.server} 
 														process_id={item.id}
 														agent_id={item.agent_id}
-														callback={fetch}
-										old={item.name} 
-										onSuccess={success} 
-										onError={error} 
-									/>
-									<div className="flex items-center gap-2 mt-0.5">
+														callback={() => refreshUpdatedProcess(item)}
+														onPendingChange={(pending) => setProcessUpdating(item, pending)}
+														old={item.name} 
+														onSuccess={success} 
+														onError={error} 
+													/>
+													<div className="flex items-center gap-2 mt-0.5">
 										<span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
 											item.agent_name
 												? 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
 												: 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
 										}`}>
-											{item.agent_name || 'local'}
-										</span>
-									</div>
+														{item.agent_name || 'local'}
+													</span>
+													{updatingProcessKeys.has(processKey(item)) && (
+														<span className="inline-flex items-center rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-amber-500/10 text-amber-400 border border-amber-500/20">
+															updating...
+														</span>
+													)}
+													</div>
 								</div>
 								<span className="relative flex h-2.5 w-2.5 -mt-3.5">
 									<span className={`${badge[item.status]} absolute inline-flex h-full w-full rounded-full opacity-75 ${item.status === 'online' ? 'animate-ping' : ''}`}></span>

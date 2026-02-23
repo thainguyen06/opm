@@ -43,10 +43,25 @@ pub fn websocket_handler(ws: WebSocket, registry: &State<AgentRegistry>) -> Stre
                         Ok(agent_msg) => {
                             match agent_msg {
                                 AgentMessage::Register { id, name, hostname, api_endpoint } => {
-                                    log::info!("[WebSocket] Agent registration: {} ({})", name, id);
+                                    let mut registered_id = id.clone();
+                                    if registry.get(&registered_id).is_some() {
+                                        let suffix = uuid::Uuid::new_v4().to_string();
+                                        registered_id = format!("{}-{}", id, &suffix[..8]);
+                                        log::warn!(
+                                            "[WebSocket] Duplicate agent id '{}' detected, reassigned to '{}'",
+                                            id,
+                                            registered_id
+                                        );
+                                    }
+
+                                    log::info!(
+                                        "[WebSocket] Agent registration: {} ({})",
+                                        name,
+                                        registered_id
+                                    );
 
                                     let agent_info = AgentInfo {
-                                        id: id.clone(),
+                                        id: registered_id.clone(),
                                         name: name.clone(),
                                         hostname,
                                         status: AgentStatus::Online,
@@ -59,12 +74,12 @@ pub fn websocket_handler(ws: WebSocket, registry: &State<AgentRegistry>) -> Stre
 
                                     // Register agent with sender channel for bidirectional communication
                                     registry.register_with_sender(agent_info, tx.clone());
-                                    agent_id = Some(id);
+                                    agent_id = Some(registered_id.clone());
 
                                     if let Some(event_manager) = GLOBAL_EVENT_MANAGER.get() {
                                         let event = opm::events::Event::new(
                                             opm::events::EventType::AgentConnect,
-                                            agent_id.clone().unwrap_or_default(),
+                                            registered_id.clone(),
                                             name.clone(),
                                             None,
                                             None,
@@ -96,7 +111,10 @@ pub fn websocket_handler(ws: WebSocket, registry: &State<AgentRegistry>) -> Stre
                                     // Send success response
                                     let response = AgentMessage::Response {
                                         success: true,
-                                        message: "Agent registered successfully".to_string(),
+                                        message: format!(
+                                            "Agent registered successfully as {}",
+                                            registered_id
+                                        ),
                                     };
 
                                     if let Ok(response_json) = serde_json::to_string(&response) {
@@ -104,9 +122,10 @@ pub fn websocket_handler(ws: WebSocket, registry: &State<AgentRegistry>) -> Stre
                                     }
                                 }
                                 AgentMessage::Heartbeat { id } => {
-                                    log::debug!("[WebSocket] Heartbeat from agent {}", id);
+                                    let effective_id = agent_id.as_deref().unwrap_or(&id);
+                                    log::debug!("[WebSocket] Heartbeat from agent {}", effective_id);
 
-                                    if registry.update_heartbeat(&id) {
+                                    if registry.update_heartbeat(effective_id) {
                                         // Send pong response
                                         let response = AgentMessage::Response {
                                             success: true,
@@ -132,16 +151,30 @@ pub fn websocket_handler(ws: WebSocket, registry: &State<AgentRegistry>) -> Stre
                                     }
                                 }
                                 AgentMessage::SystemInfoUpdate { id, system_info } => {
-                                    log::debug!("[WebSocket] System info update from agent {}", id);
+                                    let effective_id = agent_id.as_deref().unwrap_or(&id);
+                                    log::debug!(
+                                        "[WebSocket] System info update from agent {}",
+                                        effective_id
+                                    );
 
-                                    if registry.update_system_info(&id, system_info) {
-                                        log::debug!("[WebSocket] System info updated for agent {}", id);
+                                    if registry.update_system_info(effective_id, system_info) {
+                                        log::debug!(
+                                            "[WebSocket] System info updated for agent {}",
+                                            effective_id
+                                        );
                                     } else {
-                                        log::warn!("[WebSocket] Failed to update system info for agent {}", id);
+                                        log::warn!(
+                                            "[WebSocket] Failed to update system info for agent {}",
+                                            effective_id
+                                        );
                                     }
                                 }
                                  AgentMessage::ProcessUpdate { id, processes } => {
-                                     log::debug!("[WebSocket] Process update from agent {}", id);
+                                     let effective_id = agent_id.as_deref().unwrap_or(&id);
+                                     log::debug!(
+                                         "[WebSocket] Process update from agent {}",
+                                         effective_id
+                                     );
 
                                      // Parse processes from JSON values
                                      let parsed_processes: Vec<ProcessItem> = processes
@@ -149,7 +182,7 @@ pub fn websocket_handler(ws: WebSocket, registry: &State<AgentRegistry>) -> Stre
                                          .filter_map(|p| serde_json::from_value(p).ok())
                                          .collect();
 
-                                     registry.update_processes(&id, parsed_processes);
+                                     registry.update_processes(effective_id, parsed_processes);
 
                                      // Send acknowledgment
                                      let response = AgentMessage::Response {
@@ -161,8 +194,11 @@ pub fn websocket_handler(ws: WebSocket, registry: &State<AgentRegistry>) -> Stre
                                          yield Message::Text(response_json);
                                      }
 
-                                     log::info!("[WebSocket] Process update applied for agent {}", id);
-                                 }
+                                     log::info!(
+                                         "[WebSocket] Process update applied for agent {}",
+                                         effective_id
+                                     );
+                                  }
                                 AgentMessage::ActionResponse { request_id, success, message } => {
                                     log::info!("[WebSocket] Action response: request_id={}, success={}, message={}",
                                         request_id, success, message);

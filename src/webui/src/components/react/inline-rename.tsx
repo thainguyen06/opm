@@ -7,7 +7,8 @@ interface InlineRenameProps {
 	server: string;
 	process_id: number;
 	agent_id?: string;
-	callback: () => void;
+	callback: () => void | Promise<void>;
+	onPendingChange?: (pending: boolean) => void;
 	old: string;
 	onSuccess?: (msg: string) => void;
 	onError?: (msg: string) => void;
@@ -34,16 +35,19 @@ const InlineRename = forwardRef((props: InlineRenameProps, ref) => {
 				: `${props.base}/process/${props.process_id}/rename`;
 
 		try {
+			props.onPendingChange?.(true);
 			if (props.agent_id) {
 				await api.post(url, { json: { method: `rename:${formData}` } });
 			} else {
 				await api.post(url, { body: formData });
 			}
 			setIsEditing(false);
-			props.callback();
+			await props.callback();
 			props.onSuccess?.('Process renamed successfully');
 		} catch (err) {
 			props.onError?.(`Failed to rename process: ${err instanceof Error ? err.message : 'Unknown error'}`);
+		} finally {
+			props.onPendingChange?.(false);
 		}
 	};
 
