@@ -6,7 +6,6 @@ use opm::process::{unix::NativeProcess as Process, MemoryInfo};
 use regex::Regex;
 use serde::Serialize;
 use serde_json::json;
-use std::collections::BTreeSet;
 use std::fs;
 
 #[cfg(not(target_os = "linux"))]
@@ -41,30 +40,6 @@ fn format_last_restart_attempt(item: &opm::process::Process) -> String {
     item.last_restart_attempt
         .map(|attempt| attempt.to_rfc3339())
         .unwrap_or_else(|| "never".to_string())
-}
-
-fn collect_restore_kill_targets(runner: &mut Runner) -> Vec<i64> {
-    let mut targets = BTreeSet::new();
-
-    for (_, process) in runner.list() {
-        if process.pid > 0 {
-            targets.insert(process.pid);
-        }
-
-        if let Some(shell_pid) = process.shell_pid {
-            if shell_pid > 0 {
-                targets.insert(shell_pid);
-            }
-        }
-
-        for child_pid in &process.children {
-            if *child_pid > 0 {
-                targets.insert(*child_pid);
-            }
-        }
-    }
-
-    targets.into_iter().collect()
 }
 
 fn ensure_daemon_running() {
@@ -1276,26 +1251,7 @@ impl<'i> Internal<'i> {
             crashln!("{} Cannot restore on remote servers", *helpers::FAIL)
         }
 
-        // FEATURE: AUTO-KILL ON RESTORE (CLEAN STATE)
         let mut runner_temp = Runner::new();
-        let kill_targets = collect_restore_kill_targets(&mut runner_temp);
-
-        if !kill_targets.is_empty() {
-            ::log::info!(
-                "Killing {} tracked process IDs before restore",
-                kill_targets.len()
-            );
-
-            for pid in kill_targets {
-                if let Err(e) = opm::process::force_kill_process_tree(pid) {
-                    ::log::warn!("Failed to kill tracked PID {} before restore: {}", pid, e);
-                }
-            }
-
-            std::thread::sleep(std::time::Duration::from_millis(
-                opm::process::PROCESS_CLEANUP_WAIT_MS,
-            ));
-        }
 
         let processes_to_check: Vec<(usize, String, Option<i64>)> = runner_temp
             .list()
