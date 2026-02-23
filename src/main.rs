@@ -383,10 +383,23 @@ fn agent_list(format: &String, server_name: &String) {
     };
 
     // Make API call to get agent list
-    match http::agent_list(&server) {
-        Ok(response) => {
-            match response.json::<Vec<opm::agent::types::AgentInfo>>() {
-                Ok(agents) => {
+    let agents = match http::agent_list(&server) {
+        Ok(response) => match response.json::<Vec<opm::agent::types::AgentInfo>>() {
+            Ok(agents) => Ok(agents),
+            Err(_) => {
+                match http::agent_list_identity(&server) {
+                    Ok(identity_response) => identity_response
+                        .json::<Vec<opm::agent::types::AgentInfo>>()
+                        .map_err(|e| e.to_string()),
+                    Err(e) => Err(e.to_string()),
+                }
+            }
+        },
+        Err(e) => Err(e.to_string()),
+    };
+
+    match agents {
+        Ok(agents) => {
                     let mut agent_items: Vec<AgentItem> = Vec::new();
 
                     for agent in agents {
@@ -465,11 +478,6 @@ fn agent_list(format: &String, server_name: &String) {
                             _ => {}
                         }
                     }
-                }
-                Err(e) => {
-                    eprintln!("{} Failed to parse agent list: {}", *helpers::FAIL, e);
-                }
-            }
         }
         Err(e) => {
             eprintln!("{} Failed to fetch agent list: {}", *helpers::FAIL, e);
@@ -554,10 +562,21 @@ fn agent_processes(agent_filter: &Option<String>, format: &String, server_name: 
     let agents = match http::agent_list(&server) {
         Ok(response) => match response.json::<Vec<opm::agent::types::AgentInfo>>() {
             Ok(agents) => agents,
-            Err(e) => {
-                eprintln!("{} Failed to parse agent list: {}", *helpers::FAIL, e);
-                return;
-            }
+            Err(_) => match http::agent_list_identity(&server) {
+                Ok(identity_response) => {
+                    match identity_response.json::<Vec<opm::agent::types::AgentInfo>>() {
+                        Ok(agents) => agents,
+                        Err(e) => {
+                            eprintln!("{} Failed to parse agent list: {}", *helpers::FAIL, e);
+                            return;
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("{} Failed to fetch agent list: {}", *helpers::FAIL, e);
+                    return;
+                }
+            },
         },
         Err(e) => {
             eprintln!("{} Failed to fetch agent list: {}", *helpers::FAIL, e);

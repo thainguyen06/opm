@@ -28,11 +28,11 @@ pub mod sync {
     use reqwest::header::{HeaderMap, HeaderValue, ACCEPT_ENCODING};
 
     pub use reqwest::blocking::Response;
-    pub fn client(token: &Option<String>) -> (Client, HeaderMap) {
+    fn client_with_encoding(token: &Option<String>, encoding: &'static str) -> (Client, HeaderMap) {
         let client = Client::new();
         let mut headers = HeaderMap::new();
 
-        headers.insert(ACCEPT_ENCODING, HeaderValue::from_static("identity"));
+        headers.insert(ACCEPT_ENCODING, HeaderValue::from_static(encoding));
 
         if let Some(token) = token {
             headers.insert("token", HeaderValue::from_str(&token).unwrap());
@@ -40,13 +40,21 @@ pub mod sync {
 
         return (client, headers);
     }
+
+    pub fn client(token: &Option<String>) -> (Client, HeaderMap) {
+        client_with_encoding(token, "gzip")
+    }
+
+    pub fn client_identity(token: &Option<String>) -> (Client, HeaderMap) {
+        client_with_encoding(token, "identity")
+    }
 }
 
 pub async fn client(token: &Option<String>) -> (Client, HeaderMap) {
     let client = Client::new();
     let mut headers = HeaderMap::new();
 
-    headers.insert(ACCEPT_ENCODING, HeaderValue::from_static("identity"));
+    headers.insert(ACCEPT_ENCODING, HeaderValue::from_static("gzip"));
 
     if let Some(token) = token {
         headers.insert("token", HeaderValue::from_str(&token).unwrap());
@@ -230,6 +238,14 @@ pub fn clear_env(
 /// Get list of connected agents from server
 pub fn agent_list(address: &str) -> Result<sync::Response, anyhow::Error> {
     let (client, headers) = sync::client(&None);
+    Ok(client
+        .get(fmtstr!("{address}/daemon/agents/list"))
+        .headers(headers)
+        .send()?)
+}
+
+pub fn agent_list_identity(address: &str) -> Result<sync::Response, anyhow::Error> {
+    let (client, headers) = sync::client_identity(&None);
     Ok(client
         .get(fmtstr!("{address}/daemon/agents/list"))
         .headers(headers)
