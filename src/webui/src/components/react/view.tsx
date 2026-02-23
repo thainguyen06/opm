@@ -505,7 +505,11 @@ const View = (props: { id: string; base: string }) => {
 					</div>
 					<div className="flex items-center gap-2 flex-shrink-0">
 						<div className="flex items-center gap-2">
-							<span className="text-xs text-gray-900 dark:text-gray-400 dark:text-zinc-500">{liveReload ? 'Live' : 'Paused'}</span>
+							<span
+								className="text-xs text-gray-900 dark:text-gray-400 dark:text-zinc-500"
+								title={liveReload ? 'Auto-refresh is enabled' : 'Auto-refresh is disabled. Use Refresh to fetch latest logs'}>
+								{liveReload ? 'Live' : 'Manual'}
+							</span>
 							<span className={`inline-flex items-center gap-x-1.5 rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${
 								agentId
 									? 'bg-purple-500/10 text-purple-400 ring-purple-500/20'
