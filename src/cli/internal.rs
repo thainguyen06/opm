@@ -1526,7 +1526,14 @@ impl<'i> Internal<'i> {
 
         if processes_to_restore.is_empty() {
             crate::daemon::clear_restore_in_progress();
-            println!("{} Info: No processes found in configuration.", *helpers::INFO);
+            if stopped_ids.is_empty() {
+                println!("{} Info: No processes found in configuration.", *helpers::INFO);
+            } else {
+                println!(
+                    "{} Info: All configured processes are already stopped.",
+                    *helpers::INFO
+                );
+            }
             return;
         }
 
