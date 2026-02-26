@@ -1496,10 +1496,6 @@ impl<'i> Internal<'i> {
             }
         }
 
-        let mut restored_ids = Vec::new();
-        let mut failed_ids = Vec::new();
-        let mut stopped_ids = Vec::new();
-
         // Restore processes that were running before daemon stopped
         // Now we restore all processes that have running=true, regardless of crashed state
         // This preserves the original state and only resets counters
@@ -1517,14 +1513,12 @@ impl<'i> Internal<'i> {
                 if p.running {
                     Some((*id, p.name.clone(), p.running, p.crash.crashed))
                 } else {
-                    // Track stopped processes for reporting
-                    stopped_ids.push(*id);
                     None
                 }
             })
             .collect();
 
-        let build_restore_summary = |runner: &Runner| {
+        let build_restore_summary = |runner: &mut Runner| {
             let mut started_count = 0;
             let mut stopped_count = 0;
             let mut crashed_count = 0;
@@ -1565,7 +1559,7 @@ impl<'i> Internal<'i> {
 
         if processes_to_restore.is_empty() {
             crate::daemon::clear_restore_in_progress();
-            let message = build_restore_summary(&runner);
+            let message = build_restore_summary(&mut runner);
             println!("{} Restore complete: {}.", *helpers::SUCCESS, message);
             Internal::list(&"default".to_string(), &"local".to_string());
             return;
@@ -1675,13 +1669,9 @@ impl<'i> Internal<'i> {
                 let recently_started =
                     (chrono::Utc::now() - process.started) < chrono::Duration::seconds(5);
 
-                if process.running && process_alive {
-                    restored_ids.push(id);
-                } else if process.running && recently_started {
-                    // Still starting up - give it the benefit of the doubt for initial report
-                    // The daemon will verify and handle any issues during its monitoring cycle
-                    restored_ids.push(id);
-                } else {
+                let startup_looks_healthy = process.running && (process_alive || recently_started);
+
+                if !startup_looks_healthy {
                     // Before marking as failed, do a final check after a short delay
                     // This helps handle cases where processes are slow to register with the system
                     std::thread::sleep(std::time::Duration::from_millis(500));
@@ -1690,13 +1680,10 @@ impl<'i> Internal<'i> {
                     let final_recently_started =
                         (chrono::Utc::now() - process.started) < chrono::Duration::seconds(5);
                     
-                    if process.running && final_process_alive {
-                        restored_ids.push(id);
-                    } else if process.running && final_recently_started {
-                        // Still starting up - give it the benefit of the doubt for initial report
-                        restored_ids.push(id);
-                    } else {
-                        failed_ids.push((id, name.clone()));
+                    let final_startup_looks_healthy =
+                        process.running && (final_process_alive || final_recently_started);
+
+                    if !final_startup_looks_healthy {
                         // Mark process as crashed so daemon can pick it up for auto-restart
                         // Keep running=true (set_crashed doesn't change it) so daemon will attempt restart
                         // Don't increment crash counter here - let the daemon do it when it detects the crash
@@ -1705,7 +1692,6 @@ impl<'i> Internal<'i> {
                     }
                 }
             } else {
-                failed_ids.push((id, name.clone()));
                 println!(
                     "{} Failed to restore process '{}' (id={}) - process not found",
                     *helpers::FAIL,
@@ -1752,7 +1738,7 @@ impl<'i> Internal<'i> {
         // This must be done after all processes have been started to prevent duplicates
         crate::daemon::clear_restore_in_progress();
 
-        let message = build_restore_summary(&runner);
+        let message = build_restore_summary(&mut runner);
         println!("{} Restore complete: {}.", *helpers::SUCCESS, message);
 
         // Display the process list immediately after restore
