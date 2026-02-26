@@ -1524,16 +1524,50 @@ impl<'i> Internal<'i> {
             })
             .collect();
 
+        let build_restore_summary = |runner: &Runner| {
+            let mut started_count = 0;
+            let mut stopped_count = 0;
+            let mut crashed_count = 0;
+            let mut errored_count = 0;
+
+            for (_, process) in runner.list() {
+                if process.errored {
+                    errored_count += 1;
+                } else if process.crash.crashed {
+                    crashed_count += 1;
+                } else if process.running {
+                    started_count += 1;
+                } else {
+                    stopped_count += 1;
+                }
+            }
+
+            let mut parts = Vec::new();
+            if started_count > 0 {
+                parts.push(format!("{} started", started_count));
+            }
+            if stopped_count > 0 {
+                parts.push(format!("{} stopped", stopped_count));
+            }
+            if crashed_count > 0 {
+                parts.push(format!("{} crashed", crashed_count));
+            }
+            if errored_count > 0 {
+                parts.push(format!("{} errored", errored_count));
+            }
+
+            if parts.is_empty() {
+                "no processes".to_string()
+            } else {
+                parts.join(", ")
+            }
+        };
+
         if processes_to_restore.is_empty() {
             crate::daemon::clear_restore_in_progress();
-            if stopped_ids.is_empty() {
-                println!("{} Info: No processes found in configuration.", *helpers::INFO);
-            } else {
-                println!(
-                    "{} Info: All configured processes are already stopped.",
-                    *helpers::INFO
-                );
-            }
+            let message = build_restore_summary(&runner);
+            println!("{} Restore complete: {}.", *helpers::SUCCESS, message);
+            Internal::list(&"default".to_string(), &"local".to_string());
             return;
         }
 
@@ -1718,29 +1752,7 @@ impl<'i> Internal<'i> {
         // This must be done after all processes have been started to prevent duplicates
         crate::daemon::clear_restore_in_progress();
 
-        // Calculate counts for output message
-        let started_count = restored_ids.len();
-        let stopped_count = stopped_ids.len();
-        let errored_count = failed_ids.len();
-
-        // Build restore message with only non-zero counts
-        let mut parts = Vec::new();
-        if started_count > 0 {
-            parts.push(format!("{} started", started_count));
-        }
-        if stopped_count > 0 {
-            parts.push(format!("{} stopped", stopped_count));
-        }
-        if errored_count > 0 {
-            parts.push(format!("{} errored", errored_count));
-        }
-
-        // Show restore results with only non-zero statistics
-        let message = if parts.is_empty() {
-            "no processes".to_string()
-        } else {
-            parts.join(", ")
-        };
+        let message = build_restore_summary(&runner);
         println!("{} Restore complete: {}.", *helpers::SUCCESS, message);
 
         // Display the process list immediately after restore
